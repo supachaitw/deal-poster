@@ -1,0 +1,669 @@
+{
+  "name": "Deal Intake LINE",
+  "nodes": [
+    {
+      "id": "wh",
+      "name": "LINE Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deal-intake-line-p9m4",
+        "options": {}
+      }
+    },
+    {
+      "id": "ex",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const b=$input.first().json.body||{};\nconst ev=(b.events||[])[0]||{};\nconst text=(ev.message&&ev.message.type==='text')?ev.message.text:'';\nconst uid=ev.source?ev.source.userId:null;\nconst ok=uid==='U72a09a140c06dd099b438153c3b45dd9';\nconst url=(text.match(/https?:\\/\\/\\S+/)||[null])[0];\nreturn [{json:{text,url,ok,hasUrl:!!(url&&ok)}}];"
+      }
+    },
+    {
+      "id": "if1",
+      "name": "Has URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasUrl }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "cl",
+      "name": "Claude Parse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "REPLACE_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:\"claude-haiku-4-5\",max_tokens:400,system:\"You extract Shopee deal info from a chat message (Thai). The message contains a product link and possibly share-text with product name and prices. Reply with ONLY a JSON object: {\\\"name\\\": string|null (product name, no promo phrases), \\\"full_price\\\": number|null, \\\"sale_price\\\": number|null, \\\"category\\\": one of \\\"gadget\\\",\\\"ความงาม\\\",\\\"บ้าน\\\",\\\"แฟชั่น\\\",\\\"อื่นๆ\\\" (guess from name; \\\"อื่นๆ\\\" if unknown)}. If only one price appears, treat it as sale_price. Do not invent values.\",messages:[{role:\"user\",content:$json.text}]}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "bp",
+      "name": "Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "const resp=$input.first().json;\nlet parsed={};\ntry{const t=(resp.content||[{}])[0].text||'';parsed=JSON.parse((t.match(/\\{[\\s\\S]*\\}/)||['{}'])[0]);}catch(e){}\nconst info=$('Extract').first().json;\nconst name=(parsed.name||'').trim()||null;\nconst full=Number(parsed.full_price)||null;\nconst sale=Number(parsed.sale_price)||null;\nconst cats=['gadget','ความงาม','บ้าน','แฟชั่น','อื่นๆ'];\nconst cat=cats.includes(parsed.category)?parsed.category:'อื่นๆ';\nconst complete=!!(name&&sale);\nconst props={\n  'สินค้า':{title:[{text:{content:name||'(รอเติมชื่อ) ดีลจาก Shopee'}}]},\n  'ลิงก์Affiliate':{url:info.url},\n  'หมวด':{select:{name:cat}},\n  'สถานะ':{select:{name:complete?'ใหม่':'รอตรวจ'}}\n};\nif(full)props['ราคาเต็ม']={number:full};\nif(sale)props['ราคาลด']={number:sale};\nconst missing=[];\nif(!name)missing.push('ชื่อสินค้า');\nif(!sale)missing.push('ราคาลด');\nif(!full)missing.push('ราคาเต็ม');\nreturn [{json:{payload:{parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},properties:props},name,full,sale,cat,complete,missing}}];"
+      }
+    },
+    {
+      "id": "nc",
+      "name": "Create Notion Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1060,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "rp",
+      "name": "Build Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "const page=$input.first().json;\nconst b=$('Build Payload').first().json;\nconst rowUrl=page.url||'';\nlet text;\nif(b.complete){\n  text='✅ เพิ่มดีลแล้ว: '+b.name+'\\n฿'+b.sale+(b.full?' (เต็ม ฿'+b.full+')':'')+' • หมวด '+b.cat+'\\nสถานะ \"ใหม่\" — รอบถัดไปผมเขียนแคปชันมาให้ตรวจครับ';\n}else{\n  text='⚠️ เพิ่มแถวแล้วแต่ข้อมูลไม่ครบ ขาด: '+b.missing.join(', ')+'\\nเปิดแถวเติมข้อมูลแล้วเปลี่ยนสถานะเป็น \"ใหม่\":\\n'+rowUrl+'\\n\\nทริค: แชร์จากแอป Shopee โดยตรง หรือพิมพ์ราคาต่อท้ายลิงก์ เช่น \"เต็ม 900 ลด 300\"';\n}\nreturn [{json:{to:'U72a09a140c06dd099b438153c3b45dd9',messages:[{type:'text',text}]}}];"
+      }
+    },
+    {
+      "id": "lp1",
+      "name": "LINE Confirm",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        -100
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_LINE_CHANNEL_TOKEN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "hp",
+      "name": "Build Help",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        120
+      ],
+      "parameters": {
+        "jsCode": "const i=$input.first().json;\nif(!i.ok||!i.text)return [];\nreturn [{json:{to:'U72a09a140c06dd099b438153c3b45dd9',messages:[{type:'text',text:'ส่งลิงก์ดีล Shopee มาได้เลยครับ 🛒\\nแนะนำ: แชร์จากแอป Shopee โดยตรง (มีชื่อสินค้าติดมา) แล้วพิมพ์ราคาต่อท้าย เช่น \"เต็ม 900 ลด 300\"'}]}}];"
+      }
+    },
+    {
+      "id": "lp2",
+      "name": "LINE Help",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        120
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_LINE_CHANNEL_TOKEN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fo",
+      "name": "Fetch OG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -160
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "TelegramBot (like TwitterBot)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "mg",
+      "name": "Merge Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        430,
+        -160
+      ],
+      "parameters": {
+        "jsCode": "const info=$('Extract').first().json;\nlet og='';\ntry{\n  const j=$input.first().json;\n  const html=typeof j.data==='string'?j.data:(typeof j.body==='string'?j.body:'');\n  const m=html.match(/property=\"og:title\" content=\"([^\"]{0,300})\"/);\n  if(m)og=m[1].replace(/\\s*\\|\\s*Shopee Thailand\\s*$/,'');\n}catch(e){}\nconst text=info.text+(og?'\\nog:title: '+og:'');\nreturn [{json:{text}}];"
+      }
+    },
+    {
+      "id": "hp2",
+      "name": "Has Prices?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ /\\d/.test($json.text) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "fp",
+      "name": "Find Pending",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        240
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\":{\"and\":[{\"property\":\"สถานะ\",\"select\":{\"equals\":\"รอตรวจ\"}},{\"property\":\"ราคาลด\",\"number\":{\"is_empty\":true}}]},\"sorts\":[{\"timestamp\":\"created_time\",\"direction\":\"descending\"}],\"page_size\":1}",
+        "options": {}
+      }
+    },
+    {
+      "id": "ap",
+      "name": "Apply Prices",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        240
+      ],
+      "parameters": {
+        "jsCode": "const q=$input.first().json;\nconst info=$('Extract').first().json;\nconst nums=(info.text.match(/\\d{1,3}(?:,\\d{3})+|\\d+(?:\\.\\d+)?/g)||[]).map(x=>Number(String(x).replace(/,/g,''))).filter(n=>n>0&&n<1000000);\nconst row=(q.results||[])[0];\nif(!row||!nums.length)return [{json:{doPatch:false}}];\nconst sale=Math.min.apply(null,nums);\nconst full=nums.length>1?Math.max.apply(null,nums):null;\nconst props={'ราคาลด':{number:sale},'สถานะ':{select:{name:'ใหม่'}}};\nif(full&&full!==sale)props['ราคาเต็ม']={number:full};\nconst title=((row.properties['สินค้า']||{}).title||[]).map(t=>t.plain_text).join('');\nreturn [{json:{doPatch:true,pageId:row.id,payload:{properties:props},title,sale,full}}];"
+      }
+    },
+    {
+      "id": "hr",
+      "name": "Has Row?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.doPatch }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "ur",
+      "name": "Update Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        180
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://api.notion.com/v1/pages/' + $json.pageId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "pr",
+      "name": "Build Price Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        180
+      ],
+      "parameters": {
+        "jsCode": "const a=$('Apply Prices').first().json;\nconst text='✅ เติมราคาแล้ว: '+a.title.slice(0,60)+'\\n฿'+a.sale+(a.full?' (เต็ม ฿'+a.full+')':'')+'\\nสถานะ \"ใหม่\" — เข้าคิวเขียนแคปชันรอบถัดไปครับ';\nreturn [{json:{to:'U72a09a140c06dd099b438153c3b45dd9',messages:[{type:'text',text}]}}];"
+      }
+    },
+    {
+      "id": "nr",
+      "name": "Build NoRow Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        340
+      ],
+      "parameters": {
+        "jsCode": "const text='ไม่พบแถวที่รอเติมราคาครับ — วางลิงก์ Shopee ก่อน แล้วค่อยพิมพ์ราคา เช่น \"900 300\"';\nreturn [{json:{to:'U72a09a140c06dd099b438153c3b45dd9',messages:[{type:'text',text}]}}];"
+      }
+    }
+  ],
+  "connections": {
+    "LINE Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "main": [
+        [
+          {
+            "node": "Has URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has URL?": {
+      "main": [
+        [
+          {
+            "node": "Fetch OG",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has Prices?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Parse": {
+      "main": [
+        [
+          {
+            "node": "Build Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Payload": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Notion Row": {
+      "main": [
+        [
+          {
+            "node": "Build Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reply": {
+      "main": [
+        [
+          {
+            "node": "LINE Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Help": {
+      "main": [
+        [
+          {
+            "node": "LINE Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch OG": {
+      "main": [
+        [
+          {
+            "node": "Merge Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Text": {
+      "main": [
+        [
+          {
+            "node": "Claude Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Prices?": {
+      "main": [
+        [
+          {
+            "node": "Find Pending",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Pending": {
+      "main": [
+        [
+          {
+            "node": "Apply Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Prices": {
+      "main": [
+        [
+          {
+            "node": "Has Row?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Row?": {
+      "main": [
+        [
+          {
+            "node": "Update Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build NoRow Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Row": {
+      "main": [
+        [
+          {
+            "node": "Build Price Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Price Reply": {
+      "main": [
+        [
+          {
+            "node": "LINE Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build NoRow Reply": {
+      "main": [
+        [
+          {
+            "node": "LINE Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}

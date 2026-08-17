@@ -1,0 +1,147 @@
+{
+  "name": "Deal Intake Form",
+  "nodes": [
+    {
+      "id": "ft1",
+      "name": "Deal Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "parameters": {
+        "path": "deal-intake",
+        "formTitle": "🛒 เพิ่มดีลใหม่",
+        "formDescription": "กรอกเสร็จ บอทจะเขียนแคปชันส่งเข้า LINE ในรอบถัดไป (9/12/15/18/21 น.)",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "สินค้า",
+              "placeholder": "ชื่อสินค้า",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "ราคาเต็ม",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "ราคาลด",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "ลิงก์ Affiliate",
+              "placeholder": "https://s.shopee.co.th/…",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "หมวด",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "gadget"
+                  },
+                  {
+                    "option": "ความงาม"
+                  },
+                  {
+                    "option": "บ้าน"
+                  },
+                  {
+                    "option": "แฟชั่น"
+                  },
+                  {
+                    "option": "อื่นๆ"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c1",
+      "name": "Build Notion Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst f=$input.first().json;\nreturn [{json:{\n  parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},\n  properties:{\n    'สินค้า':{title:[{text:{content:String(f['สินค้า']||'').trim()}}]},\n    'ราคาเต็ม':{number:Number(f['ราคาเต็ม'])||null},\n    'ราคาลด':{number:Number(f['ราคาลด'])||null},\n    'ลิงก์Affiliate':{url:String(f['ลิงก์ Affiliate']||'').trim()||null},\n    'หมวด':{select:{name:f['หมวด']||'อื่นๆ'}},\n    'สถานะ':{select:{name:'ใหม่'}}\n  }\n}}];"
+      }
+    },
+    {
+      "id": "h1",
+      "name": "Create Notion Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Deal Form": {
+      "main": [
+        [
+          {
+            "node": "Build Notion Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Notion Payload": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "name": "Threads Token Keeper",
+  "nodes": [
+    {
+      "id": "st",
+      "name": "Weekly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gw",
+      "name": "Get Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://n8n.srv1277799.hstgr.cloud/api/v1/workflows/E6i2xEAcaUsUFKWm",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "REPLACE_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "et",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const w=$input.first().json;\nconst s=JSON.stringify(w.nodes);\nconst m=s.match(/THAA[A-Za-z0-9_-]{50,300}/);\nif(!m)throw new Error('no threads token found in Deal Poster');\nreturn [{json:{old:m[0],refreshUrl:'https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token='+m[0]}}];"
+      }
+    },
+    {
+      "id": "rf",
+      "name": "Refresh",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.refreshUrl }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "bu",
+      "name": "Build Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const nw=$input.first().json.access_token;\nif(!nw)throw new Error('refresh failed: '+JSON.stringify($input.first().json).slice(0,150));\nconst old=$('Extract Token').first().json.old;\nconst w=$('Get Workflow').first().json;\nconst ns=JSON.stringify(w.nodes).split(old).join(nw);\nreturn [{json:{body:{name:w.name,nodes:JSON.parse(ns),connections:w.connections,settings:w.settings}}}];"
+      }
+    },
+    {
+      "id": "pw",
+      "name": "Put Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        0
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "https://n8n.srv1277799.hstgr.cloud/api/v1/workflows/E6i2xEAcaUsUFKWm",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "REPLACE_N8N_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Weekly": {
+      "main": [
+        [
+          {
+            "node": "Get Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Workflow": {
+      "main": [
+        [
+          {
+            "node": "Extract Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Token": {
+      "main": [
+        [
+          {
+            "node": "Refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh": {
+      "main": [
+        [
+          {
+            "node": "Build Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Update": {
+      "main": [
+        [
+          {
+            "node": "Put Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}

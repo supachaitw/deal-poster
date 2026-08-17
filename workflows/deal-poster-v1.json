@@ -1,0 +1,618 @@
+{
+  "name": "Deal Poster v1 — Notion Queue → Claude Caption → Telegram (LINE approve)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9-21/3 * * *"
+            }
+          ]
+        },
+        "url": ""
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\":3}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Query New Deals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        250,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $json.results || [];\nreturn res.map(p => ({ json: {\n  page_id: p.id,\n  name: (p.properties['สินค้า'].title || []).map(t => t.plain_text).join(''),\n  full: p.properties['ราคาเต็ม'] ? p.properties['ราคาเต็ม'].number : null,\n  sale: p.properties['ราคาลด'] ? p.properties['ราคาลด'].number : null,\n  link: p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '',\n  cat: (p.properties['หมวด'] && p.properties['หมวด'].select) ? p.properties['หมวด'].select.name : ''\n}}));",
+        "url": ""
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Split New",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "REPLACE_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400, messages: [{ role: 'user', content: 'เขียนแคปชันโพสต์ขายดีลภาษาไทย 2-3 บรรทัด มีอีโมจิ น่าสนใจแต่ไม่โอเวอร์ สำหรับสินค้า: ' + $json.name + ' (หมวด ' + $json.cat + ') ราคาปกติ ' + $json.full + ' บาท เหลือ ' + $json.sale + ' บาท ห้ามแต่งข้อมูลที่ไม่มีจริง ห้ามใส่ลิงก์ ตอบเฉพาะตัวแคปชันเท่านั้น' }] }) }}"
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Claude Write Caption",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        750,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cap = ($json.content && $json.content[0] && $json.content[0].text ? $json.content[0].text : '').trim();\nconst d = $('Split New').item.json;\nconst pct = d.full && d.sale ? Math.round((1 - d.sale / d.full) * 100) : null;\nconst text = cap + '\\n\\n💥 เหลือ ' + d.sale + ' บาท' + (pct ? ' (ลด ' + pct + '%)' : '') + '\\n👉 ' + d.link + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\nreturn { json: { page_id: d.page_id, name: d.name, text } };",
+        "url": "",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Build Caption",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $json.page_id }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { 'สถานะ': { select: { name: 'รอตรวจ' } }, 'แคปชัน': { rich_text: [{ text: { content: $json.text.slice(0, 1900) } }] } } }) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Save Draft to Notion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1250,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: 'U72a09a140c06dd099b438153c3b45dd9', messages: [{ type: 'text', text: ('📝 ร่างแคปชันใหม่รออนุมัติ\\n\\n' + $('Build Caption').item.json.text + '\\n\\n✅ ถ้าโอเค ไปเปลี่ยนสถานะเป็น \"อนุมัติแล้ว\" ใน Notion แล้วรอบถัดไปบอทจะโพสต์ให้').slice(0, 4900) }] }) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_LINE_CHANNEL_TOKEN"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "LINE Preview",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"อนุมัติแล้ว\"}},\"page_size\":2}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Query Approved Deals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        250,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $json.results || [];\nreturn res.map(p => ({ json: {\n  page_id: p.id,\n  name: (p.properties['สินค้า'].title || []).map(t => t.plain_text).join(''),\n  link: p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '',\n  caption: (p.properties['แคปชัน'] && p.properties['แคปชัน'].rich_text ? p.properties['แคปชัน'].rich_text : []).map(t => t.plain_text).join('')\n}})).filter(i => i.json.caption);",
+        "url": ""
+      },
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Split Approved",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/botREPLACE_TELEGRAM_BOT_TOKEN/{{ $json.method }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "id": "a1b2c3d4-0010-4000-8000-000000000010",
+      "name": "Post to Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        750,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $('Split Approved').item.json.page_id }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { 'สถานะ': { select: { name: 'โพสต์แล้ว' } }, 'โพสต์เมื่อ': { date: { start: new Date().toISOString() } } } }) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0011-4000-8000-000000000011",
+      "name": "Mark Posted",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: 'U72a09a140c06dd099b438153c3b45dd9', messages: [{ type: 'text', text: '✅ โพสต์ลง Telegram แล้ว: ' + $('Split Approved').item.json.name }] }) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_LINE_CHANNEL_TOKEN"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0012-4000-8000-000000000012",
+      "name": "LINE Posted Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1250,
+        450
+      ]
+    },
+    {
+      "id": "fdi",
+      "name": "Fetch Deal Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        380
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.link }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "TelegramBot (like TwitterBot)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "bpb",
+      "name": "Build Post Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const j=$input.item.json;\n  const html=typeof j.data==='string'?j.data:(typeof j.body==='string'?j.body:'');\n  const m=html.match(/property=\"og:image\" content=\"([^\"]{10,500})\"/);\n  if(m)img=m[1];\n}catch(e){}\nif(img&&d.caption.length<=1000){\n  return [{json:{method:'sendPhoto',body:{chat_id:'@paiyaa_deals',photo:img,caption:d.caption}}}];\n}\nreturn [{json:{method:'sendMessage',body:{chat_id:'@paiyaa_deals',text:d.caption}}}];"
+      }
+    },
+    {
+      "id": "bxp",
+      "name": "Build X Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        930,
+        570
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d=$('Split Approved').item.json;\nconst cap=d.caption||'';\nconst link=(cap.match(/https?://S+/)||[''])[0];\nlet body=cap.replace(/👉s*https?://S+/,'').replace(/#ป้ายยา[^\n]*/,'').replace(/\n{3,}/g,'\n\n').trim();\nconst budget=280-23-1-25;\nif(body.length>budget)body=body.slice(0,budget-1)+'…';\nconst text=body+'\n'+link+'\n#ป้ายยา #ดีลเด็ด';\nreturn { json: { text } };"
+      }
+    },
+    {
+      "id": "ptx",
+      "name": "Post to X",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        1110,
+        570
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "twitterOAuth1Api": {
+          "id": "TsrgrCQlMXmi03F9",
+          "name": "X Paiyaa (OAuth1)"
+        }
+      },
+      "parameters": {
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "btp",
+      "name": "Build Threads Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1290,
+        690
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{img=$('Build Post Body').item.json.body.photo||null;}catch(e){}\nlet text=(d.caption||'').trim();\nif(text.length>480)text=text.slice(0,479)+'…';\nconst base='https://graph.threads.net/v1.0/28066415776320239/threads?access_token=REPLACE_THREADS_TOKEN';\nconst createUrl=base+'&media_type='+(img?'IMAGE':'TEXT')+'&text='+encodeURIComponent(text)+(img?'&image_url='+encodeURIComponent(img):'');\nreturn { json: { createUrl } };"
+      }
+    },
+    {
+      "id": "thc",
+      "name": "Threads Create",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1470,
+        690
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.createUrl }}",
+        "options": {
+          "timeout": 20000
+        }
+      }
+    },
+    {
+      "id": "thp",
+      "name": "Threads Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1650,
+        690
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.threads.net/v1.0/28066415776320239/threads_publish?creation_id=' + ($json.id||'MISSING') + '&access_token=REPLACE_THREADS_TOKEN' }}",
+        "options": {
+          "timeout": 20000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Query New Deals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Query Approved Deals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query New Deals": {
+      "main": [
+        [
+          {
+            "node": "Split New",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split New": {
+      "main": [
+        [
+          {
+            "node": "Claude Write Caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Write Caption": {
+      "main": [
+        [
+          {
+            "node": "Build Caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Caption": {
+      "main": [
+        [
+          {
+            "node": "Save Draft to Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Draft to Notion": {
+      "main": [
+        [
+          {
+            "node": "LINE Preview",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Approved Deals": {
+      "main": [
+        [
+          {
+            "node": "Split Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Approved": {
+      "main": [
+        [
+          {
+            "node": "Fetch Deal Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Telegram": {
+      "main": [
+        [
+          {
+            "node": "Build X Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Posted": {
+      "main": [
+        [
+          {
+            "node": "LINE Posted Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Deal Image": {
+      "main": [
+        [
+          {
+            "node": "Build Post Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Post Body": {
+      "main": [
+        [
+          {
+            "node": "Post to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build X Post": {
+      "main": [
+        [
+          {
+            "node": "Post to X",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to X": {
+      "main": [
+        [
+          {
+            "node": "Build Threads Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Threads Post": {
+      "main": [
+        [
+          {
+            "node": "Threads Create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Create": {
+      "main": [
+        [
+          {
+            "node": "Threads Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Publish": {
+      "main": [
+        [
+          {
+            "node": "Mark Posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Bangkok",
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}
