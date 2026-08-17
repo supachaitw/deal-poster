@@ -13,7 +13,8 @@
 ทุก 3 ชม. (9:00–21:00 Asia/Bangkok) — Deal Poster v1
   สาย A: สถานะ "ใหม่" → claude-haiku-4-5 เขียนแคปชัน → "รอตรวจ" → LINE preview (Paiyaa Bot)
   ผู้ใช้อนุมัติ: เปลี่ยนสถานะเป็น "อนุมัติแล้ว" ใน Notion
-  สาย B: "อนุมัติแล้ว" → Telegram @paiyaa_deals (sendPhoto + รูปสินค้า)
+  สาย B: "อนุมัติแล้ว" → Telegram @paiyaa_deals (โหลดรูปเป็น binary แล้วอัปโหลด multipart —
+          ส่ง URL ให้ Telegram ดึงเองไม่ได้เพราะ Shopee CDN บล็อก; ถ้ารูปพลาด fallback sendMessage)
           → X @SupachaiTW (ย่อ ≤280) → Threads @supachai_tw (2-step create/publish)
           → "โพสต์แล้ว" + timestamp → LINE ยืนยัน
 ```
