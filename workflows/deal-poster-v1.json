@@ -28,7 +28,7 @@
         "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\":3}",
+        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\": 10}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -173,7 +173,7 @@
         "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"อนุมัติแล้ว\"}},\"page_size\":2}",
+        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"อนุมัติแล้ว\"}},\"page_size\": 10}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -361,7 +361,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const d=$('Split Approved').item.json;\nconst cap=d.caption||'';\nconst link=(cap.match(/https?://S+/)||[''])[0];\nlet body=cap.replace(/👉s*https?://S+/,'').replace(/#ป้ายยา[^\n]*/,'').replace(/\n{3,}/g,'\n\n').trim();\nconst budget=280-23-1-25;\nif(body.length>budget)body=body.slice(0,budget-1)+'…';\nconst text=body+'\n'+link+'\n#ป้ายยา #ดีลเด็ด';\nreturn { json: { text } };"
+        "jsCode": "const d=$('Split Approved').item.json;\nconst cap=d.caption||'';\nconst link=(cap.match(/https?:\\/\\/\\S+/)||[''])[0];\nlet body=cap.replace(/👉\\s*https?:\\/\\/\\S+/,'').replace(/#ป้ายยา[^\\n]*/,'').replace(/\\n{3,}/g,'\\n\\n').trim();\nconst budget=280-23-1-25;\nif(body.length>budget)body=body.slice(0,budget-1)+'…';\nconst text=body+'\\n'+link+'\\n#ป้ายยา #ดีลเด็ด';\nreturn { json: { text } };"
       }
     },
     {
