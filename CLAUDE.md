@@ -27,7 +27,10 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 - **Telegram** `@paiyaa_deals` ✅ — sendPhoto ต้องโหลดรูปเป็น binary แล้ว upload multipart (ส่ง URL ให้ Telegram ดึงเองไม่ได้ Shopee/Lazada CDN บล็อก); Lazada บางรูป `IMAGE_PROCESS_FAILED` → fallback sendMessage ทำงานอยู่
 - **Threads** `@supachai_tw` (uid 28066415776320239) ✅ — Meta app "Paiyaa Poster" (1730166771434587), token THAA ฝังใน node, keeper refresh อัตโนมัติ
 - **X** ⏸ node "Post to X" `disabled:true` — X เป็น pay-per-use credits แล้ว บัญชี $0 user ยังไม่ซื้อ; node เป็น httpRequest + predefinedCredentialType `twitterOAuth1Api` (twitter node v2 ใช้ OAuth1 ไม่ได้), credential n8n `TsrgrCQlMXmi03F9`
-- **Facebook** ⏳ — เพจ "ป้ายยาดีลเด็ด" + portfolio "Paiyaa" (1709298406839669) สร้างแล้ว แต่โดน Meta restrict ("automation") รอ review; ผ่านแล้วทำต่อ: ผูก app "Paiyaa Pages" (2350093015523231) เข้า portfolio → config Facebook Login for Business แบบ **System-user token** + perms pages_manage_posts/pages_read_engagement/pages_show_list → Graph API Explorer gen token → เพิ่ม node โพสต์เพจ
+- **Facebook** 🔜 — restriction ปลดแล้ว (21 ส.ค. 2569). **เพจเป้าหมายคือ `ป้ายยาดีลเด็ด` เท่านั้น** (บัญชีมี 3 เพจ: ป้ายยาดีลเด็ด / EVE / G.S.B.Uniform — อีกสองอันไม่เกี่ยว; `Paiyaa` ไม่ใช่เพจ เป็น business portfolio 1709298406839669 ซึ่ง **เลิกใช้แล้ว**)
+  - **ต้นตอที่ติดมานาน**: perms ของ Pages ไม่ได้อยู่ที่ Login config แต่อยู่ที่ **App → Use cases → Manage Pages → Permissions** → กด Add ที่นั่น (`pages_manage_posts` + `pages_read_engagement` = Ready for testing แล้ว, `pages_show_list` มีอยู่เดิม) → จากนั้น Graph API Explorer จะเห็น perms ครบ
+  - เส้นทางที่ใช้: **user token → page token** ของแอป "Paiyaa Pages" (2350093015523231) — dev mode ใช้ได้เพราะ user เป็น admin ทั้งแอปและเพจ **ไม่ต้องใช้ portfolio / system user / App Review**
+  - เหลือ: user กด Generate Access Token + Get Page Access Token (ป้ายยาดีลเด็ด) → copy → แลก long-lived → เพิ่ม node "Post to Facebook" (`POST /{page_id}/photos` หรือ `/feed`) ต่อจาก Post to Telegram
 - **บทเรียน Meta:** งานสร้างบัญชี/portfolio/appeal ต้องให้ user คลิกเอง (automation โดนแฟล็กมาแล้ว); งาน Graph API ปกติไม่โดน
 
 ## Monitoring
