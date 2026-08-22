@@ -201,7 +201,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const res = $json.results || [];\nreturn res.map(p => ({ json: {\n  page_id: p.id,\n  name: (p.properties['สินค้า'].title || []).map(t => t.plain_text).join(''),\n  link: p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '',\n  caption: (p.properties['แคปชัน'] && p.properties['แคปชัน'].rich_text ? p.properties['แคปชัน'].rich_text : []).map(t => t.plain_text).join('')\n}})).filter(i => i.json.caption);"
+        "jsCode": "const res = $json.results || [];\nreturn res.map(p => ({ json: {\n  page_id: p.id,\n  name: (p.properties['สินค้า'].title || []).map(t => t.plain_text).join(''),\n  link: p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '',\n  caption: (p.properties['แคปชัน'] && p.properties['แคปชัน'].rich_text ? p.properties['แคปชัน'].rich_text : []).map(t => t.plain_text).join('')\n}})).filter(i => i.json.caption).slice(0, 3);"
       },
       "id": "a1b2c3d4-0009-4000-8000-000000000009",
       "name": "Split Approved",
@@ -236,7 +236,13 @@
           ]
         },
         "options": {
-          "timeout": 30000
+          "timeout": 30000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 60000
+            }
+          }
         }
       },
       "id": "a1b2c3d4-0010-4000-8000-000000000010",
@@ -436,7 +442,13 @@
         "method": "POST",
         "url": "={{ 'https://graph.threads.net/v1.0/28066415776320239/threads_publish?creation_id=' + ($json.id||'MISSING') + '&access_token=REPLACE_THREADS_TOKEN' }}",
         "options": {
-          "timeout": 20000
+          "timeout": 20000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 60000
+            }
+          }
         }
       },
       "id": "thp",
@@ -542,7 +554,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({chat_id:$json.chat_id,text:$json.text}) }}",
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 60000
+            }
+          }
+        }
       },
       "id": "tgt",
       "name": "TG Send Text",
