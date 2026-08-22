@@ -92,7 +92,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model:\"claude-haiku-4-5\",max_tokens:400,system:\"You extract Shopee deal info from a chat message (Thai). The message contains a product link and possibly share-text with product name and prices. Reply with ONLY a JSON object: {\\\"name\\\": string|null (product name, no promo phrases), \\\"full_price\\\": number|null, \\\"sale_price\\\": number|null, \\\"category\\\": one of \\\"gadget\\\",\\\"ความงาม\\\",\\\"บ้าน\\\",\\\"แฟชั่น\\\",\\\"อื่นๆ\\\" (guess from name; \\\"อื่นๆ\\\" if unknown)}. If only one price appears, treat it as sale_price. Do not invent values.\",messages:[{role:\"user\",content:$json.text}]}) }}",
+        "jsonBody": "={{ JSON.stringify({model:\"claude-haiku-4-5\",max_tokens:400,system:\"You extract Shopee deal info from a chat message (Thai). The message contains a product link and possibly share-text with product name and prices. Reply with ONLY a JSON object: {\\\"name\\\": string|null (product name, no promo phrases), \\\"full_price\\\": number|null, \\\"sale_price\\\": number|null, \\\"category\\\": one of \\\"gadget\\\",\\\"ความงาม\\\",\\\"บ้าน\\\",\\\"แฟชั่น\\\",\\\"อาหาร\\\",\\\"รถ\\\",\\\"อื่นๆ\\\" (guess from name; \\\"อื่นๆ\\\" if unknown)}. If only one price appears, treat it as sale_price. Do not invent values.\",messages:[{role:\"user\",content:$json.text}]}) }}",
         "options": {}
       }
     },
@@ -268,7 +268,7 @@
         -160
       ],
       "parameters": {
-        "jsCode": "const info=$('Extract').first().json;\nlet og='';\ntry{\n  const j=$input.first().json;\n  const html=typeof j.data==='string'?j.data:(typeof j.body==='string'?j.body:'');\n  const m=html.match(/property=\"og:title\" content=\"([^\"]{0,300})\"/);\n  if(m)og=m[1].replace(/\\s*\\|\\s*Shopee Thailand\\s*$/,'');\n}catch(e){}\nconst text=info.text+(og?'\\nog:title: '+og:'');\nreturn [{json:{text}}];"
+        "jsCode": "const info=$('Extract').first().json;\nlet og='';\ntry{\n  const j=$input.first().json;\n  const html=typeof j.data==='string'?j.data:(typeof j.body==='string'?j.body:'');\n  const pick=re=>{const m=html.match(re);return m?m[1]:'';};\n  og=pick(/property=\"og:title\"[^>]*content=\"([^\"]{0,300})\"/)\n   ||pick(/content=\"([^\"]{0,300})\"[^>]*property=\"og:title\"/)\n   ||pick(/<title[^>]*>([^<]{0,300})/);\n  og=og.replace(/\\s*\\|\\s*Shopee Thailand\\s*$/,'').replace(/\\s*[|-]\\s*Lazada[^|]*$/i,'').trim();\n}catch(e){}\nconst text=info.text+(og?'\\nog:title: '+og:'');\nreturn [{json:{text}}];"
       }
     },
     {

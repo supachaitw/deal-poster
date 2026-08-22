@@ -14,33 +14,29 @@
       "parameters": {
         "path": "deal-intake",
         "formTitle": "🛒 เพิ่มดีลใหม่",
-        "formDescription": "กรอกเสร็จ บอทจะเขียนแคปชันส่งเข้า LINE ในรอบถัดไป (9/12/15/18/21 น.)",
+        "formDescription": "วางลิงก์อย่างเดียวก็ได้ — บอทจะดึงชื่อ/ราคา/หมวดให้เอง (กรอกเองได้ ค่าที่กรอกชนะ) แคปชันส่งเข้า LINE รอบถัดไป (9/12/15/18/21 น.)",
         "formFields": {
           "values": [
             {
-              "fieldLabel": "สินค้า",
-              "placeholder": "ชื่อสินค้า",
+              "fieldLabel": "ลิงก์ Affiliate",
+              "placeholder": "https://s.shopee.co.th/… หรือ https://s.lazada.co.th/…",
               "requiredField": true
+            },
+            {
+              "fieldLabel": "สินค้า",
+              "placeholder": "เว้นได้ — บอทดึงจากลิงก์ให้"
             },
             {
               "fieldLabel": "ราคาเต็ม",
-              "fieldType": "number",
-              "requiredField": true
+              "fieldType": "number"
             },
             {
               "fieldLabel": "ราคาลด",
-              "fieldType": "number",
-              "requiredField": true
-            },
-            {
-              "fieldLabel": "ลิงก์ Affiliate",
-              "placeholder": "https://s.shopee.co.th/…",
-              "requiredField": true
+              "fieldType": "number"
             },
             {
               "fieldLabel": "หมวด",
               "fieldType": "dropdown",
-              "requiredField": true,
               "fieldOptions": {
                 "values": [
                   {
@@ -54,6 +50,12 @@
                   },
                   {
                     "option": "แฟชั่น"
+                  },
+                  {
+                    "option": "อาหาร"
+                  },
+                  {
+                    "option": "รถ"
                   },
                   {
                     "option": "อื่นๆ"
@@ -72,11 +74,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        220,
-        0
+        816,
+        400
       ],
       "parameters": {
-        "jsCode": "\nconst f=$input.first().json;\nreturn [{json:{\n  parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},\n  properties:{\n    'สินค้า':{title:[{text:{content:String(f['สินค้า']||'').trim()}}]},\n    'ราคาเต็ม':{number:Number(f['ราคาเต็ม'])||null},\n    'ราคาลด':{number:Number(f['ราคาลด'])||null},\n    'ลิงก์Affiliate':{url:String(f['ลิงก์ Affiliate']||'').trim()||null},\n    'หมวด':{select:{name:f['หมวด']||'อื่นๆ'}},\n    'สถานะ':{select:{name:'ใหม่'}}\n  }\n}}];"
+        "jsCode": "const f=$('Prep').first().json;\nreturn [{json:{\n  parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},\n  properties:{\n    'สินค้า':{title:[{text:{content:f.name}}]},\n    'ราคาเต็ม':{number:f.full},\n    'ราคาลด':{number:f.sale},\n    'ลิงก์Affiliate':{url:f.url||null},\n    'หมวด':{select:{name:f.cat||'อื่นๆ'}},\n    'สถานะ':{select:{name:'ใหม่'}}\n  }\n}}];"
       }
     },
     {
@@ -113,6 +115,144 @@
         "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {}
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "const f=$input.first().json;\nconst url=String(f['ลิงก์ Affiliate']||'').trim();\nconst name=String(f['สินค้า']||'').trim()||null;\nconst full=Number(f['ราคาเต็ม'])||null;\nconst sale=Number(f['ราคาลด'])||null;\nconst cat=String(f['หมวด']||'').trim()||null;\nconst needParse=!(name&&sale);\nreturn [{json:{url,name,full,sale,cat,needParse}}];"
+      },
+      "id": "fprep",
+      "name": "Prep",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needParse }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fneed",
+      "name": "Need Parse?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        608,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "TelegramBot (like TwitterBot)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "ffog",
+      "name": "Fetch OG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        816,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const info=$('Prep').first().json;\nlet og='';\ntry{\n  const j=$input.first().json;\n  const html=typeof j.data==='string'?j.data:(typeof j.body==='string'?j.body:'');\n  const pick=re=>{const m=html.match(re);return m?m[1]:'';};\n  og=pick(/property=\"og:title\"[^>]*content=\"([^\"]{0,300})\"/)\n   ||pick(/content=\"([^\"]{0,300})\"[^>]*property=\"og:title\"/)\n   ||pick(/<title[^>]*>([^<]{0,300})/);\n  og=og.replace(/\\s*\\|\\s*Shopee Thailand\\s*$/,'').replace(/\\s*[|-]\\s*Lazada[^|]*$/i,'').trim();\n}catch(e){}\nconst parts=[info.url];\nif(info.name)parts.push('ชื่อจากผู้ใช้: '+info.name);\nif(info.full)parts.push('ราคาเต็มจากผู้ใช้: '+info.full);\nif(info.sale)parts.push('ราคาลดจากผู้ใช้: '+info.sale);\nif(og)parts.push('og:title: '+og);\nreturn [{json:{text:parts.join('\\n')}}];"
+      },
+      "id": "fmrg",
+      "name": "Merge Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "REPLACE_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:\"claude-haiku-4-5\",max_tokens:400,system:\"You extract Shopee deal info from a chat message (Thai). The message contains a product link and possibly share-text with product name and prices. Reply with ONLY a JSON object: {\\\"name\\\": string|null (product name, no promo phrases), \\\"full_price\\\": number|null, \\\"sale_price\\\": number|null, \\\"category\\\": one of \\\"gadget\\\",\\\"ความงาม\\\",\\\"บ้าน\\\",\\\"แฟชั่น\\\",\\\"อาหาร\\\",\\\"รถ\\\",\\\"อื่นๆ\\\" (guess from name; \\\"อื่นๆ\\\" if unknown)}. If only one price appears, treat it as sale_price. Do not invent values.\",messages:[{role:\"user\",content:$json.text}]}) }}",
+        "options": {}
+      },
+      "id": "fcp",
+      "name": "Claude Parse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1232,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp=$input.first().json;\nlet parsed={};\ntry{const t=(resp.content||[{}])[0].text||'';parsed=JSON.parse((t.match(/\\{[\\s\\S]*\\}/)||['{}'])[0]);}catch(e){}\nconst info=$('Prep').first().json;\nconst name=info.name||((parsed.name||'').trim()||null);\nconst full=info.full||Number(parsed.full_price)||null;\nconst sale=info.sale||Number(parsed.sale_price)||null;\nconst cats=['gadget','ความงาม','บ้าน','แฟชั่น','อาหาร','รถ','อื่นๆ'];\nconst cat=info.cat||(cats.includes(parsed.category)?parsed.category:'อื่นๆ');\nconst complete=!!(name&&sale);\nconst props={\n  'สินค้า':{title:[{text:{content:name||'(รอเติมชื่อ) ดีลใหม่'}}]},\n  'ลิงก์Affiliate':{url:info.url},\n  'หมวด':{select:{name:cat}},\n  'สถานะ':{select:{name:complete?'ใหม่':'รอตรวจ'}}\n};\nif(full)props['ราคาเต็ม']={number:full};\nif(sale)props['ราคาลด']={number:sale};\nreturn [{json:{parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},properties:props}}];"
+      },
+      "id": "fbpp",
+      "name": "Build Parsed Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        200
+      ]
     }
   ],
   "connections": {
@@ -120,7 +260,80 @@
       "main": [
         [
           {
+            "node": "Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep": {
+      "main": [
+        [
+          {
+            "node": "Need Parse?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need Parse?": {
+      "main": [
+        [
+          {
+            "node": "Fetch OG",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Build Notion Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch OG": {
+      "main": [
+        [
+          {
+            "node": "Merge Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Text": {
+      "main": [
+        [
+          {
+            "node": "Claude Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Parse": {
+      "main": [
+        [
+          {
+            "node": "Build Parsed Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Parsed Payload": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Row",
             "type": "main",
             "index": 0
           }
