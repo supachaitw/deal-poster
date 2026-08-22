@@ -571,6 +571,121 @@
         2016,
         280
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/1330886503433772/photos",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "caption",
+              "value": "={{ $('Split Approved').item.json.caption }}"
+            },
+            {
+              "name": "access_token",
+              "value": "REPLACE_FB_PAGE_TOKEN"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "source",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 60000
+            }
+          }
+        }
+      },
+      "id": "fbp",
+      "name": "Post to Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        560
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ok=!!($json.id||$json.post_id);\nif(ok)return { json: { sent:true } };\nreturn { json: { sent:false, text:$('Split Approved').item.json.caption, link:$('Split Approved').item.json.link } };"
+      },
+      "id": "fbv",
+      "name": "FB Verify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.sent }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fbn",
+      "name": "FB Need Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/1330886503433772/feed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({message:$json.text, link:$json.link||undefined, access_token:'REPLACE_FB_PAGE_TOKEN'}) }}",
+        "options": {
+          "timeout": 30000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 60000
+            }
+          }
+        }
+      },
+      "id": "fbt",
+      "name": "FB Send Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2016,
+        560
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -773,6 +888,11 @@
             "node": "Post to Telegram",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Post to Facebook",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -815,6 +935,40 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Post to Facebook": {
+      "main": [
+        [
+          {
+            "node": "FB Verify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Verify": {
+      "main": [
+        [
+          {
+            "node": "FB Need Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Need Text?": {
+      "main": [
+        [
+          {
+            "node": "FB Send Feed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },
