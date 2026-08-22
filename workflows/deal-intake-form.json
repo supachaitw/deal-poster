@@ -18,6 +18,10 @@
         "formFields": {
           "values": [
             {
+              "fieldType": "html",
+              "html": "<a class=\"hc-back\" href=\"https://home.srv1277799.hstgr.cloud\">&#8592; กลับ Home Console</a>"
+            },
+            {
               "fieldLabel": "ลิงก์ Affiliate",
               "placeholder": "https://s.shopee.co.th/… หรือ https://s.lazada.co.th/…",
               "requiredField": true
@@ -71,7 +75,8 @@
               "respondWith": "redirect",
               "redirectUrl": "https://n8n.srv1277799.hstgr.cloud/form/deal-intake"
             }
-          }
+          },
+          "customCss": ":root{--hc-bg:#0b1220;--hc-card:#0f172a;--hc-card2:#111c33;--hc-line:#1e293b;--hc-txt:#e2e8f0;--hc-muted:#94a3b8;--hc-accent:#38bdf8}\nbody{background:radial-gradient(1200px 600px at 80% -10%,#14233f 0%,transparent 60%),radial-gradient(900px 500px at -10% 110%,#122 0%,transparent 55%),var(--hc-bg) !important}\n.card{background:linear-gradient(180deg,var(--hc-card2),var(--hc-card)) !important;border:1px solid var(--hc-line) !important;border-radius:16px !important;box-shadow:0 8px 24px rgba(0,0,0,.25) !important}\n.form-header h1{color:var(--hc-txt) !important}\n.form-header p{color:var(--hc-muted) !important}\n.form-label,label{color:var(--hc-txt) !important}\n.form-input,.select-input,input,select,textarea{background:var(--hc-bg) !important;border:1px solid var(--hc-line) !important;color:var(--hc-txt) !important;border-radius:10px !important}\n.form-input::placeholder,input::placeholder{color:var(--hc-muted) !important;opacity:.7}\n#submit-btn{background:var(--hc-accent) !important;border:none !important;color:#06202e !important;font-weight:700 !important;border-radius:10px !important}\n#submit-btn:hover{filter:brightness(1.1)}\n.n8n-link,.n8n-link a,.n8n-link p{color:var(--hc-muted) !important}\n#submitted-header{color:var(--hc-txt) !important}\n#submitted-content{color:var(--hc-muted) !important}\n.form-group.html a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:linear-gradient(180deg,var(--hc-card2),var(--hc-card));border:1px solid var(--hc-line);color:var(--hc-accent) !important;text-decoration:none !important;font-size:14px;font-weight:600}\n.form-group.html a:hover{border-color:var(--hc-accent)}\n"
         }
       }
     },
