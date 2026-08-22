@@ -65,7 +65,14 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "redirect",
+              "redirectUrl": "https://n8n.srv1277799.hstgr.cloud/form/deal-intake"
+            }
+          }
+        }
       }
     },
     {
