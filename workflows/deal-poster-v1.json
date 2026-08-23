@@ -282,8 +282,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3360,
-        352
+        3136,
+        560
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -312,8 +312,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3584,
-        352
+        3360,
+        560
       ]
     },
     {
@@ -408,15 +408,15 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{img=$('Build Post Body').item.json.photoUrl||null;}catch(e){}\nlet text=(d.caption||'').trim();\nif(text.length>480)text=text.slice(0,479)+'…';\nconst base='https://graph.threads.net/v1.0/28066415776320239/threads?access_token=REPLACE_THREADS_TOKEN';\nconst createUrl=base+'&media_type='+(img?'IMAGE':'TEXT')+'&text='+encodeURIComponent(text)+(img?'&image_url='+encodeURIComponent(img):'');\nreturn { json: { createUrl } };"
+        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\nif(text.length>480)text=text.slice(0,479)+'…';\nconst base='https://graph.threads.net/v1.0/28066415776320239/threads?access_token=REPLACE_THREADS_TOKEN';\nconst createUrl=base+'&media_type='+(img?'IMAGE':'TEXT')+'&text='+encodeURIComponent(text)+(img?'&image_url='+encodeURIComponent(img):'');\nreturn { json: { createUrl, mode:(img?'IMAGE(fb-cdn)':'TEXT') } };"
       },
       "id": "btp",
       "name": "Build Threads Post",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2688,
-        352
+        2464,
+        560
       ]
     },
     {
@@ -432,8 +432,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2912,
-        352
+        2688,
+        560
       ],
       "onError": "continueRegularOutput"
     },
@@ -456,8 +456,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3136,
-        352
+        2912,
+        560
       ],
       "onError": "continueRegularOutput"
     },
@@ -617,7 +617,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const ok=!!($json.id||$json.post_id);\nif(ok)return { json: { sent:true } };\nreturn { json: { sent:false, text:$('Split Approved').item.json.caption, link:$('Split Approved').item.json.link } };"
+        "jsCode": "const ok=!!($json.id||$json.post_id);\nif(ok)return { json: { sent:true, photo_id:($json.id||null) } };\nreturn { json: { sent:false, text:$('Split Approved').item.json.caption, link:$('Split Approved').item.json.link } };"
       },
       "id": "fbv",
       "name": "FB Verify",
@@ -684,6 +684,24 @@
       "position": [
         2016,
         560
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.photo_id }}?fields=images&access_token=REPLACE_FB_PAGE_TOKEN",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "fbimg",
+      "name": "FB Photo URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        680
       ],
       "onError": "continueRegularOutput"
     }
@@ -837,17 +855,6 @@
         ]
       ]
     },
-    "Post to X": {
-      "main": [
-        [
-          {
-            "node": "Build Threads Post",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Build Threads Post": {
       "main": [
         [
@@ -968,7 +975,35 @@
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "FB Photo URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Send Feed": {
+      "main": [
+        [
+          {
+            "node": "Build Threads Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Photo URL": {
+      "main": [
+        [
+          {
+            "node": "Build Threads Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
