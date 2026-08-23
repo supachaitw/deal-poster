@@ -417,7 +417,8 @@
       "position": [
         2464,
         560
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -617,7 +618,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const ok=!!($json.id||$json.post_id);\nif(ok)return { json: { sent:true, photo_id:($json.id||null) } };\nreturn { json: { sent:false, text:$('Split Approved').item.json.caption, link:$('Split Approved').item.json.link } };"
+        "jsCode": "const ok=!!($json.id||$json.post_id);\nif(ok)return { json: { sent:true, photo_id:($json.id||null) } };\nreturn { json: { sent:false, text:$('Split Approved').item.json.caption, link:$('Split Approved').item.json.link } };",
+        "mode": "runOnceForEachItem"
       },
       "id": "fbv",
       "name": "FB Verify",
