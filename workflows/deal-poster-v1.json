@@ -720,6 +720,126 @@
         3360,
         560
       ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\nconst lines=text.split('\n').filter(l=>l.indexOf('http')===-1);\nconst cat=(d.cat||'').trim();\nconst tags=['#ป้ายยา','#ดีลเด็ด','#ของถูก','#รีวิวของดี','#ช้อปปิ้งออนไลน์'];\nif(cat)tags.push('#'+cat.replace(/s/g,''));\nlet caption=lines.join('\n').trim()+'\n\n🔗 กดลิงก์ในไบโอเพื่อไปที่ร้าน\n\n'+tags.join(' ');\nif(caption.length>2100)caption=caption.slice(0,2099);\nreturn { json: { igImage:img, igCaption:caption, hasImage:!!img } };"
+      },
+      "id": "igcap",
+      "name": "Build IG Caption",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasImage }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ighas",
+      "name": "IG Has Image?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/17841440317177953/media",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $json.igImage }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.igCaption }}"
+            },
+            {
+              "name": "access_token",
+              "value": "REPLACE_FB_PAGE_TOKEN"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 60000
+            }
+          }
+        }
+      },
+      "id": "igcreate",
+      "name": "IG Create Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2912,
+        780
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/17841440317177953/media_publish",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $json.id || \"MISSING\" }}"
+            },
+            {
+              "name": "access_token",
+              "value": "REPLACE_FB_PAGE_TOKEN"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "igpub",
+      "name": "IG Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3136,
+        780
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -1018,6 +1138,11 @@
             "node": "Build Threads Post",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build IG Caption",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1027,6 +1152,40 @@
         [
           {
             "node": "LINE Posted Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build IG Caption": {
+      "main": [
+        [
+          {
+            "node": "IG Has Image?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Has Image?": {
+      "main": [
+        [
+          {
+            "node": "IG Create Media",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "IG Create Media": {
+      "main": [
+        [
+          {
+            "node": "IG Publish",
             "type": "main",
             "index": 0
           }
