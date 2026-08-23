@@ -304,7 +304,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ to: 'U72a09a140c06dd099b438153c3b45dd9', messages: [{ type: 'text', text: '✅ โพสต์ลง Telegram แล้ว: ' + $('Split Approved').item.json.name }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ to: 'U72a09a140c06dd099b438153c3b45dd9', messages: [{ type: 'text', text: $json.alert }] }) }}",
         "options": {}
       },
       "id": "a1b2c3d4-0012-4000-8000-000000000012",
@@ -312,7 +312,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3360,
+        3584,
         560
       ]
     },
@@ -706,6 +706,20 @@
         680
       ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const deal = $('Split Approved').item.json;\nconst all = $('Split Approved').all().map(x => x.json);\nconst idx = all.findIndex(a => a.page_id === deal.page_id);\nfunction pick(node, i){ try { const arr = $(node).all(); return (i >= 0 && arr[i]) ? arr[i].json : null; } catch (e) { return null; } }\nfunction errOf(j){ try { const m = (j && j.error && (j.error.message || j.error.error_user_msg)) || (j && j.message) || ''; return String(m).replace(/\\s+/g, ' ').slice(0, 70); } catch (e) { return ''; } }\n\nlet tg = '❌ ไม่สำเร็จ';\nconst tv = pick('TG Verify', idx);\nif (tv && tv.sent === true) tg = '✅ รูป+แคปชัน';\nelse if (tv && tv.sent === false) tg = '⚠️ ข้อความล้วน (รูปไม่ผ่าน)';\n\nlet fb = '❌ ไม่สำเร็จ';\nconst fv = pick('FB Verify', idx);\nif (fv && fv.sent === true) fb = '✅ รูป+แคปชัน';\nelse if (fv && fv.sent === false) fb = '⚠️ ข้อความ+ลิงก์ (รูปไม่ผ่าน)';\n\nlet thj = null;\ntry { thj = $('Threads Publish').item.json; } catch (e) { thj = pick('Threads Publish', idx); }\nlet th;\nif (thj && thj.id) {\n  let mode = '';\n  try { mode = $('Build Threads Post').item.json.mode || ''; } catch (e) {}\n  th = (mode === 'TEXT') ? '✅ ข้อความล้วน' : '✅ รูป+แคปชัน';\n} else {\n  const m = errOf(thj);\n  th = '❌ ไม่สำเร็จ' + (m ? ' — ' + m : '');\n}\n\nconst text = '✅ โพสต์แล้ว: ' + (deal.name || '-') + '\\n' +\n  '• Telegram: ' + tg + '\\n' +\n  '• Facebook: ' + fb + '\\n' +\n  '• Threads: ' + th +\n  (deal.link ? '\\n' + deal.link : '');\nreturn { json: { alert: text, name: deal.name } };"
+      },
+      "id": "a0c0f17c-2991-4064-925b-329aa44eb2d7",
+      "name": "Build Posted Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        560
+      ]
     }
   ],
   "connections": {
@@ -817,7 +831,7 @@
       "main": [
         [
           {
-            "node": "LINE Posted Alert",
+            "node": "Build Posted Alert",
             "type": "main",
             "index": 0
           }
@@ -1002,6 +1016,17 @@
         [
           {
             "node": "Build Threads Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Posted Alert": {
+      "main": [
+        [
+          {
+            "node": "LINE Posted Alert",
             "type": "main",
             "index": 0
           }
