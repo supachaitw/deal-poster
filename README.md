@@ -28,6 +28,7 @@
 | `deal-intake-telegram.json` | `JUE23JTCBbCsW1lS` | DM @sup_dealposter_bot: ลิงก์→og→Claude parse→แถว; ตัวเลข→เติมราคา |
 | `deal-intake-line.json` | `731A7ASm8bI0F79B` | เหมือน Telegram แต่ผ่าน Paiyaa Bot (กรอง userId เจ้าของ) |
 | `threads-token-keeper.json` | `UXGp6aS7EclTqCtl` | จันทร์ 07:00 refresh Threads token (60 วัน) แล้ว PUT กลับเข้า workflow หลัก |
+| `deal-landing-page.json` | `teJKfYg0xuG9OSfc` | `GET /webhook/deals` → หน้ารวมดีลล่าสุด 30 รายการ (ลิงก์สำหรับไบโอ Instagram) |
 
 ## Secrets (ถูกแทนที่เป็น placeholder ก่อน commit)
 

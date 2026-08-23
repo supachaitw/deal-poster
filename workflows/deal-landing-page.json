@@ -1,0 +1,141 @@
+{
+  "name": "Deal Landing Page (link in bio)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "deals",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "lp-hook",
+      "name": "Deals Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "8f2c1d64-5a3b-4e77-9c10-2b6d4a9e13f0"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"โพสต์แล้ว\"}},\"sorts\":[{\"property\":\"โพสต์เมื่อ\",\"direction\":\"descending\"}],\"page_size\":30}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "lp-q",
+      "name": "Query Posted Deals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = ($input.first().json.results)||[];\nconst esc = s => String(s==null?'':s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('\"').join('&quot;');\nconst num = v => (v==null? null : Number(v));\nconst deals = rows.map(p => {\n  const pr = p.properties||{};\n  const t = ((pr['สินค้า']||{}).title)||[];\n  return {\n    name: t.map(x=>x.plain_text).join('').trim(),\n    link: (pr['ลิงก์Affiliate']||{}).url || '',\n    full: num((pr['ราคาเต็ม']||{}).number),\n    sale: num((pr['ราคาลด']||{}).number),\n    cat : ((pr['หมวด']||{}).select||{}).name || '',\n    when: ((pr['โพสต์เมื่อ']||{}).date||{}).start || ''\n  };\n}).filter(d => d.name && d.link && d.name.indexOf('ทดสอบ') === -1);\nconst money = n => (n==null? '' : Number(n).toLocaleString('th-TH',{maximumFractionDigits:2}));\nconst cards = deals.map(d => {\n  const off = (d.full && d.sale && d.full > d.sale) ? Math.round((1 - d.sale/d.full)*100) : null;\n  const price = d.sale!=null ? ('<span class=\"now\">' + money(d.sale) + ' ฿</span>' + (d.full!=null&&d.full>d.sale ? ' <span class=\"was\">' + money(d.full) + ' ฿</span>' : '')) : '';\n  return '<a class=\"card\" href=\"' + esc(d.link) + '\" target=\"_blank\" rel=\"noopener nofollow\">' +\n    (d.cat ? '<span class=\"chip\">' + esc(d.cat) + '</span>' : '') +\n    (off!=null ? '<span class=\"off\">-' + off + '%</span>' : '') +\n    '<div class=\"name\">' + esc(d.name) + '</div>' +\n    '<div class=\"price\">' + price + '</div>' +\n    '<div class=\"go\">ดูดีล →</div></a>';\n}).join('');\nconst page = '<!doctype html><html lang=\"th\"><head><meta charset=\"utf-8\">' +\n  '<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">' +\n  '<title>ป้ายยาดีลเด็ด — รวมดีลล่าสุด</title>' +\n  '<meta name=\"robots\" content=\"noindex\">' +\n  '<style>' +\n  ':root{--bg:#faf5ef;--sf:#fff;--ln:#efe4d6;--tx:#2a1d14;--mu:#8a7869;--ac:#e0821f}' +\n  '*{box-sizing:border-box}body{margin:0;padding:20px 14px 48px;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"Noto Sans Thai\",sans-serif;color:var(--tx);background:radial-gradient(900px 500px at 85% -10%,#fdece0 0%,transparent 60%),var(--bg)}' +\n  '.wrap{max-width:560px;margin:0 auto}' +\n  'h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:8px}' +\n  '.sub{color:var(--mu);font-size:14px;margin:0 0 20px}' +\n  '.card{position:relative;display:block;background:var(--sf);border:1px solid var(--ln);border-left:4px solid var(--ac);border-radius:14px;padding:14px 16px;margin-bottom:12px;text-decoration:none;color:inherit;box-shadow:0 4px 14px rgba(120,80,40,.07)}' +\n  '.card:active{transform:scale(.99)}' +\n  '.chip{display:inline-block;font-size:11px;color:var(--mu);border:1px solid var(--ln);border-radius:99px;padding:2px 9px;margin-bottom:8px}' +\n  '.off{position:absolute;top:12px;right:14px;background:var(--ac);color:#fff;font-size:12px;font-weight:700;border-radius:8px;padding:3px 8px}' +\n  '.name{font-weight:600;line-height:1.45;margin-bottom:8px;padding-right:52px}' +\n  '.now{font-size:19px;font-weight:800;color:var(--ac)}' +\n  '.was{color:var(--mu);text-decoration:line-through;font-size:13px;margin-left:4px}' +\n  '.go{margin-top:10px;font-size:13px;font-weight:700;color:var(--ac)}' +\n  '.foot{text-align:center;color:var(--mu);font-size:12px;margin-top:24px;line-height:1.8}' +\n  '.empty{color:var(--mu);text-align:center;padding:40px 0}' +\n  '</style></head><body><div class=\"wrap\">' +\n  '<h1>🛒 ป้ายยาดีลเด็ด</h1>' +\n  '<p class=\"sub\">รวมดีลล่าสุด ' + deals.length + ' รายการ · แตะการ์ดเพื่อไปที่ร้าน</p>' +\n  (cards || '<div class=\"empty\">ยังไม่มีดีลในตอนนี้</div>') +\n  '<p class=\"foot\">ลิงก์ในหน้านี้เป็นลิงก์ affiliate<br>Telegram @paiyaa_deals · Facebook ป้ายยาดีลเด็ด</p>' +\n  '</div></body></html>';\nreturn [{ json: { page } }];"
+      },
+      "id": "lp-html",
+      "name": "Build Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.page }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "public, max-age=300"
+              }
+            ]
+          }
+        }
+      },
+      "id": "lp-res",
+      "name": "Respond HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Deals Webhook": {
+      "main": [
+        [
+          {
+            "node": "Query Posted Deals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Posted Deals": {
+      "main": [
+        [
+          {
+            "node": "Build Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Page": {
+      "main": [
+        [
+          {
+            "node": "Respond HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Bangkok",
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}

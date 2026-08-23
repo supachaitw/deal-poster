@@ -24,6 +24,7 @@ repo นี้เป็น **backup + จุดถ่ายทอดความ
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
 | `UXGp6aS7EclTqCtl` | Threads Token Keeper | จันทร์ 07:00 refresh token 60 วัน แล้ว PUT กลับ |
+| `teJKfYg0xuG9OSfc` | Deal Landing Page | `GET /webhook/deals` — หน้า HTML รวมดีล 30 อันล่าสุด (ดึง Notion สด) สำหรับใส่ไบโอ IG |
 
 Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใหม่→รอตรวจ→อนุมัติแล้ว→โพสต์แล้ว
 (กติกา: แคปชันเขียนเฉพาะรอบสถานะ "ใหม่"; price-reply เติมเฉพาะแถวที่ราคาลดว่าง)
@@ -36,6 +37,7 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
   - วิธีได้ token (เผื่อทำใหม่): Access Token Tool ลิงก์ "need to grant permissions" ให้แค่ `public_profile` → ต้องไป Graph API Explorer → Add a Permission (`pages_show_list`+`pages_manage_posts`+`pages_read_engagement`) → Generate ใหม่ → perms ผูกกับคู่ user+app ดังนั้น token เดิมได้ scope เพิ่มเองด้วย → `GET /me/accounts` ได้ page token
   - (บัญชีมี 3 เพจ: ป้ายยาดีลเด็ด / EVE / G.S.B.Uniform — อีกสองอันไม่เกี่ยว; `Paiyaa` ไม่ใช่เพจ เป็น business portfolio ที่เลิกใช้แล้ว)
 - **Threads** `@supachai_tw` (uid 28066415776320239) ⛔ **"API access blocked"** (OAuthException code 200) ตั้งแต่ 21 ส.ค. ~21:00 — บล็อกระดับแอป "Paiyaa Poster" (1730166771434587): แม้ GET /me และ debug_token ก็โดน ไม่ใช่ token หมดอายุ; **บัญชี user ไม่โดน** (แอป Paiyaa Pages ใช้ได้ปกติ) สาเหตุน่าจะยิง 7 โพสต์ใน 1 นาที (รอบ 18:00 วันเดียวกัน) → แก้เชิงระบบแล้ว: throttle 3 ดีล/รอบ + 60 วิ/โพสต์; รอ user เช็ค App Dashboard / อุทธรณ์
+- **Instagram** (ทางอ้อม) — เพจ FB เปิด cross-post ไป IG `supachai_tw` อัตโนมัติ **เราไม่มี node IG** ; IG ไม่ทำลิงก์ในแคปชันให้กดได้ (ข้อจำกัดแพลตฟอร์ม) → แก้ด้วยหน้า `/webhook/deals` ใส่ไบโอ + ต่อท้ายแคปชันเฉพาะฝั่ง FB/IG
 - **X** ⏸ node "Post to X" `disabled:true` — X เป็น pay-per-use credits แล้ว บัญชี $0 user ยังไม่ซื้อ; node เป็น httpRequest + predefinedCredentialType `twitterOAuth1Api` (twitter node v2 ใช้ OAuth1 ไม่ได้), credential n8n `TsrgrCQlMXmi03F9`
 - **บทเรียน Meta:** งานสร้างบัญชี/portfolio/appeal ต้องให้ user คลิกเอง (automation โดนแฟล็กมาแล้ว); งาน Graph API ปกติไม่โดน
 
