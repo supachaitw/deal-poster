@@ -52,9 +52,13 @@ deploy หน้าเว็บ: `scp` ทับ `/root/home-console/html/index.
 การ์ด Deal Poster แบ่งหน้า 50 รายการ/หน้า มีปุ่มย้อนหลัง/ถัดไป (23 ส.ค. 69) — แบ่งฝั่ง client ล้วน ไม่แตะ API
 
 ## VPS (มี SSH key จากเครื่อง HP-AllInOne แล้ว — `ssh hostinger`)
-traefik  ใช้ **docker provider อย่างเดียว** (ไม่มี file provider)  → subdomain ใหม่ต้องมี container ที่ติด label เอง; DNS เป็น **wildcard** ทุก subdomain ชี้มา VPS อยู่แล้ว ไม่ต้องเพิ่ม record
- = nginx:alpine บน network  proxy ทุก path ไป  (ไฟล์อยู่  และ backup ใน  ของ repo นี้) — ทำแบบนี้เพื่อ**ไม่ต้องแตะ/รีสตาร์ต container n8n**
-cert resolver ที่ใช้ทั้งเครื่อง: 
+key: `~/.ssh/id_ed25519_hostinger` (ed25519 ไม่มี passphrase) + alias ใน `~/.ssh/config` → `ssh hostinger '…'` · `scp hostinger:/path ./`
+traefik `n8n-traefik-1` ใช้ **docker provider อย่างเดียว** (ไม่มี file provider) + `exposedbydefault=false` → subdomain ใหม่ต้องมี container ที่ติด label เอง;
+DNS เป็น **wildcard** ทุก subdomain ชี้มา VPS อยู่แล้ว **ไม่ต้องเพิ่ม A record**; cert resolver ที่ใช้ทั้งเครื่อง = `mytlschallenge`
+`deals-proxy` = nginx:alpine บน network `n8n_default` proxy ทุก path ไป `http://n8n:5678/webhook/deals`
+(ไฟล์จริง `/root/deals-proxy/{nginx.conf,deploy.sh}` · backup ใน `vps/` ของ repo นี้) — เลือกทำเป็น container แยก
+เพื่อ **ไม่ต้องแตะหรือรีสตาร์ต container n8n** (n8n ล่ม = ทุก workflow ล่ม)
+n8n เข้าถึงภายในได้ที่ `n8n:5678` (alias บน `n8n_default`) · Home Console live อยู่ `/root/home-console/html/index.html`
 
 ## เมื่อจบงานแต่ละครั้ง
 export workflow ทั้ง 5 → sanitize → commit + push (ดู scripts เดิมใน session/README);
