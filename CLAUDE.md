@@ -24,7 +24,7 @@ repo นี้เป็น **backup + จุดถ่ายทอดความ
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
 | `UXGp6aS7EclTqCtl` | Threads Token Keeper | จันทร์ 07:00 refresh token 60 วัน แล้ว PUT กลับ |
-| `teJKfYg0xuG9OSfc` | Deal Landing Page | `GET /webhook/deals` — หน้า HTML รวมดีล 30 อันล่าสุด (ดึง Notion สด) สำหรับใส่ไบโอ IG |
+| `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล 30 อันล่าสุด ดึง Notion สด สำหรับใส่ไบโอ IG |
 
 Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใหม่→รอตรวจ→อนุมัติแล้ว→โพสต์แล้ว
 (กติกา: แคปชันเขียนเฉพาะรอบสถานะ "ใหม่"; price-reply เติมเฉพาะแถวที่ราคาลดว่าง)
@@ -50,6 +50,11 @@ endpoint `/api/dealposter` ใน container **`home-metrics`**; **ซอร์�
 deploy หน้าเว็บ: `scp` ทับ `/root/home-console/html/index.html` แล้ว
 `docker cp /root/home-console/html/index.html home-console:/usr/share/nginx/html/index.html` (ไม่ต้อง rebuild)
 การ์ด Deal Poster แบ่งหน้า 50 รายการ/หน้า มีปุ่มย้อนหลัง/ถัดไป (23 ส.ค. 69) — แบ่งฝั่ง client ล้วน ไม่แตะ API
+
+## VPS (มี SSH key จากเครื่อง HP-AllInOne แล้ว — `ssh hostinger`)
+traefik  ใช้ **docker provider อย่างเดียว** (ไม่มี file provider)  → subdomain ใหม่ต้องมี container ที่ติด label เอง; DNS เป็น **wildcard** ทุก subdomain ชี้มา VPS อยู่แล้ว ไม่ต้องเพิ่ม record
+ = nginx:alpine บน network  proxy ทุก path ไป  (ไฟล์อยู่  และ backup ใน  ของ repo นี้) — ทำแบบนี้เพื่อ**ไม่ต้องแตะ/รีสตาร์ต container n8n**
+cert resolver ที่ใช้ทั้งเครื่อง: 
 
 ## เมื่อจบงานแต่ละครั้ง
 export workflow ทั้ง 5 → sanitize → commit + push (ดู scripts เดิมใน session/README);
