@@ -40,9 +40,14 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 - **บทเรียน Meta:** งานสร้างบัญชี/portfolio/appeal ต้องให้ user คลิกเอง (automation โดนแฟล็กมาแล้ว); งาน Graph API ปกติไม่โดน
 
 ## Monitoring
-การ์ด "🛒 Deal Poster" บน Home Console `https://home.srv1277799.hstgr.cloud` —
-endpoint `/api/dealposter` ใน home-metrics (VPS `/docker/n8n/home/metrics/server.js`);
-Home Console มี 2 ซอร์ส: `/root/home-console/html/` (ตัว live, deploy ด้วย docker cp) และ `/docker/n8n/home/` — แก้ต้องแก้ทั้งคู่
+การ์ด "🛒 Deal Poster" บน Home Console `https://home.srv1277799.hstgr.cloud` (traefik basic-auth, user `admin`) —
+endpoint `/api/dealposter` ใน container **`home-metrics`**; **ซอร์สตัวจริงคือ `/root/home-metrics/server.js`**
+(ไฟล์ `/docker/n8n/home/metrics/server.js` เป็นของเก่าคนละตัว — เคยหลงมาแล้ว 23 ส.ค. 69)
+ตัว endpoint วน `start_cursor` ดึง Notion ได้ถึง 5×100 แถว ส่งกลับ `items` ครบทุกสถานะ + `queue` + `rounds` (cache 60 วิ)
+หน้าเว็บ: Home Console มี 2 ซอร์ส — `/root/home-console/html/index.html` (**ตัว live**) กับ `/docker/n8n/home/index.html` (ของเก่า ธีมมืด) — แก้ต้องแก้ทั้งคู่
+deploy หน้าเว็บ: `scp` ทับ `/root/home-console/html/index.html` แล้ว
+`docker cp /root/home-console/html/index.html home-console:/usr/share/nginx/html/index.html` (ไม่ต้อง rebuild)
+การ์ด Deal Poster แบ่งหน้า 50 รายการ/หน้า มีปุ่มย้อนหลัง/ถัดไป (23 ส.ค. 69) — แบ่งฝั่ง client ล้วน ไม่แตะ API
 
 ## เมื่อจบงานแต่ละครั้ง
 export workflow ทั้ง 5 → sanitize → commit + push (ดู scripts เดิมใน session/README);
