@@ -13,9 +13,10 @@ repo นี้เป็น **backup + จุดถ่ายทอดความ
 - **ห้าม print token/secret ลง output หรือ commit ลง repo** — ใช้ใน script เท่านั้น, ไฟล์ใน `workflows/` ต้อง sanitize เป็น `REPLACE_*` ก่อน commit เสมอ (ดู pattern ใน git log)
 - n8n API key อยู่หน้า Notion **"🔐 Claude Daily Brief — Config"** — ดึงจากที่นั่น อย่า hardcode ที่อื่น
 - แก้ workflow ผ่าน API: `PUT /api/v1/workflows/{id}` รับเฉพาะ `{name,nodes,connections,settings}` แล้วต้อง **deactivate→activate** ทุกครั้ง
-- เขียน jsCode/expression ผ่าน script ต้องใช้ **String.raw** — ระวัง **newline จริงในสตริง JS** ของ expression ด้วย (n8n ตอบ `{"error":"invalid syntax"}` ทั้ง node หาสาเหตุยากมาก) ใช้ `
-` แบบ escape เท่านั้น
-- (เดิม) เขียน jsCode ของ Code node ผ่าน script ต้องใช้ **String.raw** (เคยพัง: backslash ใน regex หาย ทำให้ทุกรอบ error + โพสต์ซ้ำ)
+- เขียน jsCode **หรือ expression** ของ node ผ่าน script ต้องใช้ **String.raw** เสมอ — เคยพัง 2 แบบ:
+  (1) backslash ใน regex หาย → ทุกรอบ error + โพสต์ซ้ำ
+  (2) ขึ้นบรรทัดใหม่กลายเป็น **newline จริงในสตริง single-quote ของ JS** ใน expression → JS parse ไม่ผ่าน n8n คืน `{"error":"invalid syntax"}` ทั้ง node (24 ส.ค. 69: FB+IG ล้มเงียบ 3 รอบ) — ต้องเป็น escape sequence เท่านั้น
+  ก่อน deploy ให้ตรวจด้วย `new Function('return (' + inner + ')')` ว่า syntax ผ่าน
 - ตอบผู้ใช้เป็นภาษาไทย โค้ด/คำสั่งเป็นอังกฤษ
 
 ## Workflows (n8n IDs)
@@ -48,7 +49,6 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 - **Threads** `@supachai_tw` (uid 28066415776320239) ✅ กลับมาโพสต์ได้ 23 ส.ค. (เคยโดน "API access blocked" ระดับแอป 21–23 ส.ค. หลังยิง 7 โพสต์ใน 1 นาที → แก้ด้วย throttle 3 ดีล/รอบ + 60 วิ/โพสต์)
   - **รูปต้องส่งเป็น image_url ให้ Meta ไปดึงเอง อัปโหลด binary ไม่ได้** → Shopee/Lazada CDN บล็อก fetcher ของ Meta (`error_subcode 2207052 Media download has failed`) จึงต้อง**ยืมรูปที่อัปขึ้น FB แล้ว** (scontent CDN) ผ่าน node `FB Photo URL`
   - ⚠️ ยังอยู่บนบัญชี**ส่วนตัว** — ถ้าจะย้ายไป `@paiyaa_deals` ต้องเปิด Threads ของ IG ตัวใหม่ + ขอ token ใหม่ (ผู้ติดตามเริ่มจาก 0 โพสต์เก่าย้ายไม่ได้)
-- **Instagram** (ทางอ้อม) — เพจ FB เปิด cross-post ไป IG `supachai_tw` อัตโนมัติ **เราไม่มี node IG** ; IG ไม่ทำลิงก์ในแคปชันให้กดได้ (ข้อจำกัดแพลตฟอร์ม) → แก้ด้วยหน้า `/webhook/deals` ใส่ไบโอ + ต่อท้ายแคปชันเฉพาะฝั่ง FB/IG
 - **X** ⏸ node "Post to X" `disabled:true` — X เป็น pay-per-use credits แล้ว บัญชี $0 user ยังไม่ซื้อ; node เป็น httpRequest + predefinedCredentialType `twitterOAuth1Api` (twitter node v2 ใช้ OAuth1 ไม่ได้), credential n8n `TsrgrCQlMXmi03F9`
 - **บทเรียน Meta:** งานสร้างบัญชี/portfolio/appeal ต้องให้ user คลิกเอง (automation โดนแฟล็กมาแล้ว); งาน Graph API ปกติไม่โดน
 
