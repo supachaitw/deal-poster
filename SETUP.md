@@ -75,6 +75,24 @@ Host hostinger
 - **Threads** — App Dashboard → Use cases → Access the Threads API → Settings → User Token Generator (บัญชีต้องเป็น Threads Tester และ **กดรับคำเชิญในแอป Threads** ก่อน)
 - **Anthropic / Notion / LINE / Telegram** — ดูตาราง Secrets ใน [README.md](README.md)
 
+## ⚠️ "pull → แก้ → push" ใช้กับ repo นี้ไม่ตรงตัว
+repo นี้เป็น **ปลายทาง** ไม่ใช่ต้นทาง deploy — แก้ไฟล์แล้ว push ระบบจริงไม่ขยับ เพราะตัวรันอยู่ใน n8n
+
+วงจรที่ถูก:
+```
+GET จาก n8n (สดเสมอ) → patch → PUT กลับ → deactivate→activate
+  → export → sanitize → commit → push
+```
+
+| ทำแบบนี้ | ผลที่ได้ |
+|---|---|
+| ⛔ PUT ไฟล์ `workflows/*.json` จาก repo เข้า n8n | token กลายเป็น `REPLACE_*` → **ทุกช่องทางตายพร้อมกัน** ต้องไล่ขอใหม่ทีละอัน |
+| ⛔ patch จากสำเนาที่ดึงมาเมื่อชั่วโมงก่อน | ทับงานของเครื่อง/session อื่นที่แก้ระหว่างนั้น (เกิดจริง 24 ส.ค. 69) ไม่มี merge ให้ |
+| ✅ GET สด → patch → PUT → export → commit | ปลอดภัย ต่อจากใครก็ได้ |
+
+**หลายเครื่องทำพร้อมกันได้** เพราะทุกเครื่องคุยกับ n8n ตัวเดียวกัน — แค่อย่าค้างสำเนาไว้นานแล้วค่อย PUT
+เสร็จเป็นชิ้นให้ export + commit + push ทันที เพื่อให้เครื่องอื่น `git pull` แล้วเห็นสถานะล่าสุด
+
 ## กติกาที่ทำให้ไม่พังข้ามเครื่อง
 1. `git pull` ก่อนแตะไฟล์เสมอ · เสร็จเป็นชิ้น commit ทันที · push โดน reject → `git pull --rebase` **ห้าม force**
 2. แก้ workflow ผ่าน API แล้วต้อง **deactivate→activate** ทุกครั้ง ไม่งั้น instance ที่รันอยู่ยังใช้ของเก่า
