@@ -408,7 +408,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\nif(text.length>480)text=text.slice(0,479)+'…';\nconst base='https://graph.threads.net/v1.0/28066415776320239/threads?access_token=REPLACE_THREADS_TOKEN';\nconst createUrl=base+'&media_type='+(img?'IMAGE':'TEXT')+'&text='+encodeURIComponent(text)+(img?'&image_url='+encodeURIComponent(img):'');\nreturn { json: { createUrl, mode:(img?'IMAGE(fb-cdn)':'TEXT') } };"
+        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\nif(text.length>480)text=text.slice(0,479)+'…';\nconst base='https://graph.threads.net/v1.0/28104225519212652/threads?access_token=REPLACE_THREADS_TOKEN';\nconst createUrl=base+'&media_type='+(img?'IMAGE':'TEXT')+'&text='+encodeURIComponent(text)+(img?'&image_url='+encodeURIComponent(img):'');\nreturn { json: { createUrl, mode:(img?'IMAGE(fb-cdn)':'TEXT') } };"
       },
       "id": "btp",
       "name": "Build Threads Post",
@@ -441,7 +441,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'https://graph.threads.net/v1.0/28066415776320239/threads_publish?creation_id=' + ($json.id||'MISSING') + '&access_token=REPLACE_THREADS_TOKEN' }}",
+        "url": "={{ 'https://graph.threads.net/v1.0/28104225519212652/threads_publish?creation_id=' + ($json.id||'MISSING') + '&access_token=REPLACE_THREADS_TOKEN' }}",
         "options": {
           "timeout": 20000,
           "batching": {
