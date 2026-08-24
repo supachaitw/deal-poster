@@ -106,7 +106,7 @@
         -100
       ],
       "parameters": {
-        "jsCode": "const resp=$input.first().json;\nlet parsed={};\ntry{const t=(resp.content||[{}])[0].text||'';parsed=JSON.parse((t.match(/\\{[\\s\\S]*\\}/)||['{}'])[0]);}catch(e){}\nconst info=$('Extract').first().json;\nconst name=(parsed.name||'').trim()||null;\nconst full=Number(parsed.full_price)||null;\nconst sale=Number(parsed.sale_price)||null;\nconst cats=['gadget','ความงาม','บ้าน','แฟชั่น','อื่นๆ'];\nconst cat=cats.includes(parsed.category)?parsed.category:'อื่นๆ';\nconst complete=!!(name&&sale);\nconst props={\n  'สินค้า':{title:[{text:{content:name||'(รอเติมชื่อ) ดีลจาก Shopee'}}]},\n  'ลิงก์Affiliate':{url:info.url},\n  'หมวด':{select:{name:cat}},\n  'สถานะ':{select:{name:complete?'ใหม่':'รอตรวจ'}}\n};\nif(full)props['ราคาเต็ม']={number:full};\nif(sale)props['ราคาลด']={number:sale};\nconst missing=[];\nif(!name)missing.push('ชื่อสินค้า');\nif(!sale)missing.push('ราคาลด');\nif(!full)missing.push('ราคาเต็ม');\nreturn [{json:{payload:{parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},properties:props},chatId:info.chatId,name,full,sale,cat,complete,missing}}];"
+        "jsCode": "const resp=$input.first().json;\nlet parsed={};\ntry{const t=(resp.content||[{}])[0].text||'';parsed=JSON.parse((t.match(/\\{[\\s\\S]*\\}/)||['{}'])[0]);}catch(e){}\nconst info=$('Extract').first().json;\nconst name=(parsed.name||'').trim()||null;\nconst full=Number(parsed.full_price)||null;\nconst sale=Number(parsed.sale_price)||null;\nconst cats=['gadget','ความงาม','บ้าน','แฟชั่น','อื่นๆ'];\nconst cat=cats.includes(parsed.category)?parsed.category:'อื่นๆ';\nconst complete=!!name;\nconst props={\n  'สินค้า':{title:[{text:{content:name||'(รอเติมชื่อ) ดีลจาก Shopee'}}]},\n  'ลิงก์Affiliate':{url:info.url},\n  'หมวด':{select:{name:cat}},\n  'สถานะ':{select:{name:complete?'ใหม่':'รอตรวจ'}}\n};\nif(full)props['ราคาเต็ม']={number:full};\nif(sale)props['ราคาลด']={number:sale};\nconst missing=[];\nif(!name)missing.push('ชื่อสินค้า');\nif(!sale)missing.push('ราคาลด');\nif(!full)missing.push('ราคาเต็ม');\nreturn [{json:{payload:{parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},properties:props},chatId:info.chatId,name,full,sale,cat,complete,missing}}];"
       }
     },
     {
@@ -333,7 +333,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"filter\":{\"and\":[{\"property\":\"สถานะ\",\"select\":{\"equals\":\"รอตรวจ\"}},{\"property\":\"ราคาลด\",\"number\":{\"is_empty\":true}}]},\"sorts\":[{\"timestamp\":\"created_time\",\"direction\":\"descending\"}],\"page_size\":1}",
+        "jsonBody": "{\"filter\":{\"and\":[{\"or\":[{\"property\":\"สถานะ\",\"select\":{\"equals\":\"รอตรวจ\"}},{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}}]},{\"property\":\"ราคาลด\",\"number\":{\"is_empty\":true}}]},\"sorts\":[{\"timestamp\":\"created_time\",\"direction\":\"descending\"}],\"page_size\":1}",
         "options": {}
       }
     },

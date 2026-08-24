@@ -84,7 +84,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400, messages: [{ role: 'user', content: 'เขียนแคปชันโพสต์ขายดีลภาษาไทย 2-3 บรรทัด มีอีโมจิ น่าสนใจแต่ไม่โอเวอร์ สำหรับสินค้า: ' + $json.name + ' (หมวด ' + $json.cat + ') ราคาปกติ ' + $json.full + ' บาท เหลือ ' + $json.sale + ' บาท ห้ามแต่งข้อมูลที่ไม่มีจริง ห้ามใส่ลิงก์ ตอบเฉพาะตัวแคปชันเท่านั้น' }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400, messages: [{ role: 'user', content: 'เขียนแคปชันโพสต์ขายดีลภาษาไทย 2-3 บรรทัด มีอีโมจิ น่าสนใจแต่ไม่โอเวอร์ สำหรับสินค้า: ' + $json.name + ' (หมวด ' + $json.cat + ')' + ($json.sale ? (' ราคาปกติ ' + ($json.full || '-') + ' บาท เหลือ ' + $json.sale + ' บาท') : ($json.full ? (' ราคา ' + $json.full + ' บาท') : ' (ไม่ทราบราคา ห้ามกล่าวถึงราคาหรือส่วนลดใด ๆ เด็ดขาด)')) + ' ห้ามแต่งข้อมูลที่ไม่มีจริง ห้ามใส่ลิงก์ ตอบเฉพาะตัวแคปชันเท่านั้น' }] }) }}",
         "options": {}
       },
       "id": "a1b2c3d4-0004-4000-8000-000000000004",
@@ -99,7 +99,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cap = ($json.content && $json.content[0] && $json.content[0].text ? $json.content[0].text : '').trim();\nconst d = $('Split New').item.json;\nconst pct = d.full && d.sale ? Math.round((1 - d.sale / d.full) * 100) : null;\nconst text = cap + '\\n\\n💥 เหลือ ' + d.sale + ' บาท' + (pct ? ' (ลด ' + pct + '%)' : '') + '\\n👉 ' + d.link + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\nreturn { json: { page_id: d.page_id, name: d.name, text } };"
+        "jsCode": "const cap = ($json.content && $json.content[0] && $json.content[0].text ? $json.content[0].text : '').trim();\nconst d = $('Split New').item.json;\nconst pct = d.full && d.sale ? Math.round((1 - d.sale / d.full) * 100) : null;\nlet priceLine = '';\nif (d.sale) priceLine = '💥 เหลือ ' + d.sale + ' บาท' + (pct ? ' (ลด ' + pct + '%)' : '');\nelse if (d.full) priceLine = '💰 ราคา ' + d.full + ' บาท';\nconst body = (priceLine ? priceLine + '\\n' : '') + '👉 ' + d.link;\nconst text = cap + '\\n\\n' + body + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\nreturn { json: { page_id: d.page_id, name: d.name, text } };"
       },
       "id": "a1b2c3d4-0005-4000-8000-000000000005",
       "name": "Build Caption",
@@ -201,7 +201,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const res = $json.results || [];\nreturn res.map(p => ({ json: {\n  page_id: p.id,\n  name: (p.properties['สินค้า'].title || []).map(t => t.plain_text).join(''),\n  link: p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '',\n  caption: (p.properties['แคปชัน'] && p.properties['แคปชัน'].rich_text ? p.properties['แคปชัน'].rich_text : []).map(t => t.plain_text).join('')\n}})).filter(i => i.json.caption).slice(0, 3);"
+        "jsCode": "const res = $json.results || [];\nreturn res.map(p => {\n  const name = (p.properties['สินค้า'].title || []).map(t => t.plain_text).join('');\n  const link = p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '';\n  let caption = (p.properties['แคปชัน'] && p.properties['แคปชัน'].rich_text ? p.properties['แคปชัน'].rich_text : []).map(t => t.plain_text).join('');\n  const sale = p.properties['ราคาลด'] ? p.properties['ราคาลด'].number : null;\n  const full = p.properties['ราคาเต็ม'] ? p.properties['ราคาเต็ม'].number : null;\n  if (!caption && name) {\n    let priceLine = '';\n    if (sale) priceLine = '💥 เหลือ ' + sale + ' บาท';\n    else if (full) priceLine = '💰 ราคา ' + full + ' บาท';\n    caption = '✨ ' + name + '\\n' + (priceLine ? priceLine + '\\n' : '') + '👉 ' + link + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\n  }\n  return { json: { page_id: p.id, name: name, link: link, caption: caption } };\n}).filter(i => i.json.caption && i.json.link).slice(0, 3);"
       },
       "id": "a1b2c3d4-0009-4000-8000-000000000009",
       "name": "Split Approved",
