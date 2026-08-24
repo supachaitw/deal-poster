@@ -116,6 +116,58 @@
         "jsonBody": "={{ JSON.stringify($json.body) }}",
         "options": {}
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.srv1277799.hstgr.cloud/api/v1/workflows/E6i2xEAcaUsUFKWm/deactivate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "REPLACE_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "reloaddeactivate",
+      "name": "Reload Deactivate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.srv1277799.hstgr.cloud/api/v1/workflows/E6i2xEAcaUsUFKWm/activate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "REPLACE_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "reloadactivate",
+      "name": "Reload Activate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        300
+      ]
     }
   ],
   "connections": {
@@ -168,6 +220,28 @@
         [
           {
             "node": "Put Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Put Workflow": {
+      "main": [
+        [
+          {
+            "node": "Reload Deactivate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reload Deactivate": {
+      "main": [
+        [
+          {
+            "node": "Reload Activate",
             "type": "main",
             "index": 0
           }
