@@ -13,7 +13,9 @@ repo นี้เป็น **backup + จุดถ่ายทอดความ
 - **ห้าม print token/secret ลง output หรือ commit ลง repo** — ใช้ใน script เท่านั้น, ไฟล์ใน `workflows/` ต้อง sanitize เป็น `REPLACE_*` ก่อน commit เสมอ (ดู pattern ใน git log)
 - n8n API key อยู่หน้า Notion **"🔐 Claude Daily Brief — Config"** — ดึงจากที่นั่น อย่า hardcode ที่อื่น
 - แก้ workflow ผ่าน API: `PUT /api/v1/workflows/{id}` รับเฉพาะ `{name,nodes,connections,settings}` แล้วต้อง **deactivate→activate** ทุกครั้ง
-- เขียน jsCode ของ Code node ผ่าน script ต้องใช้ **String.raw** (เคยพัง: backslash ใน regex หาย ทำให้ทุกรอบ error + โพสต์ซ้ำ)
+- เขียน jsCode/expression ผ่าน script ต้องใช้ **String.raw** — ระวัง **newline จริงในสตริง JS** ของ expression ด้วย (n8n ตอบ `{"error":"invalid syntax"}` ทั้ง node หาสาเหตุยากมาก) ใช้ `
+` แบบ escape เท่านั้น
+- (เดิม) เขียน jsCode ของ Code node ผ่าน script ต้องใช้ **String.raw** (เคยพัง: backslash ใน regex หาย ทำให้ทุกรอบ error + โพสต์ซ้ำ)
 - ตอบผู้ใช้เป็นภาษาไทย โค้ด/คำสั่งเป็นอังกฤษ
 
 ## Workflows (n8n IDs)

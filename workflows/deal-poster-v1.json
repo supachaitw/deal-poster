@@ -583,7 +583,7 @@
           "parameters": [
             {
               "name": "caption",
-              "value": "={{ $('Split Approved').item.json.caption + '\n\n🔗 รวมดีลทั้งหมด (IG: ลิงก์ในไบโอ)\nhttps://deals.srv1277799.hstgr.cloud' }}"
+              "value": "={{ $('Split Approved').item.json.caption + '\\n\\n🔗 รวมดีลทั้งหมด (IG: ลิงก์ในไบโอ)\\nhttps://deals.srv1277799.hstgr.cloud' }}"
             },
             {
               "name": "access_token",
@@ -668,7 +668,7 @@
         "url": "https://graph.facebook.com/v21.0/1330886503433772/feed",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({message:$json.text+'\n\n🔗 รวมดีลทั้งหมด (IG: ลิงก์ในไบโอ)\nhttps://deals.srv1277799.hstgr.cloud', link:$json.link||undefined, access_token:'REPLACE_FB_PAGE_TOKEN'}) }}",
+        "jsonBody": "={{ JSON.stringify({message:$json.text+'\\n\\n🔗 รวมดีลทั้งหมด (IG: ลิงก์ในไบโอ)\\nhttps://deals.srv1277799.hstgr.cloud', link:$json.link||undefined, access_token:'REPLACE_FB_PAGE_TOKEN'}) }}",
         "options": {
           "timeout": 30000,
           "batching": {
