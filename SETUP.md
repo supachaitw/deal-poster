@@ -117,5 +117,7 @@ GET จาก n8n (สดเสมอ) → patch → PUT กลับ → deacti
   `home-console` (https://gitlab.com/supachai.taweerat/home-console.git): `live/html/index.html` +
   `live/Dockerfile` + อัปเดต `home/index.html` ให้ตรงของจริง + `.gitattributes` `* -text` กัน CRLF
   และ `75e45e6` เก็บไฟล์ที่เหลือใน `html/` ครบทั้งโฟลเดอร์ — เทียบ md5 ตรงกับ VPS ทั้ง 9 ไฟล์
-  **ยังค้าง:** `/root/home-metrics/server.js` (ตัวจริงของ endpoint `/api/dealposter`) ยังไม่มีใน git
+  และ `ad4e70b` เก็บ `/root/home-metrics/server.js` (ตัวจริงของ `/api/dealposter`) — **backup ครบทุกส่วนแล้ว**
+  ⚠️ ไฟล์นั้น hardcode n8n API key + Notion token ไว้บรรทัด 135–136 (container ไม่มี env ให้ inject)
+  ในrepo เลย sanitize เป็น `REPLACE_N8N_API_KEY` / `REPLACE_NOTION_TOKEN` — restore ต้องแทนค่าจริงก่อน
 - ดีล 8 รายการของวันที่ 24 ส.ค. ถูกมาร์ค "โพสต์แล้ว" ทั้งที่ Facebook/Instagram พลาด (บั๊ก newline) — ถ้าจะโพสต์ย้อนหลังต้องเปลี่ยนสถานะกลับเอง และจะซ้ำที่ Telegram/Threads
