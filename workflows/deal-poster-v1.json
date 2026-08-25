@@ -457,7 +457,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2912,
+        3040,
         560
       ],
       "onError": "continueRegularOutput"
@@ -840,6 +840,22 @@
         780
       ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2800,
+        560
+      ],
+      "id": "909ff040-09a3-4c24-ad4a-b1e42a987461",
+      "name": "Threads Settle",
+      "webhookId": "1831b548-1519-49ea-ad65-bc6b349307db",
+      "notes": "รอ container ของ Threads พร้อมก่อน publish — กัน code 24/subcode 4279009"
     }
   ],
   "connections": {
@@ -1006,7 +1022,7 @@
       "main": [
         [
           {
-            "node": "Threads Publish",
+            "node": "Threads Settle",
             "type": "main",
             "index": 0
           }
@@ -1186,6 +1202,17 @@
         [
           {
             "node": "IG Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Settle": {
+      "main": [
+        [
+          {
+            "node": "Threads Publish",
             "type": "main",
             "index": 0
           }
