@@ -35,6 +35,10 @@ curl -H "X-N8N-API-KEY: <key>" https://n8n.srv1277799.hstgr.cloud/api/v1/workflo
 ได้ 200 = ใช้ได้ · ทุกการแก้ workflow ใช้คีย์นี้ตัวเดียว
 
 ## 3. SSH เข้า VPS (ถ้าต้องแตะ traefik / Home Console / deals-proxy)
+> เช็คก่อนสร้างใหม่: `srv1277799.hstgr.cloud` = **72.62.248.226** ซึ่งเป็น VPS ตัวเดียวกับที่บาง
+> เครื่องตั้ง alias ไว้ชื่ออื่น (เช่น `vps-teller` → `~/.ssh/vps_teller`) — ถ้ามีอยู่แล้วใช้ได้เลย
+> ลองด้วย `ssh -i ~/.ssh/<key> root@srv1277799.hstgr.cloud hostname` ต้องได้ `srv1277799`
+
 สร้าง key ใหม่ของเครื่องนั้น แล้วฝากไว้ที่ VPS ครั้งเดียว — **ห้าม copy private key จากเครื่องเก่า**
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_hostinger -N '' -C "$(hostname)-claude@deal-poster"
@@ -109,6 +113,10 @@ GET จาก n8n (สดเสมอ) → patch → PUT กลับ → deacti
 4. เขียน jsCode/expression ผ่าน script ใช้ **String.raw** + ตรวจด้วย `new Function()` ก่อน deploy
 
 ## ค้างอยู่ (สำหรับคนที่มาต่อ)
-- repo `home-console` มีงานค้างยังไม่ commit และ **`index.html` ตัว live บน VPS ยังไม่มีใน git** — ดึงกลับด้วย
-  `scp hostinger:/root/home-console/html/index.html .` แล้ว commit (ถ้า container หายตอนนี้คือ deploy กลับไม่ได้)
+- ~~`index.html` ตัว live บน VPS ยังไม่มีใน git~~ **เสร็จแล้ว 25 ส.ค. 69** — commit `97d6fd5` ใน repo
+  `home-console` (https://gitlab.com/supachai.taweerat/home-console.git): `live/html/index.html` +
+  `live/Dockerfile` + อัปเดต `home/index.html` ให้ตรงของจริง + `.gitattributes` `* -text` กัน CRLF
+  **ยังค้าง:** ไฟล์อื่นใน `/root/home-console/html/` (`course.html`, `goldea.html`, `cryptobot.html`,
+  `subs.html`, `bitkub-signal-reader.html`, `hc-enhance.js`, `hc-coins.js`) และ `/root/home-metrics/server.js`
+  ยังไม่มีใน git — container ไม่ได้ bind-mount ถ้าหายคือกู้ไม่ได้เหมือนกัน
 - ดีล 8 รายการของวันที่ 24 ส.ค. ถูกมาร์ค "โพสต์แล้ว" ทั้งที่ Facebook/Instagram พลาด (บั๊ก newline) — ถ้าจะโพสต์ย้อนหลังต้องเปลี่ยนสถานะกลับเอง และจะซ้ำที่ Telegram/Threads
