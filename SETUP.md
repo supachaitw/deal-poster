@@ -120,4 +120,9 @@ GET จาก n8n (สดเสมอ) → patch → PUT กลับ → deacti
   และ `ad4e70b` เก็บ `/root/home-metrics/server.js` (ตัวจริงของ `/api/dealposter`) — **backup ครบทุกส่วนแล้ว**
   ⚠️ ไฟล์นั้น hardcode n8n API key + Notion token ไว้บรรทัด 135–136 (container ไม่มี env ให้ inject)
   ในrepo เลย sanitize เป็น `REPLACE_N8N_API_KEY` / `REPLACE_NOTION_TOKEN` — restore ต้องแทนค่าจริงก่อน
-- ดีล 8 รายการของวันที่ 24 ส.ค. ถูกมาร์ค "โพสต์แล้ว" ทั้งที่ Facebook/Instagram พลาด (บั๊ก newline) — ถ้าจะโพสต์ย้อนหลังต้องเปลี่ยนสถานะกลับเอง และจะซ้ำที่ Telegram/Threads
+- ~~ดีล 8 รายการของวันที่ 24 ส.ค. ถูกมาร์ค "โพสต์แล้ว" ทั้งที่ Facebook/Instagram พลาด~~
+  **เสร็จแล้ว 25 ส.ค. 69** — แก้ node `Build IG Caption` ที่พังด้วยบั๊ก String.raw แล้ว backfill ครบทั้ง 8 ดีล
+  ลง FB + IG โดยยิง Graph API ตรง **ไม่แตะสถานะใน Notion** จึงไม่ซ้ำที่ TG/Threads (วิธีทำอยู่ใน CLAUDE.md หัวข้อ "ซ่อมย้อนหลัง")
+  IG `media_count` 0 → 8 (ก่อนหน้านี้ IG ไม่เคยโพสต์ได้เลยสักครั้ง)
+
+**ไม่มีงานค้างแล้ว** 🎉

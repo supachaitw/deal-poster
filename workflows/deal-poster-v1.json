@@ -724,7 +724,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\nconst lines=text.split('\n').filter(l=>l.indexOf('http')===-1);\nconst cat=(d.cat||'').trim();\nconst tags=['#ป้ายยา','#ดีลเด็ด','#ของถูก','#รีวิวของดี','#ช้อปปิ้งออนไลน์'];\nif(cat)tags.push('#'+cat.replace(/s/g,''));\nlet caption=lines.join('\n').trim()+'\n\n🔗 กดลิงก์ในไบโอเพื่อไปที่ร้าน\n\n'+tags.join(' ');\nif(caption.length>2100)caption=caption.slice(0,2099);\nreturn { json: { igImage:img, igCaption:caption, hasImage:!!img } };"
+        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\nconst lines=text.split('\\n').filter(l=>l.indexOf('http')===-1);\nconst cat=(d.cat||'').trim();\nconst tags=['#ป้ายยา','#ดีลเด็ด','#ของถูก','#รีวิวของดี','#ช้อปปิ้งออนไลน์'];\nif(cat)tags.push('#'+cat.replace(/\\s/g,''));\nlet caption=lines.join('\\n').trim()+'\\n\\n🔗 กดลิงก์ในไบโอเพื่อไปที่ร้าน\\n\\n'+tags.join(' ');\nif(caption.length>2100)caption=caption.slice(0,2099);\nreturn { json: { igImage:img, igCaption:caption, hasImage:!!img } };"
       },
       "id": "igcap",
       "name": "Build IG Caption",
