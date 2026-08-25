@@ -116,7 +116,6 @@ GET จาก n8n (สดเสมอ) → patch → PUT กลับ → deacti
 - ~~`index.html` ตัว live บน VPS ยังไม่มีใน git~~ **เสร็จแล้ว 25 ส.ค. 69** — commit `97d6fd5` ใน repo
   `home-console` (https://gitlab.com/supachai.taweerat/home-console.git): `live/html/index.html` +
   `live/Dockerfile` + อัปเดต `home/index.html` ให้ตรงของจริง + `.gitattributes` `* -text` กัน CRLF
-  **ยังค้าง:** ไฟล์อื่นใน `/root/home-console/html/` (`course.html`, `goldea.html`, `cryptobot.html`,
-  `subs.html`, `bitkub-signal-reader.html`, `hc-enhance.js`, `hc-coins.js`) และ `/root/home-metrics/server.js`
-  ยังไม่มีใน git — container ไม่ได้ bind-mount ถ้าหายคือกู้ไม่ได้เหมือนกัน
+  และ `75e45e6` เก็บไฟล์ที่เหลือใน `html/` ครบทั้งโฟลเดอร์ — เทียบ md5 ตรงกับ VPS ทั้ง 9 ไฟล์
+  **ยังค้าง:** `/root/home-metrics/server.js` (ตัวจริงของ endpoint `/api/dealposter`) ยังไม่มีใน git
 - ดีล 8 รายการของวันที่ 24 ส.ค. ถูกมาร์ค "โพสต์แล้ว" ทั้งที่ Facebook/Instagram พลาด (บั๊ก newline) — ถ้าจะโพสต์ย้อนหลังต้องเปลี่ยนสถานะกลับเอง และจะซ้ำที่ Telegram/Threads
