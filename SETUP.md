@@ -76,7 +76,7 @@ Host hostinger
 | Home Console | `https://home.srv1277799.hstgr.cloud` (basic-auth user `admin`) |
 | Notion Deal Queue | `589f80403f534993b49fd9fdd4d292ff` |
 | Telegram | ช่อง `@paiyaa_deals` · บอทรับดีล `@sup_dealposter_bot` |
-| Facebook | เพจ ป้ายยาดีลเด็ด `1330886503433772` · แอป Paiyaa Pages `2350093015523231` |
+| Facebook | https://www.facebook.com/paiyaa.deals · page_id `1330886503433772` · แอป Paiyaa Pages `2350093015523231` |
 | Instagram | `@paiyaa_deals` IG User id `17841440317177953` |
 | Threads | `@paiyaa_deals` uid `28104225519212652` · แอป Paiyaa Poster `1730166771434587` |
 | LINE OA | Paiyaa Bot `@558klaxp` |
