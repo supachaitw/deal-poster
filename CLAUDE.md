@@ -106,6 +106,13 @@ deploy หน้าเว็บ: `scp` ทับ `/root/home-console/html/index.
 `docker cp /root/home-console/html/index.html home-console:/usr/share/nginx/html/index.html` (ไม่ต้อง rebuild)
 การ์ด Deal Poster แบ่งหน้า 50 รายการ/หน้า มีปุ่มย้อนหลัง/ถัดไป (23 ส.ค. 69) — แบ่งฝั่ง client ล้วน ไม่แตะ API
 
+**อนุมัติดีลจากหน้าเว็บได้แล้ว (26 ส.ค. 69)** — ไม่ต้องเปิด Notion:
+แถว "ใหม่/รอตรวจ" มีปุ่ม **✓ อนุมัติ** · แถว "อนุมัติแล้ว" มีปุ่ม **↩ ถอน** · ปุ่ม **แคปชัน** กางดูก่อนตัดสินใจ
+หลังบ้านคือ `POST /api/dealposter/approve` body `{id,status}` ใน `home-metrics` → PATCH Notion ตรง
+(whitelist 3 สถานะ · ไม่ใช่ POST = 405 · id/status ผิด = 400 · สำเร็จแล้วล้าง cache 60 วิทันที)
+`/api/dealposter` เลยต้องคืน `id`,`caption`,`link` มาด้วย — อย่าลบออก หน้าเว็บใช้ `id` ยิง approve
+ปลอดภัยด้วย basic-auth ของ traefik ที่ครอบ subdomain นี้อยู่แล้ว ไม่ได้เปิด endpoint สาธารณะเพิ่ม
+
 ## VPS (มี SSH key จากเครื่อง HP-AllInOne แล้ว — `ssh hostinger`)
 key: `~/.ssh/id_ed25519_hostinger` (ed25519 ไม่มี passphrase) + alias ใน `~/.ssh/config` → `ssh hostinger '…'` · `scp hostinger:/path ./`
 traefik `n8n-traefik-1` ใช้ **docker provider อย่างเดียว** (ไม่มี file provider) + `exposedbydefault=false` → subdomain ใหม่ต้องมี container ที่ติด label เอง;
