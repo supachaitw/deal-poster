@@ -33,7 +33,7 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
 | `UXGp6aS7EclTqCtl` | Threads Token Keeper | จันทร์ 07:00 refresh token 60 วัน แล้ว PUT กลับ |
-| `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล 30 อันล่าสุด ดึง Notion สด สำหรับใส่ไบโอ IG · **มีรูปสินค้าแล้ว (27 ส.ค. 69)** |
+| `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล ดึง Notion สด สำหรับใส่ไบโอ IG · **มีรูปสินค้า + แบ่งหน้าละ 50 (27 ส.ค. 69)** |
 
 **รูปสินค้าบนหน้ารวมดีล (27 ส.ค. 69)** — เพิ่ม property **`รูป` (url)** ใน Notion เก็บ `og:image` ของดีล
 - คนเขียนคือ node **`Mark Posted`** (เติม `รูป` ตอนมาร์ค "โพสต์แล้ว" ดึงจาก `$('Build Post Body').item.json.photoUrl` ที่สายโพสต์หามาแล้ว)
@@ -42,6 +42,13 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
   `<img>` ใช้ `loading=lazy` + `referrerpolicy=no-referrer` + onerror fallback กลับไปรูปเต็มก่อนค่อยซ่อน
 - ⚠️ **Shopee/Lazada CDN ให้ hotlink ได้ปกติ** (ต่างจากฝั่ง Meta/Telegram fetcher ที่โดนบล็อก) เทสต์แล้ว HTTP 200 ทั้งมีและไม่มี Referer
 - ดีลเก่า 90 แถว backfill ครบแล้ว
+
+**แบ่งหน้าละ 50 รายการ (27 ส.ค. 69)** — แถบเลื่อนหน้าอยู่ทั้งบนและล่าง แบ่งฝั่ง client ล้วน
+(render การ์ดทั้งหมดครั้งเดียวแล้ว toggle `display` เหมือนการ์ดใน Home Console) การ์ดที่ซ่อนไม่โหลดรูป
+เพราะ `loading=lazy` · ปุ่มสร้างด้วย DOM API ไม่ใช่ `innerHTML` เพราะสตริงซ้อนใน jsCode อยู่แล้ว
+จะได้ไม่ต้องหนี quote ซ้อนชั้น · ข้อความไทยในสคริปต์ที่ฝังใช้ `\uXXXX` escape กัน encoding เพี้ยน
+⚠️ `Query Posted Deals` ตั้ง `page_size:100` = **เพดานของ Notion ต่อ 1 request** — วันไหนดีลสถานะ
+"โพสต์แล้ว" เกิน 100 ต้องวน `start_cursor` เพิ่ม (แบบเดียวกับที่ `/api/dealposter` ทำ) ไม่งั้นหน้าจะหยุดโตที่ 100
 
 ⛔ **ห้ามส่ง JSON ที่มีภาษาไทยผ่าน `curl -d '...'` ใน bash บนเครื่อง Windows** — console encode เป็น cp874
 ทำให้ชื่อ property เพี้ยน (27 ส.ค. 69 เกิดจริง: สร้าง property ชื่อขยะแทน `รูป` แล้ว PATCH 90 แถวพังหมด
