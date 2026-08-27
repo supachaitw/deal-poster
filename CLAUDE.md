@@ -124,7 +124,10 @@ endpoint `/api/dealposter` ใน container **`home-metrics`**; **ซอร์�
 หน้าเว็บ: Home Console มี 2 ซอร์ส — `/root/home-console/html/index.html` (**ตัว live**) กับ `/docker/n8n/home/index.html` (ของเก่า ธีมมืด) — แก้ต้องแก้ทั้งคู่
 deploy หน้าเว็บ: `scp` ทับ `/root/home-console/html/index.html` แล้ว
 `docker cp /root/home-console/html/index.html home-console:/usr/share/nginx/html/index.html` (ไม่ต้อง rebuild)
-การ์ด Deal Poster แบ่งหน้า 50 รายการ/หน้า มีปุ่มย้อนหลัง/ถัดไป (23 ส.ค. 69) — แบ่งฝั่ง client ล้วน ไม่แตะ API
+~~การ์ด Deal Poster บนหน้า Home~~ **ย้ายเป็นหน้าแยกแล้ว (27 ส.ค. 69)** — tile "Deal Poster" ในกลุ่มเครื่องมือ
+เปิด `https://home.srv1277799.hstgr.cloud/dealposter.html` (แท็บใหม่ · basic-auth เดิมครอบอยู่)
+หน้าใหม่มีครบ: รูปสินค้า (_tn), จัดกลุ่มสถานะ, ปุ่มอนุมัติ/ถอน/แคปชัน, แบ่งหน้า 50, refresh 120 วิ
+`/api/dealposter` คืน `img` (property `รูป`) เพิ่มจากเดิม — ซอร์สหน้าอยู่ repo `home-console` ที่ `live/html/dealposter.html`
 
 **อนุมัติดีลจากหน้าเว็บได้แล้ว (26 ส.ค. 69)** — ไม่ต้องเปิด Notion:
 แถว "ใหม่/รอตรวจ" มีปุ่ม **✓ อนุมัติ** · แถว "อนุมัติแล้ว" มีปุ่ม **↩ ถอน** · ปุ่ม **แคปชัน** กางดูก่อนตัดสินใจ
