@@ -33,7 +33,19 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
 | `UXGp6aS7EclTqCtl` | Threads Token Keeper | จันทร์ 07:00 refresh token 60 วัน แล้ว PUT กลับ |
-| `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล 30 อันล่าสุด ดึง Notion สด สำหรับใส่ไบโอ IG |
+| `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล 30 อันล่าสุด ดึง Notion สด สำหรับใส่ไบโอ IG · **มีรูปสินค้าแล้ว (27 ส.ค. 69)** |
+
+**รูปสินค้าบนหน้ารวมดีล (27 ส.ค. 69)** — เพิ่ม property **`รูป` (url)** ใน Notion เก็บ `og:image` ของดีล
+- คนเขียนคือ node **`Mark Posted`** (เติม `รูป` ตอนมาร์ค "โพสต์แล้ว" ดึงจาก `$('Build Post Body').item.json.photoUrl` ที่สายโพสต์หามาแล้ว)
+  เลือกจุดนี้จุดเดียวแทนแก้ intake ทั้ง 3 ทาง เพราะหน้ารวมดีลแสดงเฉพาะ "โพสต์แล้ว" → ครอบคลุมพอดี · ห่อ try/catch กัน item pairing หลุดแล้วทำ Mark Posted ล้ม (ล้ม = รอบหน้าโพสต์ซ้ำ)
+- `Build Page` เติม `_tn` ต่อท้าย URL ของ Shopee CDN = **thumbnail เล็กลง ~10 เท่า** (245KB → 25KB) · Lazada (`lzd-img-push.slatic.net`) ไม่มี `_tn` ปล่อยรูปเดิม เล็กอยู่แล้ว
+  `<img>` ใช้ `loading=lazy` + `referrerpolicy=no-referrer` + onerror fallback กลับไปรูปเต็มก่อนค่อยซ่อน
+- ⚠️ **Shopee/Lazada CDN ให้ hotlink ได้ปกติ** (ต่างจากฝั่ง Meta/Telegram fetcher ที่โดนบล็อก) เทสต์แล้ว HTTP 200 ทั้งมีและไม่มี Referer
+- ดีลเก่า 90 แถว backfill ครบแล้ว
+
+⛔ **ห้ามส่ง JSON ที่มีภาษาไทยผ่าน `curl -d '...'` ใน bash บนเครื่อง Windows** — console encode เป็น cp874
+ทำให้ชื่อ property เพี้ยน (27 ส.ค. 69 เกิดจริง: สร้าง property ชื่อขยะแทน `รูป` แล้ว PATCH 90 แถวพังหมด
+`"รูป is not a property that exists"`) ให้เขียน body ลงไฟล์ UTF-8 แล้ว `--data-binary @file` หรือใช้ Python `json.dumps(...).encode('utf-8')`
 
 Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใหม่→รอตรวจ→อนุมัติแล้ว→โพสต์แล้ว
 (กติกา: แคปชันเขียนเฉพาะรอบสถานะ "ใหม่"; price-reply เติมแถวที่ราคาลดว่าง สถานะ "ใหม่" หรือ "รอตรวจ")

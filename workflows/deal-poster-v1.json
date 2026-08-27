@@ -18,7 +18,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        256
+        472
       ]
     },
     {
@@ -196,7 +196,7 @@
       "typeVersion": 4.2,
       "position": [
         224,
-        352
+        568
       ]
     },
     {
@@ -209,7 +209,7 @@
       "typeVersion": 2,
       "position": [
         448,
-        352
+        568
       ]
     },
     {
@@ -236,13 +236,13 @@
           ]
         },
         "options": {
-          "timeout": 30000,
           "batching": {
             "batch": {
               "batchSize": 1,
               "batchInterval": 60000
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "a1b2c3d4-0010-4000-8000-000000000010",
@@ -274,7 +274,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { 'สถานะ': { select: { name: 'โพสต์แล้ว' } }, 'โพสต์เมื่อ': { date: { start: new Date().toISOString() } } } }) }}",
+        "jsonBody": "={{ (function(){ var props={ 'สถานะ':{select:{name:'โพสต์แล้ว'}}, 'โพสต์เมื่อ':{date:{start:new Date().toISOString()}} }; try{ var u=$('Build Post Body').item.json.photoUrl; if(u) props['รูป']={url:u}; }catch(e){} return JSON.stringify({properties:props}); })() }}",
         "options": {}
       },
       "id": "a1b2c3d4-0011-4000-8000-000000000011",
@@ -283,7 +283,7 @@
       "typeVersion": 4.2,
       "position": [
         3136,
-        560
+        616
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -313,7 +313,7 @@
       "typeVersion": 4.2,
       "position": [
         3584,
-        560
+        616
       ]
     },
     {
@@ -343,7 +343,7 @@
       "typeVersion": 4.2,
       "position": [
         672,
-        352
+        568
       ],
       "onError": "continueRegularOutput"
     },
@@ -358,7 +358,7 @@
       "typeVersion": 2,
       "position": [
         896,
-        352
+        568
       ]
     },
     {
@@ -396,14 +396,14 @@
         2464,
         352
       ],
-      "onError": "continueRegularOutput",
       "credentials": {
         "twitterOAuth1Api": {
           "id": "TsrgrCQlMXmi03F9",
           "name": "X Paiyaa (OAuth1)"
         }
       },
-      "disabled": true
+      "disabled": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -415,8 +415,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2464,
-        560
+        2240,
+        616
       ],
       "onError": "continueRegularOutput"
     },
@@ -433,8 +433,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2688,
-        560
+        2464,
+        616
       ],
       "onError": "continueRegularOutput"
     },
@@ -443,13 +443,13 @@
         "method": "POST",
         "url": "={{ 'https://graph.threads.net/v1.0/28104225519212652/threads_publish?creation_id=' + ($json.id||'MISSING') + '&access_token=REPLACE_THREADS_TOKEN' }}",
         "options": {
-          "timeout": 20000,
           "batching": {
             "batch": {
               "batchSize": 1,
               "batchInterval": 60000
             }
-          }
+          },
+          "timeout": 20000
         }
       },
       "id": "thp",
@@ -457,8 +457,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3040,
-        560
+        2912,
+        616
       ],
       "onError": "continueRegularOutput"
     },
@@ -489,7 +489,7 @@
       "typeVersion": 4.2,
       "position": [
         1120,
-        352
+        568
       ],
       "onError": "continueRegularOutput"
     },
@@ -597,13 +597,13 @@
           ]
         },
         "options": {
-          "timeout": 30000,
           "batching": {
             "batch": {
               "batchSize": 1,
               "batchInterval": 60000
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "fbp",
@@ -612,14 +612,14 @@
       "typeVersion": 4.2,
       "position": [
         1344,
-        560
+        712
       ],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const ok=!!($json.id||$json.post_id);\nif(ok)return { json: { sent:true, photo_id:($json.id||null) } };\nreturn { json: { sent:false, text:$('Split Approved').item.json.caption, link:$('Split Approved').item.json.link } };",
-        "mode": "runOnceForEachItem"
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ok=!!($json.id||$json.post_id);\nif(ok)return { json: { sent:true, photo_id:($json.id||null) } };\nreturn { json: { sent:false, text:$('Split Approved').item.json.caption, link:$('Split Approved').item.json.link } };"
       },
       "id": "fbv",
       "name": "FB Verify",
@@ -627,7 +627,7 @@
       "typeVersion": 2,
       "position": [
         1568,
-        560
+        712
       ]
     },
     {
@@ -659,7 +659,7 @@
       "typeVersion": 2,
       "position": [
         1792,
-        560
+        712
       ]
     },
     {
@@ -670,13 +670,13 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({message:$json.text+'\\n\\n🔗 รวมดีลทั้งหมด (IG: ลิงก์ในไบโอ)\\nhttps://deals.srv1277799.hstgr.cloud', link:$json.link||undefined, access_token:'REPLACE_FB_PAGE_TOKEN'}) }}",
         "options": {
-          "timeout": 30000,
           "batching": {
             "batch": {
               "batchSize": 1,
               "batchInterval": 60000
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "fbt",
@@ -685,13 +685,12 @@
       "typeVersion": 4.2,
       "position": [
         2016,
-        560
+        568
       ],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=https://graph.facebook.com/v21.0/{{ $json.photo_id }}?fields=images&access_token=REPLACE_FB_PAGE_TOKEN",
         "options": {
           "timeout": 15000
@@ -702,8 +701,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2240,
-        680
+        2016,
+        808
       ],
       "onError": "continueRegularOutput"
     },
@@ -718,7 +717,7 @@
       "typeVersion": 2,
       "position": [
         3360,
-        560
+        616
       ]
     },
     {
@@ -731,8 +730,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2464,
-        780
+        2240,
+        856
       ]
     },
     {
@@ -763,8 +762,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2688,
-        780
+        2464,
+        856
       ]
     },
     {
@@ -790,13 +789,13 @@
           ]
         },
         "options": {
-          "timeout": 30000,
           "batching": {
             "batch": {
               "batchSize": 1,
               "batchInterval": 60000
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "igcreate",
@@ -804,8 +803,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2912,
-        780
+        2688,
+        856
       ],
       "onError": "continueRegularOutput"
     },
@@ -836,21 +835,20 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3136,
-        780
+        2912,
+        856
       ],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "amount": 30,
-        "unit": "seconds"
+        "amount": 30
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2800,
-        560
+        2688,
+        616
       ],
       "id": "909ff040-09a3-4c24-ad4a-b1e42a987461",
       "name": "Threads Settle",
