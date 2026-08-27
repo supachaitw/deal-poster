@@ -47,8 +47,9 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 (render การ์ดทั้งหมดครั้งเดียวแล้ว toggle `display` เหมือนการ์ดใน Home Console) การ์ดที่ซ่อนไม่โหลดรูป
 เพราะ `loading=lazy` · ปุ่มสร้างด้วย DOM API ไม่ใช่ `innerHTML` เพราะสตริงซ้อนใน jsCode อยู่แล้ว
 จะได้ไม่ต้องหนี quote ซ้อนชั้น · ข้อความไทยในสคริปต์ที่ฝังใช้ `\uXXXX` escape กัน encoding เพี้ยน
-⚠️ `Query Posted Deals` ตั้ง `page_size:100` = **เพดานของ Notion ต่อ 1 request** — วันไหนดีลสถานะ
-"โพสต์แล้ว" เกิน 100 ต้องวน `start_cursor` เพิ่ม (แบบเดียวกับที่ `/api/dealposter` ทำ) ไม่งั้นหน้าจะหยุดโตที่ 100
+~~เพดาน 100 ดีล~~ **ปิดแล้ว (27 ส.ค. 69)** — `Query Posted Deals` เปลี่ยนจาก httpRequest เป็น
+**Code node ที่วน `start_cursor`** จนครบ (สูงสุด 20 หน้า = 2,000 ดีล) ใช้ `this.helpers.httpRequest`
+ยิง Notion ตรงในลูป · ⚠️ node นี้เลยมี Notion token ฝังใน **jsCode** (ไม่ใช่ header) — sanitize ต้องจับใน jsCode ด้วย
 
 ⛔ **ห้ามส่ง JSON ที่มีภาษาไทยผ่าน `curl -d '...'` ใน bash บนเครื่อง Windows** — console encode เป็น cp874
 ทำให้ชื่อ property เพี้ยน (27 ส.ค. 69 เกิดจริง: สร้าง property ชื่อขยะแทน `รูป` แล้ว PATCH 90 แถวพังหมด
