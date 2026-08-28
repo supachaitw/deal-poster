@@ -20,17 +20,40 @@
     },
     {
       "parameters": {
-        "jsCode": "const TOKEN = 'REPLACE_NOTION_TOKEN';\nconst DB = '589f80403f534993b49fd9fdd4d292ff';\nlet results = [], cursor = null;\nfor (let i = 0; i < 20; i++) {\n  const body = {\n    filter: { property: 'สถานะ', select: { equals: 'โพสต์แล้ว' } },\n    sorts: [{ property: 'โพสต์เมื่อ', direction: 'descending' }],\n    page_size: 100\n  };\n  if (cursor) body.start_cursor = cursor;\n  const r = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.notion.com/v1/databases/' + DB + '/query',\n    headers: { Authorization: 'Bearer ' + TOKEN, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },\n    body: body, json: true, timeout: 20000\n  });\n  results = results.concat(r.results || []);\n  if (!r.has_more || !r.next_cursor) break;\n  cursor = r.next_cursor;\n}\nreturn [{ json: { results } }];"
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"โพสต์แล้ว\"}},\"sorts\":[{\"property\":\"โพสต์เมื่อ\",\"direction\":\"descending\"}],\"page_size\":100}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "id": "lp-q",
       "name": "Query Posted Deals",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         224,
         0
       ],
-      "notes": "วน start_cursor จนครบ (สูงสุด 20 หน้า = 2000 ดีล) — เดิมเป็น httpRequest ที่ได้แค่ 100"
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      }
     },
     {
       "parameters": {

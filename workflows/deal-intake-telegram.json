@@ -125,10 +125,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_NOTION_TOKEN"
-            },
-            {
               "name": "Notion-Version",
               "value": "2022-06-28"
             },
@@ -141,7 +137,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.payload) }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
       }
     },
     {
@@ -318,10 +322,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_NOTION_TOKEN"
-            },
-            {
               "name": "Notion-Version",
               "value": "2022-06-28"
             },
@@ -334,7 +334,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "{\"filter\":{\"and\":[{\"or\":[{\"property\":\"สถานะ\",\"select\":{\"equals\":\"รอตรวจ\"}},{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}}]},{\"property\":\"ราคาลด\",\"number\":{\"is_empty\":true}}]},\"sorts\":[{\"timestamp\":\"created_time\",\"direction\":\"descending\"}],\"page_size\":1}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
       }
     },
     {
@@ -397,10 +405,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_NOTION_TOKEN"
-            },
-            {
               "name": "Notion-Version",
               "value": "2022-06-28"
             },
@@ -413,7 +417,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.payload) }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
       }
     },
     {

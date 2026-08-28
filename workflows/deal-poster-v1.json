@@ -29,10 +29,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_NOTION_TOKEN"
-            },
-            {
               "name": "Notion-Version",
               "value": "2022-06-28"
             }
@@ -41,7 +37,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\": 10}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "a1b2c3d4-0002-4000-8000-000000000002",
       "name": "Query New Deals",
@@ -50,7 +48,13 @@
       "position": [
         224,
         160
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      }
     },
     {
       "parameters": {
@@ -118,10 +122,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_NOTION_TOKEN"
-            },
-            {
               "name": "Notion-Version",
               "value": "2022-06-28"
             }
@@ -130,7 +130,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ properties: { 'สถานะ': { select: { name: 'รอตรวจ' } }, 'แคปชัน': { rich_text: [{ text: { content: $json.text.slice(0, 1900) } }] } } }) }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "a1b2c3d4-0006-4000-8000-000000000006",
       "name": "Save Draft to Notion",
@@ -139,7 +141,13 @@
       "position": [
         1120,
         160
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      }
     },
     {
       "parameters": {
@@ -176,10 +184,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_NOTION_TOKEN"
-            },
-            {
               "name": "Notion-Version",
               "value": "2022-06-28"
             }
@@ -188,7 +192,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"อนุมัติแล้ว\"}},\"page_size\": 10}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "a1b2c3d4-0008-4000-8000-000000000008",
       "name": "Query Approved Deals",
@@ -197,7 +203,13 @@
       "position": [
         224,
         568
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      }
     },
     {
       "parameters": {
@@ -263,10 +275,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_NOTION_TOKEN"
-            },
-            {
               "name": "Notion-Version",
               "value": "2022-06-28"
             }
@@ -274,8 +282,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ (function(){ var props={ 'สถานะ':{select:{name:'โพสต์แล้ว'}}, 'โพสต์เมื่อ':{date:{start:new Date().toISOString()}} }; try{ var u=$('Build Post Body').item.json.photoUrl; if(u) props['รูป']={url:u}; }catch(e){} return JSON.stringify({properties:props}); })() }}",
-        "options": {}
+        "jsonBody": "={{ (function(){ var props={}; props['สถานะ']={select:{name:'โพสต์แล้ว'} }; props['โพสต์เมื่อ']={date:{start:new Date().toISOString()} }; try{ var u=$('Build Post Body').item.json.photoUrl; if(u) props['รูป']={url:u}; }catch(e){} return JSON.stringify({properties:props}); })() }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "a1b2c3d4-0011-4000-8000-000000000011",
       "name": "Mark Posted",
@@ -287,7 +297,13 @@
       ],
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 3000
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      }
     },
     {
       "parameters": {
@@ -350,7 +366,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const j=$input.item.json;\n  const html=typeof j.data==='string'?j.data:(typeof j.body==='string'?j.body:'');\n  const m=html.match(/property=\"og:image\" content=\"([^\"]{10,500})\"/);\n  if(m)img=m[1].replace(/&amp;/g,'&');\n}catch(e){}\nreturn { json: { caption:d.caption||'', photoUrl:img } };"
+        "jsCode": "const d=$('Split Approved').item.json;\n\n// รูปจาก Lazada CDN ถูกเสิร์ฟเป็น AVIF (x-oss-process=.../format,avif)\n// Telegram/Facebook/Instagram ไม่รองรับ AVIF -> บังคับให้ CDN คืนเป็น JPEG\nfunction toJpg(u){\n  if(!u) return u;\n  try{\n    if(u.indexOf('x-oss-process')!==-1){\n      u=u.replace(/format,(avif|webp|heic|heif)/gi,'format,jpg');\n      if(!/format,jpg/i.test(u)) u=u+'/format,jpg';\n    }\n    u=u.replace(/\\.(avif|webp)(\\?|$)/i,'$2').replace(/\\.jpg_(\\?|$)/i,'.jpg$1');\n  }catch(e){}\n  return u;\n}\n\nlet img=null;\ntry{\n  const j=$input.item.json;\n  const html=typeof j.data==='string'?j.data:(typeof j.body==='string'?j.body:'');\n  const m=html.match(/property=\"og:image\" content=\"([^\"]{10,500})\"/);\n  if(m)img=m[1].replace(/&amp;/g,'&');\n}catch(e){}\nimg=toJpg(img);\nreturn { json: { caption:d.caption||'', photoUrl:img } };\n"
       },
       "id": "bpb",
       "name": "Build Post Body",
