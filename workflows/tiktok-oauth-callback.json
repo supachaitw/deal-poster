@@ -1,0 +1,87 @@
+{
+  "name": "TikTok OAuth Callback",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "tt-oauth-cb-k4w8",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4a00-8000-000000000001",
+      "name": "TT OAuth Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "e36ca986-9a63-490c-94fe-39ff8bff7730"
+    },
+    {
+      "parameters": {
+        "jsCode": "const q = $input.first().json.query || {};\nconst code = q.code || '';\nconst state = q.state || '';\nconst esc = (s) => String(s).replace(/[&<>\"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nlet body;\nif (!code) {\n  body = '<h2>⚠️ ไม่พบ code ใน callback</h2><p>การ authorize อาจถูกยกเลิก หรือลิงก์หมดอายุ — ลองเปิดลิงก์ authorize ใหม่อีกครั้ง</p>';\n} else {\n  body =\n    '<h2>✅ ได้รับ code จาก TikTok แล้ว</h2>' +\n    '<p>ส่งข้อความด้านล่างนี้ให้ Claude ทันที (code อายุสั้นและใช้ได้ครั้งเดียว)</p>' +\n    '<pre id=\"c\">tt_code=' + esc(code) + '\\ntt_state=' + esc(state) + '</pre>' +\n    '<button onclick=\"navigator.clipboard.writeText(document.getElementById(\\'c\\').textContent).then(()=>{this.textContent=\\'คัดลอกแล้ว ✓\\'})\">คัดลอก</button>';\n}\nconst html =\n  '<!doctype html><html lang=\"th\"><head><meta charset=\"utf-8\">' +\n  '<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>TikTok OAuth Callback</title>' +\n  '<style>body{font-family:system-ui,sans-serif;max-width:560px;margin:48px auto;padding:0 16px;color:#222}pre{background:#f4f4f4;padding:12px;border-radius:8px;overflow-x:auto;word-break:break-all;white-space:pre-wrap}button{font-size:16px;padding:8px 20px;border-radius:8px;border:1px solid #888;cursor:pointer}</style>' +\n  '</head><body>' + body + '</body></html>';\nreturn [{ json: { html } }];\n"
+      },
+      "id": "a1b2c3d4-0002-4a00-8000-000000000002",
+      "name": "Build Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "a1b2c3d4-0003-4a00-8000-000000000003",
+      "name": "Respond HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "TT OAuth Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Page": {
+      "main": [
+        [
+          {
+            "node": "Respond HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Bangkok"
+  }
+}

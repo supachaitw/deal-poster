@@ -34,6 +34,7 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
 | `UXGp6aS7EclTqCtl` | Threads Token Keeper | จันทร์ 07:00 refresh token 60 วัน แล้ว PUT กลับ |
 | `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล ดึง Notion สด สำหรับใส่ไบโอ IG · **มีรูปสินค้า + แบ่งหน้าละ 50 (27 ส.ค. 69)** |
+| `qHcCduq7ec3an1zk` | TikTok OAuth Callback | `GET /webhook/tt-oauth-cb-k4w8` — หน้ารับ `code`+`state` ตอน creator authorize แล้วให้ user copy ส่งให้ Claude (สร้าง 29 ส.ค. 69 รอใช้ใน Phase 0 TikTok) |
 
 **รูปสินค้าบนหน้ารวมดีล (27 ส.ค. 69)** — เพิ่ม property **`รูป` (url)** ใน Notion เก็บ `og:image` ของดีล
 - คนเขียนคือ node **`Mark Posted`** (เติม `รูป` ตอนมาร์ค "โพสต์แล้ว" ดึงจาก `$('Build Post Body').item.json.photoUrl` ที่สายโพสต์หามาแล้ว)
@@ -71,6 +72,21 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 - **Telegram bot token ยังฝังใน URL** (4 โหนด: `Post to Telegram`/`TG Send Text` ใน Poster, `TG Confirm`/`TG Help` ใน Intake TG) — **ย้ายเข้า credential ไม่ได้**: token อยู่ใน URL path ซึ่ง generic credential ของ n8n ฉีดให้ไม่ได้ และเปลี่ยนเป็น Telegram node จะเสีย batching 60 วิ (throttle ที่ตั้งใจ)
   - **rotate Telegram token**: BotFather → `/revoke` @sup_dealposter_bot ได้ token ใหม่ → GET สด 2 workflow (`E6i2xEAcaUsUFKWm`, `JUE23JTCBbCsW1lS`) → replace string `bot<เก่า>` → `bot<ใหม่>` → PUT + deactivate→activate
 - ที่ยังฝังโดยตั้งใจ: FB page token (never-expire), Threads (Token Keeper หา token ด้วย regex จาก workflow — **ห้ามย้าย**), Anthropic key + LINE channel token (ยังฝัง — ผู้สมัครรอบถัดไปถ้าจะย้ายเพิ่ม ทำแบบเดียวกับ Notion ได้เพราะเป็น header ทั้งคู่)
+
+## TikTok Shop — provider ใหม่ (กำลังทำ, เริ่ม 29 ส.ค. 2569)
+แผนรวม: sync ดีลจาก Affiliate Marketplace → แถว Notion สถานะ "ใหม่" → ไหลเข้าสาย A/B เดิม + gen ลิงก์ให้ user ปักตะกร้า
+ตัดสินใจแล้ว (29 ส.ค.): **เพิ่ม property `ลิงก์ตะกร้า` แยกจาก `ลิงก์Affiliate`** และ **ดีล TikTok ไหลเข้าสายโพสต์ TG/FB/IG/Threads ด้วย**
+- **Phase 0 (กำลังทำ)**: user สมัคร Partner Center + สร้างแอป + authorize — callback ใช้ workflow `qHcCduq7ec3an1zk` (URL: `https://n8n.srv1277799.hstgr.cloud/webhook/tt-oauth-cb-k4w8`)
+- ข้อเท็จจริงจาก docs (เช็ค 29 ส.ค. 69):
+  - Creator authorization: ลิงก์ `https://shop.tiktok.com/alliance/creator/auth?app_key={key}&state={random}` (**state บังคับ** สำหรับ creator) → callback `?code=&state=` → แลก token: `GET https://auth.tiktok-shops.com/api/v2/token/get` (`app_key,app_secret,auth_code,grant_type=authorized_code`) → refresh: `GET https://auth.tiktok-shops.com/api/v2/token/refresh` (`grant_type=refresh_token`)
+  - ตรวจหลังแลก token เสมอ: `code==0`, `user_type==1` (=creator), `granted_scopes` ครบ (creator ติ๊กเลือกบาง scope ได้ — สำเร็จ ≠ ได้ครบ) · error 105002=token หมดอายุ, 105005=ขาด scope, 101000=ใช้ token ผิดฝั่ง (seller/creator คนละใบ ห้ามสลับ)
+  - access_token อายุ ~24 ชม., refresh_token ~1 ปี → Token Keeper ควร refresh ทุก ~12 ชม.
+  - endpoint หลัก (ทุกตัว query `app_key,sign,timestamp` + header `x-tts-access-token`):
+    - ค้นดีล: `POST /affiliate_creator/202405/open_collaborations/products/search` scope `creator.affiliate_collaboration.read` — page_size ≤ 20, filter `commission_rate_range`/`sales_price_range`/`category`/`title_keywords`, sort `commission_rate` ได้, แบ่งหน้าด้วย `page_token`
+    - gen ลิงก์: `POST /affiliate_creator/202505/affiliate_sharing_links/general_publishers/generate_batch` scope `creator.affiliate.share_link.read` (⚠️ คนละ version: 202505)
+    - **ปักตะกร้า (showcase) ผ่าน API ได้จริง**: `POST /affiliate_creator/202405/showcases/products/add` scope `creator.showcase.write` (add_type PRODUCT_ID/PRODUCT_LINK ≤ 20 ตัว/ครั้ง) — ที่ทำแทนไม่ได้คือปักลงคลิป/ไลฟ์รายอัน
+  - เงื่อนไขฝั่ง creator: ต้องเป็น TikTok Shop Creator ที่มี Showcase แล้ว (SEA ต้อง 5K+ followers, 18+) · Affiliate API ใช้ไม่ได้ใน UK/EU (ไทยใช้ได้)
+- แผนเต็ม (ไฟล์/phase/interface) อยู่ใน session log 29 ส.ค. — สรุปสั้น: `lib/tiktok/{sign,request}.js` + unit test (`node --test`), workflow `TikTok Token Keeper` + `TikTok Deal Sync`, Notion เพิ่ม `แหล่ง`(select) `TTProductId`(rich_text) `คอม%`(number) `ลิงก์ตะกร้า`(url)
 
 ## สถานะแพลตฟอร์ม (22 ส.ค. 2569)
 - **Telegram** `@paiyaa_deals` ✅ — sendPhoto ต้องโหลดรูปเป็น binary แล้ว upload multipart (ส่ง URL ให้ Telegram ดึงเองไม่ได้ Shopee/Lazada CDN บล็อก); Lazada บางรูป `IMAGE_PROCESS_FAILED` → fallback sendMessage ทำงานอยู่
