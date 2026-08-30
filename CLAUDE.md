@@ -77,6 +77,11 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 แผนรวม: sync ดีลจาก Affiliate Marketplace → แถว Notion สถานะ "ใหม่" → ไหลเข้าสาย A/B เดิม + gen ลิงก์ให้ user ปักตะกร้า
 ตัดสินใจแล้ว (29 ส.ค.): **เพิ่ม property `ลิงก์ตะกร้า` แยกจาก `ลิงก์Affiliate`** และ **ดีล TikTok ไหลเข้าสายโพสต์ TG/FB/IG/Threads ด้วย**
 - **Phase 0 (กำลังทำ)**: user สมัคร Partner Center + สร้างแอป + authorize — callback ใช้ workflow `qHcCduq7ec3an1zk` (URL: `https://n8n.srv1277799.hstgr.cloud/webhook/tt-oauth-cb-k4w8`)
+- **ความคืบหน้า 30 ส.ค. 69**: สมัคร Partner Center ด้วย**อีเมลใหม่** (อีเมลเดิม gmail ผูกร้าน TikTok Shop → App developer ถูกล็อก "not available for TikTok Shop sellers") · Partner name **Paiyaa Deals**, region Thailand
+  - แอปที่ใช้จริง: **Paiyaa Creator Poster** — Service ID `7679008369329063701`, App key `6l3qenknhf6n3`, Custom app, category **App developer → Customer Engagement → Creator collaborations** (⚠️ category เดียวในไทยที่มี scope `creator.*` — Marketing/Analytics ฯลฯ มีแต่ `seller.*`), target TH/Local, Redirect URL = webhook ข้างบน · **app secret อยู่หน้า Notion Config** (หัวข้อ TikTok)
+  - แอปทิ้งร้าง (ใบแรก ผิด category): "Paiyaa Deal Poster" Service ID `7679561908684588820` — ไม่ใช้ อย่าสับสน
+  - scope เปิดแล้ว 5 ตัว (สถานะ Awaiting review): `creator.affiliate_collaboration.read`, `creator.affiliate.share_link.read`, `creator.showcase.write`, `creator.showcase.read`, `seller.creator_marketplace.read`
+  - ค้าง: qualification "Creator collaborations" ยังไม่ submit (ติด Certification Details ต้องมีเอกสารกิจการจดเกิน 1 ปี — ใบ Marketing เดิมก็ค้าง Draft แบบเดียวกัน) · Partner registration review ~3-5 วันทำการ · ต้องลอง authorize ดูว่าติด review ไหม
 - ข้อเท็จจริงจาก docs (เช็ค 29 ส.ค. 69):
   - Creator authorization: ลิงก์ `https://shop.tiktok.com/alliance/creator/auth?app_key={key}&state={random}` (**state บังคับ** สำหรับ creator) → callback `?code=&state=` → แลก token: `GET https://auth.tiktok-shops.com/api/v2/token/get` (`app_key,app_secret,auth_code,grant_type=authorized_code`) → refresh: `GET https://auth.tiktok-shops.com/api/v2/token/refresh` (`grant_type=refresh_token`)
   - ตรวจหลังแลก token เสมอ: `code==0`, `user_type==1` (=creator), `granted_scopes` ครบ (creator ติ๊กเลือกบาง scope ได้ — สำเร็จ ≠ ได้ครบ) · error 105002=token หมดอายุ, 105005=ขาด scope, 101000=ใช้ token ผิดฝั่ง (seller/creator คนละใบ ห้ามสลับ)
