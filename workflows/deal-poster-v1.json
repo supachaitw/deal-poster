@@ -1,5 +1,5 @@
 {
-  "name": "Deal Poster v1 — Notion Queue → Claude Caption → Telegram (LINE approve)",
+  "name": "Deal Poster v1 — โพสต์ดีลที่อนุมัติแล้ว (09–21 น.)",
   "nodes": [
     {
       "parameters": {
@@ -19,161 +19,6 @@
       "position": [
         0,
         472
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Notion-Version",
-              "value": "2022-06-28"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\": 10}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "id": "a1b2c3d4-0002-4000-8000-000000000002",
-      "name": "Query New Deals",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        224,
-        160
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "U5mfqJ7z2OV1c4PT",
-          "name": "Notion Deal Poster (Header Auth)"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const res = $json.results || [];\nreturn res.map(p => ({ json: {\n  page_id: p.id,\n  name: (p.properties['สินค้า'].title || []).map(t => t.plain_text).join(''),\n  full: p.properties['ราคาเต็ม'] ? p.properties['ราคาเต็ม'].number : null,\n  sale: p.properties['ราคาลด'] ? p.properties['ราคาลด'].number : null,\n  link: p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '',\n  cat: (p.properties['หมวด'] && p.properties['หมวด'].select) ? p.properties['หมวด'].select.name : ''\n}}));"
-      },
-      "id": "a1b2c3d4-0003-4000-8000-000000000003",
-      "name": "Split New",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        448,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "REPLACE_ANTHROPIC_API_KEY"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400, messages: [{ role: 'user', content: 'เขียนแคปชันโพสต์ขายดีลภาษาไทย 2-3 บรรทัด มีอีโมจิ น่าสนใจแต่ไม่โอเวอร์ สำหรับสินค้า: ' + $json.name + ' (หมวด ' + $json.cat + ')' + ($json.sale ? (' ราคาปกติ ' + ($json.full || '-') + ' บาท เหลือ ' + $json.sale + ' บาท') : ($json.full ? (' ราคา ' + $json.full + ' บาท') : ' (ไม่ทราบราคา ห้ามกล่าวถึงราคาหรือส่วนลดใด ๆ เด็ดขาด)')) + ' ห้ามแต่งข้อมูลที่ไม่มีจริง ห้ามใส่ลิงก์ ตอบเฉพาะตัวแคปชันเท่านั้น' }] }) }}",
-        "options": {}
-      },
-      "id": "a1b2c3d4-0004-4000-8000-000000000004",
-      "name": "Claude Write Caption",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        672,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const cap = ($json.content && $json.content[0] && $json.content[0].text ? $json.content[0].text : '').trim();\nconst d = $('Split New').item.json;\nconst pct = d.full && d.sale ? Math.round((1 - d.sale / d.full) * 100) : null;\nlet priceLine = '';\nif (d.sale) priceLine = '💥 เหลือ ' + d.sale + ' บาท' + (pct ? ' (ลด ' + pct + '%)' : '');\nelse if (d.full) priceLine = '💰 ราคา ' + d.full + ' บาท';\nconst body = (priceLine ? priceLine + '\\n' : '') + '👉 ' + d.link;\nconst text = cap + '\\n\\n' + body + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\nreturn { json: { page_id: d.page_id, name: d.name, text } };"
-      },
-      "id": "a1b2c3d4-0005-4000-8000-000000000005",
-      "name": "Build Caption",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        896,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "method": "PATCH",
-        "url": "=https://api.notion.com/v1/pages/{{ $json.page_id }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Notion-Version",
-              "value": "2022-06-28"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { 'สถานะ': { select: { name: 'รอตรวจ' } }, 'แคปชัน': { rich_text: [{ text: { content: $json.text.slice(0, 1900) } }] } } }) }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "id": "a1b2c3d4-0006-4000-8000-000000000006",
-      "name": "Save Draft to Notion",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1120,
-        160
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "U5mfqJ7z2OV1c4PT",
-          "name": "Notion Deal Poster (Header Auth)"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.line.me/v2/bot/message/push",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_LINE_CHANNEL_TOKEN"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ to: 'U72a09a140c06dd099b438153c3b45dd9', messages: [{ type: 'text', text: ('📝 ร่างแคปชันใหม่รออนุมัติ\\n\\n' + $('Build Caption').item.json.text + '\\n\\n✅ ถ้าโอเค ไปเปลี่ยนสถานะเป็น \"อนุมัติแล้ว\" ใน Notion แล้วรอบถัดไปบอทจะโพสต์ให้').slice(0, 4900) }] }) }}",
-        "options": {}
-      },
-      "id": "a1b2c3d4-0007-4000-8000-000000000007",
-      "name": "LINE Preview",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1344,
-        160
       ]
     },
     {
@@ -213,7 +58,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const res = $json.results || [];\nreturn res.map(p => {\n  const name = (p.properties['สินค้า'].title || []).map(t => t.plain_text).join('');\n  const link = p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '';\n  let caption = (p.properties['แคปชัน'] && p.properties['แคปชัน'].rich_text ? p.properties['แคปชัน'].rich_text : []).map(t => t.plain_text).join('');\n  const sale = p.properties['ราคาลด'] ? p.properties['ราคาลด'].number : null;\n  const full = p.properties['ราคาเต็ม'] ? p.properties['ราคาเต็ม'].number : null;\n  if (!caption && name) {\n    let priceLine = '';\n    if (sale) priceLine = '💥 เหลือ ' + sale + ' บาท';\n    else if (full) priceLine = '💰 ราคา ' + full + ' บาท';\n    caption = '✨ ' + name + '\\n' + (priceLine ? priceLine + '\\n' : '') + '👉 ' + link + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\n  }\n  return { json: { page_id: p.id, name: name, link: link, caption: caption } };\n}).filter(i => i.json.caption && i.json.link).slice(0, 3);"
+        "jsCode": "const res = $json.results || [];\nreturn res.map(p => {\n  const name = (p.properties['สินค้า'].title || []).map(t => t.plain_text).join('');\n  const link = p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '';\n  let caption = (p.properties['แคปชัน'] && p.properties['แคปชัน'].rich_text ? p.properties['แคปชัน'].rich_text : []).map(t => t.plain_text).join('');\n  const sale = p.properties['ราคาลด'] ? p.properties['ราคาลด'].number : null;\n  const full = p.properties['ราคาเต็ม'] ? p.properties['ราคาเต็ม'].number : null;\n  if (!caption && name) {\n    let priceLine = '';\n    if (sale) priceLine = '💥 เหลือ ' + sale + ' บาท';\n    else if (full) priceLine = '💰 ราคา ' + full + ' บาท';\n    caption = '✨ ' + name + '\\n' + (priceLine ? priceLine + '\\n' : '') + '👉 ' + link + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\n  }\n  return { json: { page_id: p.id, name: name, link: link, caption: caption } };\n}).filter(i => i.json.caption && i.json.link).slice(0, 6);"
       },
       "id": "a1b2c3d4-0009-4000-8000-000000000009",
       "name": "Split Approved",
@@ -692,7 +537,7 @@
               "batchInterval": 60000
             }
           },
-          "timeout": 30000
+          "timeout": 60000
         }
       },
       "id": "fbt",
@@ -854,7 +699,10 @@
         2912,
         856
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 15000
     },
     {
       "parameters": {
@@ -877,67 +725,7 @@
       "main": [
         [
           {
-            "node": "Query New Deals",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "Query Approved Deals",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Query New Deals": {
-      "main": [
-        [
-          {
-            "node": "Split New",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Split New": {
-      "main": [
-        [
-          {
-            "node": "Claude Write Caption",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Claude Write Caption": {
-      "main": [
-        [
-          {
-            "node": "Build Caption",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Caption": {
-      "main": [
-        [
-          {
-            "node": "Save Draft to Notion",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Save Draft to Notion": {
-      "main": [
-        [
-          {
-            "node": "LINE Preview",
             "type": "main",
             "index": 0
           }
@@ -1235,10 +1023,9 @@
     }
   },
   "settings": {
-    "timezone": "Asia/Bangkok",
     "executionOrder": "v1",
+    "timezone": "Asia/Bangkok",
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false,
     "saveManualExecutions": true
   }
 }

@@ -133,9 +133,8 @@
     }
   },
   "settings": {
-    "timezone": "Asia/Bangkok",
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "timezone": "Asia/Bangkok",
+    "callerPolicy": "workflowsFromSameOwner"
   }
 }

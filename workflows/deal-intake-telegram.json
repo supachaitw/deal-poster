@@ -27,7 +27,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const b=$input.first().json.body||$input.first().json;\nconst msg=b.message||{};\nconst text=msg.text||msg.caption||'';\nconst chatId=msg.chat?msg.chat.id:null;\nconst url=(text.match(/https?:\\/\\/\\S+/)||[null])[0];\nreturn [{json:{text,chatId,url,hasUrl:!!(url&&chatId)}}];"
+        "jsCode": "const b=$input.first().json.body||$input.first().json;\nconst msg=b.message||{};\nconst text=msg.text||msg.caption||'';\nconst chatId=msg.chat?msg.chat.id:null;\nconst url=(text.match(/https?:\\/\\/\\S+/)||[null])[0];\nconst source=!url?null:(/tiktok\\.com/i.test(url)?'tiktok':(/lazada\\.|lzd\\.co/i.test(url)?'lazada':(/shopee\\.|shp\\.ee/i.test(url)?'shopee':null)));\nreturn [{json:{text,chatId,url,source,hasUrl:!!(url&&chatId)}}];"
       }
     },
     {
@@ -92,7 +92,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model:\"claude-haiku-4-5\",max_tokens:400,system:\"You extract Shopee deal info from a chat message (Thai). The message contains a product link and possibly share-text with product name and prices. Reply with ONLY a JSON object: {\\\"name\\\": string|null (product name, no promo phrases), \\\"full_price\\\": number|null, \\\"sale_price\\\": number|null, \\\"category\\\": one of \\\"gadget\\\",\\\"ความงาม\\\",\\\"บ้าน\\\",\\\"แฟชั่น\\\",\\\"อาหาร\\\",\\\"รถ\\\",\\\"อื่นๆ\\\" (guess from name; \\\"อื่นๆ\\\" if unknown)}. If only one price appears, treat it as sale_price. Do not invent values.\",messages:[{role:\"user\",content:$json.text}]}) }}",
+        "jsonBody": "={{ JSON.stringify({model:\"claude-haiku-4-5\",max_tokens:400,system:\"You extract e-commerce deal info (Shopee, Lazada or TikTok Shop) from a chat message (Thai). The message contains a product link and possibly share-text with product name and prices. Reply with ONLY a JSON object: {\\\"name\\\": string|null (product name, no promo phrases), \\\"full_price\\\": number|null, \\\"sale_price\\\": number|null, \\\"category\\\": one of \\\"gadget\\\",\\\"ความงาม\\\",\\\"บ้าน\\\",\\\"แฟชั่น\\\",\\\"อาหาร\\\",\\\"รถ\\\",\\\"อื่นๆ\\\" (guess from name; \\\"อื่นๆ\\\" if unknown)}. If only one price appears, treat it as sale_price. Do not invent values.\",messages:[{role:\"user\",content:$json.text}]}) }}",
         "options": {}
       }
     },
@@ -106,7 +106,7 @@
         -100
       ],
       "parameters": {
-        "jsCode": "const resp=$input.first().json;\nlet parsed={};\ntry{const t=(resp.content||[{}])[0].text||'';parsed=JSON.parse((t.match(/\\{[\\s\\S]*\\}/)||['{}'])[0]);}catch(e){}\nconst info=$('Extract').first().json;\nconst name=(parsed.name||'').trim()||null;\nconst full=Number(parsed.full_price)||null;\nconst sale=Number(parsed.sale_price)||null;\nconst cats=['gadget','ความงาม','บ้าน','แฟชั่น','อื่นๆ'];\nconst cat=cats.includes(parsed.category)?parsed.category:'อื่นๆ';\nconst complete=!!name;\nconst props={\n  'สินค้า':{title:[{text:{content:name||'(รอเติมชื่อ) ดีลจาก Shopee'}}]},\n  'ลิงก์Affiliate':{url:info.url},\n  'หมวด':{select:{name:cat}},\n  'สถานะ':{select:{name:complete?'ใหม่':'รอตรวจ'}}\n};\nif(full)props['ราคาเต็ม']={number:full};\nif(sale)props['ราคาลด']={number:sale};\nconst missing=[];\nif(!name)missing.push('ชื่อสินค้า');\nif(!sale)missing.push('ราคาลด');\nif(!full)missing.push('ราคาเต็ม');\nreturn [{json:{payload:{parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},properties:props},chatId:info.chatId,name,full,sale,cat,complete,missing}}];"
+        "jsCode": "const resp=$input.first().json;\nlet parsed={};\ntry{const t=(resp.content||[{}])[0].text||'';parsed=JSON.parse((t.match(/\\{[\\s\\S]*\\}/)||['{}'])[0]);}catch(e){}\nconst info=$('Extract').first().json;\nconst name=(parsed.name||'').trim()||null;\nconst full=Number(parsed.full_price)||null;\nconst sale=Number(parsed.sale_price)||null;\nconst cats=['gadget','ความงาม','บ้าน','แฟชั่น','อื่นๆ'];\nconst cat=cats.includes(parsed.category)?parsed.category:'อื่นๆ';\nconst complete=!!name;\nconst props={\n  'สินค้า':{title:[{text:{content:name||('(รอเติมชื่อ) ดีลจาก '+(info.source||'ร้านค้า'))}}]},\n  'ลิงก์Affiliate':{url:info.url},\n  'หมวด':{select:{name:cat}},\n  'สถานะ':{select:{name:complete?'ใหม่':'รอตรวจ'}}\n};\nif(full)props['ราคาเต็ม']={number:full};\nif(sale)props['ราคาลด']={number:sale};\nif(info.source)props['แหล่ง']={select:{name:info.source}};\nconst missing=[];\nif(!name)missing.push('ชื่อสินค้า');\nif(!sale)missing.push('ราคาลด');\nif(!full)missing.push('ราคาเต็ม');\nreturn [{json:{payload:{parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},properties:props},chatId:info.chatId,name,full,sale,cat,complete,missing,source:info.source}}];"
       }
     },
     {
@@ -158,7 +158,7 @@
         -100
       ],
       "parameters": {
-        "jsCode": "const page=$input.first().json;\nconst b=$('Build Payload').first().json;\nconst rowUrl=page.url||'';\nlet text;\nif(b.complete){\n  text='✅ เพิ่มดีลแล้ว: '+b.name+'\\n฿'+b.sale+(b.full?' (เต็ม ฿'+b.full+')':'')+' • หมวด '+b.cat+'\\nสถานะ \"ใหม่\" — รอบถัดไปบอทเขียนแคปชันส่งเข้า LINE ครับ';\n}else{\n  text='⚠️ เพิ่มแถวแล้วแต่ข้อมูลไม่ครบ ขาด: '+b.missing.join(', ')+'\\nเปิดแถวเติมข้อมูลแล้วเปลี่ยนสถานะเป็น \"ใหม่\":\\n'+rowUrl+'\\n\\nทริค: แชร์จากแอป Shopee โดยตรง หรือพิมพ์ราคาต่อท้ายลิงก์ เช่น \"เต็ม 900 ลด 300\"';\n}\nreturn [{json:{chat_id:b.chatId,text,disable_web_page_preview:true}}];"
+        "jsCode": "const page=$input.first().json;\nconst b=$('Build Payload').first().json;\nconst rowUrl=page.url||'';\nlet text;\nif(b.complete){\n  text='✅ เพิ่มดีลแล้ว: '+b.name+'\\n฿'+b.sale+(b.full?' (เต็ม ฿'+b.full+')':'')+' • หมวด '+b.cat+'\\nสถานะ \"ใหม่\" — รอบถัดไปบอทเขียนแคปชันส่งเข้า LINE ครับ';\n}else{\n  text='⚠️ เพิ่มแถวแล้วแต่ข้อมูลไม่ครบ ขาด: '+b.missing.join(', ')+'\\nเปิดแถวเติมข้อมูลแล้วเปลี่ยนสถานะเป็น \"ใหม่\":\\n'+rowUrl+'\\n\\n'+(b.source==='tiktok'?'ทริค TikTok: หน้าสินค้า TikTok บล็อกบอต ดึงชื่อ/รูปอัตโนมัติไม่ได้ ต้องพิมพ์ชื่อ+ราคามากับลิงก์ เช่น \"หูฟัง XYZ 590 บาท <ลิงก์>\"':'ทริค: แชร์จากแอป Shopee/Lazada โดยตรง หรือพิมพ์ราคาต่อท้ายลิงก์ เช่น \"เต็ม 900 ลด 300\"');\n}\nreturn [{json:{chat_id:b.chatId,text,disable_web_page_preview:true}}];"
       }
     },
     {
@@ -667,7 +667,6 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "callerPolicy": "workflowsFromSameOwner"
   }
 }

@@ -28,7 +28,8 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 ## Workflows (n8n IDs)
 | id | ชื่อ | หน้าที่ |
 |---|---|---|
-| `E6i2xEAcaUsUFKWm` | Deal Poster v1 | cron `0 9-21/3 * * *` Asia/Bangkok — สาย A: Notion "ใหม่"→Claude แคปชัน→"รอตรวจ"→LINE preview; สาย B: "อนุมัติแล้ว"→Telegram(รูป binary)→[X ปิดอยู่]→Threads(create→**Settle 30 วิ**→publish)→Mark Posted→**Build Posted Alert**→LINE (แจ้งผลรายช่อง TG/FB/Threads ทีละดีล) |
+| `E6i2xEAcaUsUFKWm` | Deal Poster v1 — โพสต์ดีลที่อนุมัติแล้ว | cron `0 9-21/3 * * *` — **สาย B อย่างเดียว**: "อนุมัติแล้ว"→Telegram(รูป binary)+FB→IG/Threads(create→**Settle 30 วิ**→publish)→[X ปิดอยู่]→Mark Posted→**Build Posted Alert**→LINE |
+| `e8aD2wCvsVYmefrq` | Deal Caption Writer | cron `50 2-23/3 * * *` — **สาย A ที่แยกออกมา**: "ใหม่"→Claude แคปชัน→`Save Draft to Notion`→LINE preview |
 | `Kq3cRuTbwF9cMkA1` | Deal Intake Form | `/form/deal-intake` — บังคับแค่ลิงก์ ช่องอื่นเว้นได้ (OG+Claude parse เหมือนสาย TG; ค่าที่กรอกชนะค่า parse) |
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
@@ -56,7 +57,12 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 ทำให้ชื่อ property เพี้ยน (27 ส.ค. 69 เกิดจริง: สร้าง property ชื่อขยะแทน `รูป` แล้ว PATCH 90 แถวพังหมด
 `"รูป is not a property that exists"`) ให้เขียน body ลงไฟล์ UTF-8 แล้ว `--data-binary @file` หรือใช้ Python `json.dumps(...).encode('utf-8')`
 
-Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใหม่→รอตรวจ→อนุมัติแล้ว→โพสต์แล้ว
+⚠️ **โครงสร้างเปลี่ยนไปแล้ว — พบ 7 ก.ย. 69 (session/เครื่องอื่นแก้ไว้ repo ตามไม่ทัน)**: สาย A ถูก**แยกออกจาก Deal Poster v1 ไปเป็น workflow `e8aD2wCvsVYmefrq`** และ
+**ไม่มีขั้นอนุมัติด้วยมือแล้ว** — `Save Draft to Notion` PATCH สถานะเป็น **"อนุมัติแล้ว" ทันที** (เดิมเป็น "รอตรวจ" แล้วรอคนกด)
+→ LINE Preview กลายเป็นแค่ "แจ้งให้ดู" ไม่ใช่ "ให้อนุมัติ" · แถวสถานะ "ใหม่" จะถูกโพสต์อัตโนมัติภายใน ~3 ชม.
+**ผลต่อการทดสอบ: ห้ามสร้างแถวทดสอบที่สถานะ "ใหม่" เด็ดขาด** (จะหลุดไปโพสต์ลงเพจจริง) — ทดสอบให้ลงที่ "รอตรวจ" เท่านั้น
+
+Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใหม่→(รอตรวจ)→อนุมัติแล้ว→โพสต์แล้ว
 (กติกา: แคปชันเขียนเฉพาะรอบสถานะ "ใหม่"; price-reply เติมแถวที่ราคาลดว่าง สถานะ "ใหม่" หรือ "รอตรวจ")
 
 **ราคาไม่ครบ ≠ บล็อกการโพสต์** (24 ส.ค. 69 — สินค้าบางตัวไม่มีราคาลด):
@@ -73,7 +79,29 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
   - **rotate Telegram token**: BotFather → `/revoke` @sup_dealposter_bot ได้ token ใหม่ → GET สด 2 workflow (`E6i2xEAcaUsUFKWm`, `JUE23JTCBbCsW1lS`) → replace string `bot<เก่า>` → `bot<ใหม่>` → PUT + deactivate→activate
 - ที่ยังฝังโดยตั้งใจ: FB page token (never-expire), Threads (Token Keeper หา token ด้วย regex จาก workflow — **ห้ามย้าย**), Anthropic key + LINE channel token (ยังฝัง — ผู้สมัครรอบถัดไปถ้าจะย้ายเพิ่ม ทำแบบเดียวกับ Notion ได้เพราะเป็น header ทั้งคู่)
 
-## TikTok Shop — provider ใหม่ (กำลังทำ, เริ่ม 29 ส.ค. 2569)
+## TikTok Shop — ⛔ API ไปต่อไม่ได้ ใช้ Plan B แทน (สรุป 7 ก.ย. 2569)
+**คำตอบ ticket `2026083004120200004` (TikTok ตอบ 1 ก.ย. 69) — ปิดประตู API สำหรับบุคคลธรรมดา:**
+1. ผ่าน certification หมวด Creator collaborations **โดยไม่มีนิติบุคคลไม่ได้** ("you need to provide company certification/business license")
+2. ทะเบียนพาณิชย์บุคคลธรรมดา — ยื่นให้ผู้อนุมัติพิจารณาได้ แต่ **กฎ "จดเกิน 1 ปี" มีผลด้วย**
+3. **ไม่มี allowlist/test account ให้ลัด** — ต้องผ่าน onboarding review + publish แอปก่อนเท่านั้น
+4. "Invalid app key" = แอปยังเป็น draft ตามที่วินิจฉัยไว้เป๊ะ
+
+→ **ตัดสินใจ 7 ก.ย. 69: เดินสาย Plan B (ไม่ใช้ API)** · `lib/tiktok/*` + workflow `qHcCduq7ec3an1zk` เก็บไว้เฉย ๆ รอวันมีนิติบุคคล/ทะเบียนครบ 1 ปี
+
+### Plan B — ทำเสร็จแล้ว 7 ก.ย. 69 (intake รู้จักลิงก์ TikTok)
+user กด gen ลิงก์เองจากแอป TikTok (Affiliate center) → วางเข้า intake เดิม → ไหลเข้าสาย A/B ปกติ
+- แก้ **intake ทั้ง 3 ทาง** (LINE `731A7ASm8bI0F79B` / TG `JUE23JTCBbCsW1lS` / Form `Kq3cRuTbwF9cMkA1`) — 16 จุด:
+  - `Extract`/`Prep`: ตรวจ domain → `source` = tiktok (`tiktok.com`) / lazada (`lazada.` `lzd.co`) / shopee (`shopee.` `shp.ee`)
+  - `Build Payload`/`Build Notion Payload`/`Build Parsed Payload`: เขียน property **`แหล่ง`** + placeholder ชื่อเปลี่ยนจาก "ดีลจาก Shopee" เป็น "ดีลจาก {source}"
+  - `Claude Parse` prompt: "Shopee deal info" → "e-commerce deal info (Shopee, Lazada or TikTok Shop)"
+  - `Build Reply` (LINE/TG): ถ้าเป็น tiktok เปลี่ยนข้อความทริคเป็นบอกให้พิมพ์ชื่อ+ราคามาเอง
+  - เทสต์จริงผ่าน webhook TG แล้ว: ได้แถว `แหล่ง=tiktok` สถานะ "รอตรวจ" ถูกต้อง (แถวทดสอบชื่อ "[แถวทดสอบ TikTok — ลบทิ้งได้เลย]")
+- **ลิงก์ TikTok ลง `ลิงก์Affiliate` (ไม่ใช่ `ลิงก์ตะกร้า`)** — เพราะสายโพสต์ทุกตัวอ่านช่องนี้ (`Split Approved` ถึงกับ `.filter(link)`) ถ้าแยกช่องต้องแก้ 6+ จุดโดยไม่ได้อะไรเพิ่ม · `ลิงก์ตะกร้า` สงวนไว้ให้ยุค API (ลิงก์ที่ generate มาปักตะกร้า)
+- ⚠️ **หน้าสินค้า TikTok Shop ติด bot protection** — `shop.tiktok.com/view/product/…` ตอบหน้า **"Security Check"** ไม่มี og tag เลย (ต่างจาก `www.tiktok.com` ที่มี og ปกติ)
+  → ดึงชื่อ/ราคา/รูปอัตโนมัติ**ไม่ได้** ผู้ใช้ต้องพิมพ์ชื่อ+ราคามากับลิงก์ · ไม่มีรูป = **IG ข้ามดีลนั้น** (IG โพสต์ข้อความล้วนไม่ได้) ส่วน TG/FB fallback เป็นข้อความอยู่แล้ว
+  (`Fetch OG` ตั้ง `onError: continueRegularOutput` อยู่แล้วทั้ง 3 workflow → ลิงก์ที่ดึงไม่ได้ไม่ทำ intake ล้ม)
+
+## TikTok Shop — provider ใหม่ (ประวัติการลุย API 29–30 ส.ค. 2569)
 แผนรวม: sync ดีลจาก Affiliate Marketplace → แถว Notion สถานะ "ใหม่" → ไหลเข้าสาย A/B เดิม + gen ลิงก์ให้ user ปักตะกร้า
 ตัดสินใจแล้ว (29 ส.ค.): **เพิ่ม property `ลิงก์ตะกร้า` แยกจาก `ลิงก์Affiliate`** และ **ดีล TikTok ไหลเข้าสายโพสต์ TG/FB/IG/Threads ด้วย**
 - **Phase 0 (กำลังทำ)**: user สมัคร Partner Center + สร้างแอป + authorize — callback ใช้ workflow `qHcCduq7ec3an1zk` (URL: `https://n8n.srv1277799.hstgr.cloud/webhook/tt-oauth-cb-k4w8`)

@@ -23,7 +23,8 @@
 
 | ไฟล์ | n8n id | หน้าที่ |
 |---|---|---|
-| `deal-poster-v1.json` | `E6i2xEAcaUsUFKWm` | ตัวหลัก: cron `0 9-21/3 * * *`, สาย A แคปชัน + สาย B โพสต์ 3 แพลตฟอร์ม |
+| `deal-poster-v1.json` | `E6i2xEAcaUsUFKWm` | สายโพสต์: cron `0 9-21/3 * * *` → Telegram/FB/IG/Threads |
+| `deal-caption-writer.json` | `e8aD2wCvsVYmefrq` | สายแคปชัน (แยกออกมาจากตัวหลัก): cron `50 2-23/3 * * *` → เขียนแคปชัน + ตั้งสถานะ "อนุมัติแล้ว" อัตโนมัติ |
 | `deal-intake-form.json` | `Kq3cRuTbwF9cMkA1` | เว็บฟอร์ม `/form/deal-intake` → แถวใหม่สถานะ "ใหม่" |
 | `deal-intake-telegram.json` | `JUE23JTCBbCsW1lS` | DM @sup_dealposter_bot: ลิงก์→og→Claude parse→แถว; ตัวเลข→เติมราคา |
 | `deal-intake-line.json` | `731A7ASm8bI0F79B` | เหมือน Telegram แต่ผ่าน Paiyaa Bot (กรอง userId เจ้าของ) |
