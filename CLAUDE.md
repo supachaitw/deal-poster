@@ -88,7 +88,16 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 
 → **ตัดสินใจ 7 ก.ย. 69: เดินสาย Plan B (ไม่ใช้ API)** · `lib/tiktok/*` + workflow `qHcCduq7ec3an1zk` เก็บไว้เฉย ๆ รอวันมีนิติบุคคล/ทะเบียนครบ 1 ปี
 
-### Plan B — ทำเสร็จแล้ว 7 ก.ย. 69 (intake รู้จักลิงก์ TikTok)
+### ⛔ Plan B ก็ยังยิงไม่ได้ — **บัญชี TikTok ของ user เป็นฝั่ง seller ไม่มี affiliate** (สำรวจในแอป 8 ก.ย. 69)
+ไล่ดูในแอป TikTok ครบทุกเมนูแล้ว **ไม่มีทางเข้าตลาดสินค้า affiliate เลย** → ไม่มีลิงก์ affiliate ให้เอามาป้อนระบบ:
+- TikTok Shop Creator Center → toolkit หัวข้อ **"Find and manage products" มีปุ่มเดียวคือ `Manage products`** (ไม่มี marketplace/ตลาดสินค้าให้เลือกสินค้าคนอื่น)
+- หน้า Showcase เขียนว่า **"Showcase products from your shop"** = โชว์สินค้า**ร้านตัวเอง** ไม่ใช่ affiliate ของคนอื่น · กด Add products → "No products in this category yet" (ร้านไม่มีสินค้า)
+- แท็บ **Growth** มีแต่แคมเปญไลฟ์ ไม่มีปุ่มสมัคร affiliate
+- เข้ากันได้กับเบาะแสตอนสมัคร Partner Center: อีเมล gmail ถูกล็อกด้วย **"not available for TikTok Shop sellers"** → บัญชีนี้ระบบมองเป็นผู้ขาย
+- เกณฑ์ follower ที่เคยจดว่า 5,000 **ผิด** — 5,000 เป็นของ US ส่วนไทย/SEA ใช้ **1,000** (ต่ำกว่า 5,000 จะเข้า Affiliate Creator Pilot 30 วัน มีข้อจำกัด) · แต่เกณฑ์ไม่ใช่ประเด็นเพราะติดที่ประเภทบัญชี
+- **สรุป: TikTok พับไปก่อนทั้ง 2 ทาง** (API ติด certification นิติบุคคล · Plan B ติดบัญชีไม่มี affiliate) — ถ้าจะรื้อต่อ ประเด็นที่ต้องเคลียร์คือ "บัญชีที่ผูกร้าน TikTok Shop สมัคร affiliate creator ได้ไหม หรือต้องใช้บัญชีที่ไม่ผูกร้าน"
+
+### Plan B (ฝั่งโค้ด) — ทำเสร็จแล้ว 7 ก.ย. 69 (intake รู้จักลิงก์ TikTok, พร้อมรับเมื่อมีลิงก์)
 user กด gen ลิงก์เองจากแอป TikTok (Affiliate center) → วางเข้า intake เดิม → ไหลเข้าสาย A/B ปกติ
 - แก้ **intake ทั้ง 3 ทาง** (LINE `731A7ASm8bI0F79B` / TG `JUE23JTCBbCsW1lS` / Form `Kq3cRuTbwF9cMkA1`) — 16 จุด:
   - `Extract`/`Prep`: ตรวจ domain → `source` = tiktok (`tiktok.com`) / lazada (`lazada.` `lzd.co`) / shopee (`shopee.` `shp.ee`)
