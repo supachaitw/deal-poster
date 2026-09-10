@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf \"/c/Users/SUPACH~1/AppData/Local/Temp/claude/C--Users-supachait-Project-gsb-PDTeller/924625e0-f908-48a8-99b4-4a490e570cf7/scratchpad/hc\" *)",
+      "Bash(PYTHONIOENCODING=utf-8 python -)"
+    ]
+  }
+}

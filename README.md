@@ -23,14 +23,12 @@
 
 | ไฟล์ | n8n id | หน้าที่ |
 |---|---|---|
-| `deal-poster-v1.json` | `E6i2xEAcaUsUFKWm` | สายโพสต์: cron `0 9-21/3 * * *` → Telegram/FB/IG/Threads |
-| `deal-caption-writer.json` | `e8aD2wCvsVYmefrq` | สายแคปชัน (แยกออกมาจากตัวหลัก): cron `50 2-23/3 * * *` → เขียนแคปชัน + ตั้งสถานะ "อนุมัติแล้ว" อัตโนมัติ |
+| `deal-poster-v1.json` | `E6i2xEAcaUsUFKWm` | ตัวหลัก: cron `0 9-21/3 * * *`, สาย A แคปชัน + สาย B โพสต์ 3 แพลตฟอร์ม |
 | `deal-intake-form.json` | `Kq3cRuTbwF9cMkA1` | เว็บฟอร์ม `/form/deal-intake` → แถวใหม่สถานะ "ใหม่" |
 | `deal-intake-telegram.json` | `JUE23JTCBbCsW1lS` | DM @sup_dealposter_bot: ลิงก์→og→Claude parse→แถว; ตัวเลข→เติมราคา |
 | `deal-intake-line.json` | `731A7ASm8bI0F79B` | เหมือน Telegram แต่ผ่าน Paiyaa Bot (กรอง userId เจ้าของ) |
 | `threads-token-keeper.json` | `UXGp6aS7EclTqCtl` | จันทร์ 07:00 refresh Threads token (60 วัน) แล้ว PUT กลับเข้า workflow หลัก |
 | `deal-landing-page.json` | `teJKfYg0xuG9OSfc` | https://deals.srv1277799.hstgr.cloud (= `GET /webhook/deals`) → หน้ารวมดีลล่าสุด 30 รายการ สำหรับไบโอ Instagram |
-| `tiktok-oauth-callback.json` | `qHcCduq7ec3an1zk` | `GET /webhook/tt-oauth-cb-k4w8` → หน้ารับ code ตอน TikTok creator authorize (Phase 0 ของ provider TikTok Shop) |
 
 ## Secrets (ถูกแทนที่เป็น placeholder ก่อน commit)
 

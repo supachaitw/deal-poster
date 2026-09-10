@@ -90,7 +90,7 @@
         400
       ],
       "parameters": {
-        "jsCode": "const f=$('Prep').first().json;\nconst extra=f.source?{'แหล่ง':{select:{name:f.source}}}:{};\nreturn [{json:{\n  parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},\n  properties:{\n    ...extra,\n    'สินค้า':{title:[{text:{content:f.name}}]},\n    'ราคาเต็ม':{number:f.full},\n    'ราคาลด':{number:f.sale},\n    'ลิงก์Affiliate':{url:f.url||null},\n    'หมวด':{select:{name:f.cat||'อื่นๆ'}},\n    'สถานะ':{select:{name:'ใหม่'}}\n  }\n}}];"
+        "jsCode": "const f=$('Prep').first().json;\nreturn [{json:{\n  parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},\n  properties:{\n    'สินค้า':{title:[{text:{content:f.name}}]},\n    'ราคาเต็ม':{number:f.full},\n    'ราคาลด':{number:f.sale},\n    'ลิงก์Affiliate':{url:f.url||null},\n    'หมวด':{select:{name:f.cat||'อื่นๆ'}},\n    'สถานะ':{select:{name:'ใหม่'}}\n  }\n}}];"
       }
     },
     {
@@ -109,6 +109,10 @@
         "headerParameters": {
           "parameters": [
             {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_NOTION_TOKEN"
+            },
+            {
               "name": "Notion-Version",
               "value": "2022-06-28"
             },
@@ -121,20 +125,12 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "U5mfqJ7z2OV1c4PT",
-          "name": "Notion Deal Poster (Header Auth)"
-        }
+        "options": {}
       }
     },
     {
       "parameters": {
-        "jsCode": "const f=$input.first().json;\nconst url=String(f['ลิงก์ Affiliate']||'').trim();\nconst name=String(f['สินค้า']||'').trim()||null;\nconst full=Number(f['ราคาเต็ม'])||null;\nconst sale=Number(f['ราคาลด'])||null;\nconst cat=String(f['หมวด']||'').trim()||null;\nconst source=!url?null:(/tiktok\\.com/i.test(url)?'tiktok':(/lazada\\.|lzd\\.co/i.test(url)?'lazada':(/shopee\\.|shp\\.ee/i.test(url)?'shopee':null)));\nconst needParse=!(name&&sale);\nreturn [{json:{url,name,full,sale,cat,source,needParse}}];"
+        "jsCode": "const f=$input.first().json;\nconst url=String(f['ลิงก์ Affiliate']||'').trim();\nconst name=String(f['สินค้า']||'').trim()||null;\nconst full=Number(f['ราคาเต็ม'])||null;\nconst sale=Number(f['ราคาลด'])||null;\nconst cat=String(f['หมวด']||'').trim()||null;\nconst needParse=!(name&&sale);\nreturn [{json:{url,name,full,sale,cat,needParse}}];"
       },
       "id": "fprep",
       "name": "Prep",
@@ -245,7 +241,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model:\"claude-haiku-4-5\",max_tokens:400,system:\"You extract e-commerce deal info (Shopee, Lazada or TikTok Shop) from a chat message (Thai). The message contains a product link and possibly share-text with product name and prices. Reply with ONLY a JSON object: {\\\"name\\\": string|null (product name, no promo phrases), \\\"full_price\\\": number|null, \\\"sale_price\\\": number|null, \\\"category\\\": one of \\\"gadget\\\",\\\"ความงาม\\\",\\\"บ้าน\\\",\\\"แฟชั่น\\\",\\\"อาหาร\\\",\\\"รถ\\\",\\\"อื่นๆ\\\" (guess from name; \\\"อื่นๆ\\\" if unknown)}. If only one price appears, treat it as sale_price. Do not invent values.\",messages:[{role:\"user\",content:$json.text}]}) }}",
+        "jsonBody": "={{ JSON.stringify({model:\"claude-haiku-4-5\",max_tokens:400,system:\"You extract Shopee deal info from a chat message (Thai). The message contains a product link and possibly share-text with product name and prices. Reply with ONLY a JSON object: {\\\"name\\\": string|null (product name, no promo phrases), \\\"full_price\\\": number|null, \\\"sale_price\\\": number|null, \\\"category\\\": one of \\\"gadget\\\",\\\"ความงาม\\\",\\\"บ้าน\\\",\\\"แฟชั่น\\\",\\\"อาหาร\\\",\\\"รถ\\\",\\\"อื่นๆ\\\" (guess from name; \\\"อื่นๆ\\\" if unknown)}. If only one price appears, treat it as sale_price. Do not invent values.\",messages:[{role:\"user\",content:$json.text}]}) }}",
         "options": {}
       },
       "id": "fcp",
@@ -259,7 +255,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const resp=$input.first().json;\nlet parsed={};\ntry{const t=(resp.content||[{}])[0].text||'';parsed=JSON.parse((t.match(/\\{[\\s\\S]*\\}/)||['{}'])[0]);}catch(e){}\nconst info=$('Prep').first().json;\nconst name=info.name||((parsed.name||'').trim()||null);\nconst full=info.full||Number(parsed.full_price)||null;\nconst sale=info.sale||Number(parsed.sale_price)||null;\nconst cats=['gadget','ความงาม','บ้าน','แฟชั่น','อาหาร','รถ','อื่นๆ'];\nconst cat=info.cat||(cats.includes(parsed.category)?parsed.category:'อื่นๆ');\nconst complete=!!name;\nconst props={\n  'สินค้า':{title:[{text:{content:name||'(รอเติมชื่อ) ดีลใหม่'}}]},\n  'ลิงก์Affiliate':{url:info.url},\n  'หมวด':{select:{name:cat}},\n  'สถานะ':{select:{name:complete?'ใหม่':'รอตรวจ'}}\n};\nif(full)props['ราคาเต็ม']={number:full};\nif(sale)props['ราคาลด']={number:sale};\nif(info.source)props['แหล่ง']={select:{name:info.source}};\nreturn [{json:{parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},properties:props}}];"
+        "jsCode": "const resp=$input.first().json;\nlet parsed={};\ntry{const t=(resp.content||[{}])[0].text||'';parsed=JSON.parse((t.match(/\\{[\\s\\S]*\\}/)||['{}'])[0]);}catch(e){}\nconst info=$('Prep').first().json;\nconst name=info.name||((parsed.name||'').trim()||null);\nconst full=info.full||Number(parsed.full_price)||null;\nconst sale=info.sale||Number(parsed.sale_price)||null;\nconst cats=['gadget','ความงาม','บ้าน','แฟชั่น','อาหาร','รถ','อื่นๆ'];\nconst cat=info.cat||(cats.includes(parsed.category)?parsed.category:'อื่นๆ');\nconst complete=!!name;\nconst props={\n  'สินค้า':{title:[{text:{content:name||'(รอเติมชื่อ) ดีลใหม่'}}]},\n  'ลิงก์Affiliate':{url:info.url},\n  'หมวด':{select:{name:cat}},\n  'สถานะ':{select:{name:complete?'ใหม่':'รอตรวจ'}}\n};\nif(full)props['ราคาเต็ม']={number:full};\nif(sale)props['ราคาลด']={number:sale};\nreturn [{json:{parent:{database_id:'589f80403f534993b49fd9fdd4d292ff'},properties:props}}];"
       },
       "id": "fbpp",
       "name": "Build Parsed Payload",
@@ -370,6 +366,7 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   }
 }

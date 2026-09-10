@@ -28,14 +28,12 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 ## Workflows (n8n IDs)
 | id | ชื่อ | หน้าที่ |
 |---|---|---|
-| `E6i2xEAcaUsUFKWm` | Deal Poster v1 — โพสต์ดีลที่อนุมัติแล้ว | cron `0 9-21/3 * * *` — **สาย B อย่างเดียว**: "อนุมัติแล้ว"→Telegram(รูป binary)+FB→IG/Threads(create→**Settle 30 วิ**→publish)→[X ปิดอยู่]→Mark Posted→**Build Posted Alert**→LINE |
-| `e8aD2wCvsVYmefrq` | Deal Caption Writer | cron `50 2-23/3 * * *` — **สาย A ที่แยกออกมา**: "ใหม่"→Claude แคปชัน→`Save Draft to Notion`→LINE preview |
+| `E6i2xEAcaUsUFKWm` | Deal Poster v1 | cron `0 9-21/3 * * *` Asia/Bangkok — สาย A: Notion "ใหม่"→Claude แคปชัน→"รอตรวจ"→LINE preview; สาย B: "อนุมัติแล้ว"→Telegram(รูป binary)→[X ปิดอยู่]→Threads(create→**Settle 30 วิ**→publish)→Mark Posted→**Build Posted Alert**→LINE (แจ้งผลรายช่อง TG/FB/Threads ทีละดีล) |
 | `Kq3cRuTbwF9cMkA1` | Deal Intake Form | `/form/deal-intake` — บังคับแค่ลิงก์ ช่องอื่นเว้นได้ (OG+Claude parse เหมือนสาย TG; ค่าที่กรอกชนะค่า parse) |
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
 | `UXGp6aS7EclTqCtl` | Threads Token Keeper | จันทร์ 07:00 refresh token 60 วัน แล้ว PUT กลับ |
 | `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล ดึง Notion สด สำหรับใส่ไบโอ IG · **มีรูปสินค้า + แบ่งหน้าละ 50 (27 ส.ค. 69)** |
-| `qHcCduq7ec3an1zk` | TikTok OAuth Callback | `GET /webhook/tt-oauth-cb-k4w8` — หน้ารับ `code`+`state` ตอน creator authorize แล้วให้ user copy ส่งให้ Claude (สร้าง 29 ส.ค. 69 รอใช้ใน Phase 0 TikTok) |
 
 **รูปสินค้าบนหน้ารวมดีล (27 ส.ค. 69)** — เพิ่ม property **`รูป` (url)** ใน Notion เก็บ `og:image` ของดีล
 - คนเขียนคือ node **`Mark Posted`** (เติม `รูป` ตอนมาร์ค "โพสต์แล้ว" ดึงจาก `$('Build Post Body').item.json.photoUrl` ที่สายโพสต์หามาแล้ว)
@@ -57,12 +55,7 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 ทำให้ชื่อ property เพี้ยน (27 ส.ค. 69 เกิดจริง: สร้าง property ชื่อขยะแทน `รูป` แล้ว PATCH 90 แถวพังหมด
 `"รูป is not a property that exists"`) ให้เขียน body ลงไฟล์ UTF-8 แล้ว `--data-binary @file` หรือใช้ Python `json.dumps(...).encode('utf-8')`
 
-⚠️ **โครงสร้างเปลี่ยนไปแล้ว — พบ 7 ก.ย. 69 (session/เครื่องอื่นแก้ไว้ repo ตามไม่ทัน)**: สาย A ถูก**แยกออกจาก Deal Poster v1 ไปเป็น workflow `e8aD2wCvsVYmefrq`** และ
-**ไม่มีขั้นอนุมัติด้วยมือแล้ว** — `Save Draft to Notion` PATCH สถานะเป็น **"อนุมัติแล้ว" ทันที** (เดิมเป็น "รอตรวจ" แล้วรอคนกด)
-→ LINE Preview กลายเป็นแค่ "แจ้งให้ดู" ไม่ใช่ "ให้อนุมัติ" · แถวสถานะ "ใหม่" จะถูกโพสต์อัตโนมัติภายใน ~3 ชม.
-**ผลต่อการทดสอบ: ห้ามสร้างแถวทดสอบที่สถานะ "ใหม่" เด็ดขาด** (จะหลุดไปโพสต์ลงเพจจริง) — ทดสอบให้ลงที่ "รอตรวจ" เท่านั้น
-
-Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใหม่→(รอตรวจ)→อนุมัติแล้ว→โพสต์แล้ว
+Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใหม่→รอตรวจ→อนุมัติแล้ว→โพสต์แล้ว
 (กติกา: แคปชันเขียนเฉพาะรอบสถานะ "ใหม่"; price-reply เติมแถวที่ราคาลดว่าง สถานะ "ใหม่" หรือ "รอตรวจ")
 
 **ราคาไม่ครบ ≠ บล็อกการโพสต์** (24 ส.ค. 69 — สินค้าบางตัวไม่มีราคาลด):
@@ -70,74 +63,6 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 - `Claude Write Caption`: ไม่มีราคา → สั่ง "ห้ามกล่าวถึงราคาหรือส่วนลดใด ๆ" (เดิมส่ง `null` เข้า prompt ตรง ๆ)
 - `Build Caption` / `Split Approved`: มีทั้ง sale+full → `💥 เหลือ X (ลด Y%)` · มีแค่ sale → `💥 เหลือ X` · มีแค่ full → `💰 ราคา X` · ไม่มีเลย → ไม่มีบรรทัดราคา
 - `Split Approved` สร้างแคปชันขั้นต่ำให้เองถ้าช่องแคปชันว่าง — **"อนุมัติแล้ว" = ต้องโพสต์เสมอ** (เดิม `.filter(i => i.json.caption)` ทิ้งเงียบ ๆ)
-
-## Token / Credential (28 ส.ค. 2569)
-- **Notion token ไม่ฝังใน workflow แล้ว** — ย้ายเข้า n8n credential **`Notion Deal Poster (Header Auth)`** (id `U5mfqJ7z2OV1c4PT`, type httpHeaderAuth) ครบทั้ง 12 จุดใน 5 workflow
-  - Landing Page: โหนด `Query Posted Deals` แปลงจาก Code (fetch วนหน้า) → httpRequest ใช้ credential ดึงหน้าเดียว `page_size: 100` เรียงใหม่สุดก่อน — เทียบ HTML ก่อน/หลังแล้ว **byte-identical** (หน้า live แสดง 100 รายการล่าสุดเท่าเดิม)
-  - **rotate Notion token**: สร้าง secret ใหม่ที่ notion.so/profile/integrations → แก้ค่าใน credential เดียวผ่าน n8n UI (Credentials → Notion Deal Poster) — ไม่ต้องแตะ workflow ใดเลย
-- **Telegram bot token ยังฝังใน URL** (4 โหนด: `Post to Telegram`/`TG Send Text` ใน Poster, `TG Confirm`/`TG Help` ใน Intake TG) — **ย้ายเข้า credential ไม่ได้**: token อยู่ใน URL path ซึ่ง generic credential ของ n8n ฉีดให้ไม่ได้ และเปลี่ยนเป็น Telegram node จะเสีย batching 60 วิ (throttle ที่ตั้งใจ)
-  - **rotate Telegram token**: BotFather → `/revoke` @sup_dealposter_bot ได้ token ใหม่ → GET สด 2 workflow (`E6i2xEAcaUsUFKWm`, `JUE23JTCBbCsW1lS`) → replace string `bot<เก่า>` → `bot<ใหม่>` → PUT + deactivate→activate
-- ที่ยังฝังโดยตั้งใจ: FB page token (never-expire), Threads (Token Keeper หา token ด้วย regex จาก workflow — **ห้ามย้าย**), Anthropic key + LINE channel token (ยังฝัง — ผู้สมัครรอบถัดไปถ้าจะย้ายเพิ่ม ทำแบบเดียวกับ Notion ได้เพราะเป็น header ทั้งคู่)
-
-## TikTok Shop — ⛔ API ไปต่อไม่ได้ ใช้ Plan B แทน (สรุป 7 ก.ย. 2569)
-**คำตอบ ticket `2026083004120200004` (TikTok ตอบ 1 ก.ย. 69) — ปิดประตู API สำหรับบุคคลธรรมดา:**
-1. ผ่าน certification หมวด Creator collaborations **โดยไม่มีนิติบุคคลไม่ได้** ("you need to provide company certification/business license")
-2. ทะเบียนพาณิชย์บุคคลธรรมดา — ยื่นให้ผู้อนุมัติพิจารณาได้ แต่ **กฎ "จดเกิน 1 ปี" มีผลด้วย**
-3. **ไม่มี allowlist/test account ให้ลัด** — ต้องผ่าน onboarding review + publish แอปก่อนเท่านั้น
-4. "Invalid app key" = แอปยังเป็น draft ตามที่วินิจฉัยไว้เป๊ะ
-
-→ **ตัดสินใจ 7 ก.ย. 69: เดินสาย Plan B (ไม่ใช้ API)** · `lib/tiktok/*` + workflow `qHcCduq7ec3an1zk` เก็บไว้เฉย ๆ รอวันมีนิติบุคคล/ทะเบียนครบ 1 ปี
-
-### ⛔ Plan B ก็ยังยิงไม่ได้ — **บัญชี TikTok ของ user เป็นฝั่ง seller ไม่มี affiliate** (สำรวจในแอป 8 ก.ย. 69)
-ไล่ดูในแอป TikTok ครบทุกเมนูแล้ว **ไม่มีทางเข้าตลาดสินค้า affiliate เลย** → ไม่มีลิงก์ affiliate ให้เอามาป้อนระบบ:
-- TikTok Shop Creator Center → toolkit หัวข้อ **"Find and manage products" มีปุ่มเดียวคือ `Manage products`** (ไม่มี marketplace/ตลาดสินค้าให้เลือกสินค้าคนอื่น)
-- หน้า Showcase เขียนว่า **"Showcase products from your shop"** = โชว์สินค้า**ร้านตัวเอง** ไม่ใช่ affiliate ของคนอื่น · กด Add products → "No products in this category yet" (ร้านไม่มีสินค้า)
-- แท็บ **Growth** มีแต่แคมเปญไลฟ์ ไม่มีปุ่มสมัคร affiliate
-- เข้ากันได้กับเบาะแสตอนสมัคร Partner Center: อีเมล gmail ถูกล็อกด้วย **"not available for TikTok Shop sellers"** → บัญชีนี้ระบบมองเป็นผู้ขาย
-- เกณฑ์ follower ที่เคยจดว่า 5,000 **ผิด** — 5,000 เป็นของ US ส่วนไทย/SEA ใช้ **1,000** (ต่ำกว่า 5,000 จะเข้า Affiliate Creator Pilot 30 วัน มีข้อจำกัด) · แต่เกณฑ์ไม่ใช่ประเด็นเพราะติดที่ประเภทบัญชี
-- **สรุป: TikTok พับไปก่อนทั้ง 2 ทาง** (API ติด certification นิติบุคคล · Plan B ติดบัญชีไม่มี affiliate) — ถ้าจะรื้อต่อ ประเด็นที่ต้องเคลียร์คือ "บัญชีที่ผูกร้าน TikTok Shop สมัคร affiliate creator ได้ไหม หรือต้องใช้บัญชีที่ไม่ผูกร้าน"
-
-### Plan B (ฝั่งโค้ด) — ทำเสร็จแล้ว 7 ก.ย. 69 (intake รู้จักลิงก์ TikTok, พร้อมรับเมื่อมีลิงก์)
-user กด gen ลิงก์เองจากแอป TikTok (Affiliate center) → วางเข้า intake เดิม → ไหลเข้าสาย A/B ปกติ
-- แก้ **intake ทั้ง 3 ทาง** (LINE `731A7ASm8bI0F79B` / TG `JUE23JTCBbCsW1lS` / Form `Kq3cRuTbwF9cMkA1`) — 16 จุด:
-  - `Extract`/`Prep`: ตรวจ domain → `source` = tiktok (`tiktok.com`) / lazada (`lazada.` `lzd.co`) / shopee (`shopee.` `shp.ee`)
-  - `Build Payload`/`Build Notion Payload`/`Build Parsed Payload`: เขียน property **`แหล่ง`** + placeholder ชื่อเปลี่ยนจาก "ดีลจาก Shopee" เป็น "ดีลจาก {source}"
-  - `Claude Parse` prompt: "Shopee deal info" → "e-commerce deal info (Shopee, Lazada or TikTok Shop)"
-  - `Build Reply` (LINE/TG): ถ้าเป็น tiktok เปลี่ยนข้อความทริคเป็นบอกให้พิมพ์ชื่อ+ราคามาเอง
-  - เทสต์จริงผ่าน webhook TG แล้ว: ได้แถว `แหล่ง=tiktok` สถานะ "รอตรวจ" ถูกต้อง (แถวทดสอบชื่อ "[แถวทดสอบ TikTok — ลบทิ้งได้เลย]")
-- **ลิงก์ TikTok ลง `ลิงก์Affiliate` (ไม่ใช่ `ลิงก์ตะกร้า`)** — เพราะสายโพสต์ทุกตัวอ่านช่องนี้ (`Split Approved` ถึงกับ `.filter(link)`) ถ้าแยกช่องต้องแก้ 6+ จุดโดยไม่ได้อะไรเพิ่ม · `ลิงก์ตะกร้า` สงวนไว้ให้ยุค API (ลิงก์ที่ generate มาปักตะกร้า)
-- ⚠️ **หน้าสินค้า TikTok Shop ติด bot protection** — `shop.tiktok.com/view/product/…` ตอบหน้า **"Security Check"** ไม่มี og tag เลย (ต่างจาก `www.tiktok.com` ที่มี og ปกติ)
-  → ดึงชื่อ/ราคา/รูปอัตโนมัติ**ไม่ได้** ผู้ใช้ต้องพิมพ์ชื่อ+ราคามากับลิงก์ · ไม่มีรูป = **IG ข้ามดีลนั้น** (IG โพสต์ข้อความล้วนไม่ได้) ส่วน TG/FB fallback เป็นข้อความอยู่แล้ว
-  (`Fetch OG` ตั้ง `onError: continueRegularOutput` อยู่แล้วทั้ง 3 workflow → ลิงก์ที่ดึงไม่ได้ไม่ทำ intake ล้ม)
-
-## TikTok Shop — provider ใหม่ (ประวัติการลุย API 29–30 ส.ค. 2569)
-แผนรวม: sync ดีลจาก Affiliate Marketplace → แถว Notion สถานะ "ใหม่" → ไหลเข้าสาย A/B เดิม + gen ลิงก์ให้ user ปักตะกร้า
-ตัดสินใจแล้ว (29 ส.ค.): **เพิ่ม property `ลิงก์ตะกร้า` แยกจาก `ลิงก์Affiliate`** และ **ดีล TikTok ไหลเข้าสายโพสต์ TG/FB/IG/Threads ด้วย**
-- **Phase 0 (กำลังทำ)**: user สมัคร Partner Center + สร้างแอป + authorize — callback ใช้ workflow `qHcCduq7ec3an1zk` (URL: `https://n8n.srv1277799.hstgr.cloud/webhook/tt-oauth-cb-k4w8`)
-- **ความคืบหน้า 30 ส.ค. 69**: สมัคร Partner Center ด้วย**อีเมลใหม่** (อีเมลเดิม gmail ผูกร้าน TikTok Shop → App developer ถูกล็อก "not available for TikTok Shop sellers") · Partner name **Paiyaa Deals**, region Thailand
-  - แอปที่ใช้จริง: **Paiyaa Creator Poster** — Service ID `7679008369329063701`, App key `6l3qenknhf6n3`, Custom app, category **App developer → Customer Engagement → Creator collaborations** (⚠️ category เดียวในไทยที่มี scope `creator.*` — Marketing/Analytics ฯลฯ มีแต่ `seller.*`), target TH/Local, Redirect URL = webhook ข้างบน · **app secret อยู่หน้า Notion Config** (หัวข้อ TikTok)
-  - แอปทิ้งร้าง (ใบแรก ผิด category): "Paiyaa Deal Poster" Service ID `7679561908684588820` — ไม่ใช้ อย่าสับสน
-  - scope เปิดแล้ว 5 ตัว (สถานะ Awaiting review): `creator.affiliate_collaboration.read`, `creator.affiliate.share_link.read`, `creator.showcase.write`, `creator.showcase.read`, `seller.creator_marketplace.read`
-  - **บล็อกอยู่ (30 ส.ค. 69) — โซ่ยืนยันครบแล้ว**: creator authorize ขึ้น "Invalid app key" ← แอปสถานะ **Draft** ต้อง **Publish** ก่อน (App & Service list มีสถานะ Draft/On/Off) ← Publish dialog ล็อกด้วย **"Partner registration review — awaiting submission"** ← submit ต้องผ่าน Certification (เอกสารกิจการจดเกิน 1 ปี) ← **user ไม่มีทะเบียนพาณิชย์**
-    (หลักฐานว่า credential ใช้ได้: token endpoint ตอบ `36004004 invalid auth code` กับ auth_code ปลอม = รู้จักคู่ key/secret)
-  - **ยื่น ticket แล้ว 30 ส.ค. 69** — **Ticket ID `2026083004120200004`** "Invalid app key blocks custom app publishing" (หมวด Migration/Developer Registration, ยื่น 11:51 สถานะ Unassigned) — ถาม: individual dev ผ่าน cert ได้ไหม / ทะเบียนพาณิชย์บุคคลธรรมดาใช้ได้ไหม+ติดกฎ 1 ปีไหม / ขอเข้า creator-auth allowlist หรือ Creator testing account / สาเหตุ Invalid app key · เช็คสถานะ: `https://partner.tiktokshop.com/ticket/center`
-  - ข้อมูลจากบอต Partner Assistant: scope ทั้ง 4 สถานะภายในเป็น **Achieved** แล้ว · Affiliate API "inactive by default ต้องได้รับ approval + ส่ง app_key ให้ partner manager ขึ้นทะเบียนรับ creator authorization" · ISV ต้องเป็นนิติบุคคล มีกฎ reject ถ้า business license อายุ < 1 ปี · Creator testing account จำกัด beta member ขอผ่าน App Store Manager
-  - **Plan B ถ้าบุคคลธรรมดาไปต่อไม่ได้**: ไม่ใช้ API เลย — user กด gen ลิงก์จากแอป TikTok (Affiliate center ในแอป) แล้ววางเข้า intake เดิม (LINE/TG/ฟอร์ม) → เพิ่มแค่ให้ intake รู้จักลิงก์ TikTok + ติด `แหล่ง=tiktok` · lib ที่เขียนไว้เก็บรอวันมีทาง · แผนสำรองอีกทาง: จดทะเบียนพาณิชย์บุคคลธรรมดา (~50 บาท) แล้วรอครบ 1 ปี
-- **Phase 3 (Notion) — เพิ่ม property แล้ว 30 ส.ค. 69** ผ่าน Notion MCP (เลี่ยง curl+ไทยบน Windows ได้เลย): `แหล่ง` (select: shopee/lazada/tiktok) · `TTProductId` (rich_text) · `คอม%` (number) · `ลิงก์ตะกร้า` (url) — additive ล้วน workflow เดิมไม่กระทบ · **backfill `แหล่ง` ให้แถวเก่ายังไม่ทำ** (รอมีหน้าจอ/logic ที่ใช้ค่านี้จริงใน Phase 5 ค่อย backfill จาก domain ของลิงก์)
-- **Phase 1 เสร็จแล้ว (30 ส.ค. 69)** — `lib/tiktok/sign.js` + `request.js` + unit tests 15 ตัว (`node --test lib/tiktok/sign.test.js lib/tiktok/request.test.js`)
-  - **sign.js ตรวจกับ production แล้ว**: ลายเซ็นเรา → `36009005 access_token invalid` (ผ่านด่าน sign) · ลายเซ็นมั่ว → `106001 sign invalid`
-  - อัลกอริทึม: `hex(HMAC_SHA256(secret, secret + path + {key}{value} เรียง ASCII (ตัด sign/access_token) + body ถ้าไม่ multipart + secret))` · token ส่งทาง header `x-tts-access-token` ไม่ร่วมคำนวณ sign · body ที่ sign ต้องเป็น string เดียวกับที่ส่งจริง byte-ต่อ-byte
-  - `ttRequest`: host `https://open-api.tiktokglobalshop.com`, endpoint แบบ `{version}` placeholder, retry 429/5xx exponential+jitter, โยน `TokenExpiredError` เมื่อ code 105001/105002/36009005 (ไม่ retry — ให้คนเรียกไป refresh), `httpFn`/`now`/`sleep` inject ได้เพื่อเทสต์/ใช้กับ `this.helpers.httpRequest` ใน n8n
-- ข้อเท็จจริงจาก docs (เช็ค 29 ส.ค. 69):
-  - Creator authorization: ลิงก์ `https://shop.tiktok.com/alliance/creator/auth?app_key={key}&state={random}` (**state บังคับ** สำหรับ creator) → callback `?code=&state=` → แลก token: `GET https://auth.tiktok-shops.com/api/v2/token/get` (`app_key,app_secret,auth_code,grant_type=authorized_code`) → refresh: `GET https://auth.tiktok-shops.com/api/v2/token/refresh` (`grant_type=refresh_token`)
-  - ตรวจหลังแลก token เสมอ: `code==0`, `user_type==1` (=creator), `granted_scopes` ครบ (creator ติ๊กเลือกบาง scope ได้ — สำเร็จ ≠ ได้ครบ) · error 105002=token หมดอายุ, 105005=ขาด scope, 101000=ใช้ token ผิดฝั่ง (seller/creator คนละใบ ห้ามสลับ)
-  - access_token อายุ ~24 ชม., refresh_token ~1 ปี → Token Keeper ควร refresh ทุก ~12 ชม.
-  - endpoint หลัก (ทุกตัว query `app_key,sign,timestamp` + header `x-tts-access-token`):
-    - ค้นดีล: `POST /affiliate_creator/202405/open_collaborations/products/search` scope `creator.affiliate_collaboration.read` — page_size ≤ 20, filter `commission_rate_range`/`sales_price_range`/`category`/`title_keywords`, sort `commission_rate` ได้, แบ่งหน้าด้วย `page_token`
-    - gen ลิงก์: `POST /affiliate_creator/202505/affiliate_sharing_links/general_publishers/generate_batch` scope `creator.affiliate.share_link.read` (⚠️ คนละ version: 202505)
-    - **ปักตะกร้า (showcase) ผ่าน API ได้จริง**: `POST /affiliate_creator/202405/showcases/products/add` scope `creator.showcase.write` (add_type PRODUCT_ID/PRODUCT_LINK ≤ 20 ตัว/ครั้ง) — ที่ทำแทนไม่ได้คือปักลงคลิป/ไลฟ์รายอัน
-  - เงื่อนไขฝั่ง creator: ต้องเป็น TikTok Shop Creator ที่มี Showcase แล้ว (SEA ต้อง 5K+ followers, 18+) · Affiliate API ใช้ไม่ได้ใน UK/EU (ไทยใช้ได้)
-- แผนเต็ม (ไฟล์/phase/interface) อยู่ใน session log 29 ส.ค. — สรุปสั้น: `lib/tiktok/{sign,request}.js` + unit test (`node --test`), workflow `TikTok Token Keeper` + `TikTok Deal Sync`, Notion เพิ่ม `แหล่ง`(select) `TTProductId`(rich_text) `คอม%`(number) `ลิงก์ตะกร้า`(url)
 
 ## สถานะแพลตฟอร์ม (22 ส.ค. 2569)
 - **Telegram** `@paiyaa_deals` ✅ — sendPhoto ต้องโหลดรูปเป็น binary แล้ว upload multipart (ส่ง URL ให้ Telegram ดึงเองไม่ได้ Shopee/Lazada CDN บล็อก); Lazada บางรูป `IMAGE_PROCESS_FAILED` → fallback sendMessage ทำงานอยู่
