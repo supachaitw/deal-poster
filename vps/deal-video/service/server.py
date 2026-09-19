@@ -96,7 +96,7 @@ CTAS = ['ใครสนใจ | กดลิงก์ในไบโอได�
 PAUSE_MARK = '… '
 # rate/pitch ต่อบทบาท: ท่อนเปิดเร็ว-สูง · ราคาเดิมเรียบ · ราคาใหม่ตื่นเต้น · ปิดช้าลงเป็นกันเอง
 PROSODY = {'hook': ('+4%', '+8Hz'), 'old': ('-6%', '+0Hz'), 'new': ('-8%', '+12Hz'), 'cta': ('-6%', '+4Hz')}   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2)
-GAP_AFTER = {'hook': 0.55, 'old': 0.45, 'new': 0.7, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน)
+GAP_AFTER = {'hook': 0.4, 'old': 0.3, 'new': 0.5, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน)
 
 def script_for(d):
     name, sale, full = d.get('name') or '', d.get('sale'), d.get('full')
@@ -105,15 +105,15 @@ def script_for(d):
     pct = None
     if sale and full and full > sale:
         pct = round((full - sale) / full * 100)
-        segs.append(('old', 'ปกติขาย | ตั้ง%sบาท' % approx_words(full)))
+        segs.append(('old', 'ปกติขายตั้ง%sบาท' % approx_words(full)))
         tail = ''
         if pct >= 50:
-            tail = ' | ลดไป | เกินครึ่งเลยนะ'
+            tail = ' | ลดไปเกินครึ่งเลยนะ'
         elif pct >= 15:
-            tail = ' | ลดไปตั้ง | %sเปอร์เซ็นต์แน่ะ' % thai_words(pct)
-        segs.append(('new', 'ตอนนี้ | เหลือแค่ | %sบาท | เองค่ะ%s' % (thai_words(sale), tail)))
+            tail = ' | ลดไปตั้ง%sเปอร์เซ็นต์แน่ะ' % thai_words(pct)
+        segs.append(('new', 'ตอนนี้เหลือแค่ | %sบาท | เองค่ะ%s' % (thai_words(sale), tail)))
     elif sale:
-        segs.append(('new', 'ตอนนี้ | ราคาแค่ | %sบาท | เองค่ะ' % thai_words(sale)))
+        segs.append(('new', 'ตอนนี้ราคาแค่ | %sบาท | เองค่ะ' % thai_words(sale)))
     elif full:
         segs.append(('new', 'ราคา%sบาทค่ะ' % thai_words(full)))
     segs.append(('cta', CTAS[(h // 7) % len(CTAS)]))
