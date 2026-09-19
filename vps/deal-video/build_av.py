@@ -1,7 +1,8 @@
 # รันบน host (python3 stdlib ล้วน) — วัดความยาวเสียงพากย์แต่ละท่อน แล้วจัดเวลาให้ข้อความบนจอ
 # ขึ้นตรงกับตอนที่เสียงพูดถึง จากนั้นเขียน subs.ass + graph.txt + สั่ง ffmpeg
-import json, math, subprocess, urllib.request
+import json, math, subprocess, sys, urllib.request
 
+VAR = sys.argv[1] if len(sys.argv) > 1 else 'female'   # female | male
 W = '/root/deal-video'
 F = W + '/fonts'
 S = W + '/sample'
@@ -17,20 +18,28 @@ def dur(p):
                                    '-of', 'default=nw=1:nk=1', p])
     return float(out)
 
-n = len(t['vo'])
+v = t['variants'][VAR]
+n = len(v['vo'])
 # ตัดช่วงเงียบหัว-ท้ายของแต่ละท่อน (edge-tts เติมเงียบมาให้ ทำให้จังหวะยืด)
-TRIM = ('silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.04,areverse,'
-        'silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.08,areverse')
+# แล้วแต่งเนื้อเสียงให้ไม่ "แห้ง" แบบ TTS: ตัดเสียงทุ้มเกิน · บีบไดนามิกเบา ๆ แบบไมค์จริง ·
+# เสียงสะท้อนห้องสั้นมาก (ให้รู้สึกว่าอัดในห้อง ไม่ใช่เสียงที่สังเคราะห์ลอย ๆ)
+VOICE_FX = ('silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.04,areverse,'
+            'silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.08,areverse,'
+            'highpass=f=90,equalizer=f=200:t=q:w=1:g=1.5,equalizer=f=3500:t=q:w=1.2:g=2,'
+            'acompressor=threshold=-20dB:ratio=2.5:attack=8:release=120:makeup=2,'
+            'aecho=0.85:0.6:22|41:0.10|0.06')
 for i in range(n):
     subprocess.check_call(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
-                           '-i', '%s/vo_%d.mp3' % (S, i), '-af', TRIM, '%s/vo_%d.wav' % (S, i)])
-d = [dur('%s/vo_%d.wav' % (S, i)) for i in range(n)]
-LEAD, GAP, TAIL = 0.4, 0.3, 1.2
+                           '-i', '%s/vo_%s_%d.mp3' % (S, VAR, i), '-af', VOICE_FX,
+                           '%s/vo_%s_%d.wav' % (S, VAR, i)])
+d = [dur('%s/vo_%s_%d.wav' % (S, VAR, i)) for i in range(n)]
+LEAD, TAIL = 0.35, 1.2
+gaps = v['gap']                                        # เว้นจังหวะไม่เท่ากัน แบบคนพูดจริง
 starts = []
 cur = LEAD
-for x in d:
+for i, x in enumerate(d):
     starts.append(cur)
-    cur += x + GAP
+    cur += x + (gaps[i] if i < len(gaps) else 0)
 end_voice = starts[-1] + d[-1]
 D = math.ceil((end_voice + TAIL) * 10) / 10          # ความยาวคลิปตามเสียงพากย์
 s_old, s_new, s_cta = starts[1], starts[2], starts[3]
@@ -90,10 +99,10 @@ cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
        '-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', S + '/product.jpg',
        '-i', S + '/product.jpg']
 for i in range(n):
-    cmd += ['-i', '%s/vo_%d.wav' % (S, i)]
+    cmd += ['-i', '%s/vo_%s_%d.wav' % (S, VAR, i)]
 cmd += ['-i', MUSIC,
         '-filter_complex_script', S + '/graph.txt', '-map', '[v]', '-map', '[aout]',
         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-r', str(FPS),
-        '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', S + '/sample_av.mp4']
+        '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', '%s/sample_%s.mp4' % (S, VAR)]
 subprocess.check_call(cmd)
-print('rendered sample_av.mp4')
+print('rendered sample_%s.mp4' % VAR)
