@@ -74,6 +74,9 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 ## Token / Credential (28 ส.ค. 2569)
 - **Notion token ไม่ฝังใน workflow แล้ว** — ย้ายเข้า n8n credential **`Notion Deal Poster (Header Auth)`** (id `U5mfqJ7z2OV1c4PT`, type httpHeaderAuth) ครบทั้ง 12 จุดใน 5 workflow
   - Landing Page: โหนด `Query Posted Deals` แปลงจาก Code (fetch วนหน้า) → httpRequest ใช้ credential ดึงหน้าเดียว `page_size: 100` เรียงใหม่สุดก่อน — เทียบ HTML ก่อน/หลังแล้ว **byte-identical** (หน้า live แสดง 100 รายการล่าสุดเท่าเดิม)
+    ⚠️ **การแปลงนี้ทำเพดาน 100 ดีลกลับมาเงียบ ๆ** (ตอน 27 ส.ค. เทียบ byte-identical เพราะตอนนั้นมี ≤100 ดีลพอดี) — user เห็นหน้ารวมดีลมีแค่ 2 หน้า 19 ก.ย. 69 ทั้งที่ Notion มี 365 แถว
+    **แก้แล้ว 19 ก.ย. 69**: ใช้ **pagination ในตัว httpRequest v4.2** (`options.pagination`: mode `updateAParameterInEachRequest` body `start_cursor` = `{{ $response.body.next_cursor }}`, จบเมื่อ `!$response.body.has_more`, max 20 หน้า)
+    → ยังใช้ credential เดิม ไม่ต้องเอา token กลับไปฝังใน Code · node คืน 1 item/หน้า ดังนั้น `Build Page` อ่าน `$input.all().flatMap(i => i.json.results)` แทน `$input.first()` · หน้า live ตอนนี้ 365 การ์ด = 8 หน้า โหลด ~2.6 วิ
   - **rotate Notion token**: สร้าง secret ใหม่ที่ notion.so/profile/integrations → แก้ค่าใน credential เดียวผ่าน n8n UI (Credentials → Notion Deal Poster) — ไม่ต้องแตะ workflow ใดเลย
 - **Telegram bot token ยังฝังใน URL** (4 โหนด: `Post to Telegram`/`TG Send Text` ใน Poster, `TG Confirm`/`TG Help` ใน Intake TG) — **ย้ายเข้า credential ไม่ได้**: token อยู่ใน URL path ซึ่ง generic credential ของ n8n ฉีดให้ไม่ได้ และเปลี่ยนเป็น Telegram node จะเสีย batching 60 วิ (throttle ที่ตั้งใจ)
   - **rotate Telegram token**: BotFather → `/revoke` @sup_dealposter_bot ได้ token ใหม่ → GET สด 2 workflow (`E6i2xEAcaUsUFKWm`, `JUE23JTCBbCsW1lS`) → replace string `bot<เก่า>` → `bot<ใหม่>` → PUT + deactivate→activate
