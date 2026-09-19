@@ -28,7 +28,7 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 ## Workflows (n8n IDs)
 | id | ชื่อ | หน้าที่ |
 |---|---|---|
-| `E6i2xEAcaUsUFKWm` | Deal Poster v1 — โพสต์ดีลที่อนุมัติแล้ว | cron `0 9-21/3 * * *` — **สาย B อย่างเดียว**: "อนุมัติแล้ว"→Telegram(รูป binary)+FB→IG/Threads(create→**Settle 30 วิ**→publish)→[X ปิดอยู่]→Mark Posted→**Build Posted Alert**→LINE |
+| `E6i2xEAcaUsUFKWm` | Deal Poster v1 — โพสต์ดีลที่อนุมัติแล้ว | cron `0 0,6,9,12,15,18,21 * * *` — **สาย B อย่างเดียว**: "อนุมัติแล้ว"→Telegram(รูป binary)+FB→IG(**Reels** ถอยเป็นภาพได้)/Threads(create→**Settle 30 วิ**→publish)→[X ปิดอยู่]→Mark Posted→**Build Posted Alert**→LINE |
 | `e8aD2wCvsVYmefrq` | Deal Caption Writer | cron `50 2-23/3 * * *` — **สาย A ที่แยกออกมา**: "ใหม่"→Claude แคปชัน→`Save Draft to Notion`→LINE preview |
 | `Kq3cRuTbwF9cMkA1` | Deal Intake Form | `/form/deal-intake` — บังคับแค่ลิงก์ ช่องอื่นเว้นได้ (OG+Claude parse เหมือนสาย TG; ค่าที่กรอกชนะค่า parse) |
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
@@ -190,7 +190,22 @@ user กด gen ลิงก์เองจากแอป TikTok (Affiliate cen
 - ฟอนต์ Kanit (Google Fonts, OFL) โหลดไว้ที่ `/root/deal-video/fonts/` · container n8n **ไม่มี ffmpeg** มีแต่ตัว host
 - โพสต์ทดลองชิ้นแรก: https://www.instagram.com/reel/DddAjj4iMc6/ (media `17965755585178931`, ดีลหวดนึ่งข้าวเหนียว) — Meta ประมวลผลเสร็จในรอบ poll แรก (6 วิ)
 - **ดึงยอดวิวผ่าน API ยังไม่ได้** — `/{media}/insights` ตอบ `(#10) Application does not have permission` ต้องเพิ่ม `instagram_manage_insights` (ขั้นตอนเดียวกับ perms อื่น: App → Use cases → Access Token Tool → เปลี่ยน token ใน workflow) · ระหว่างนี้ดูยอดในแอป IG เอา
-- ยังไม่ได้ต่อเข้า workflow — ข้อที่ต้องทำก่อน: ชื่อยาวให้ตัดขึ้น 2 บรรทัด, ถ้าทำคลิปไม่สำเร็จต้องกลับไปโพสต์ภาพ (ห้ามทำให้ดีลหาย)
+
+### ✅ ต่อเข้า workflow อัตโนมัติแล้ว (19 ก.ย. 69) — IG โพสต์เป็น Reels ทุกดีล, ล้มเมื่อไหร่ถอยไปโพสต์ภาพ
+สาย IG ใน `E6i2xEAcaUsUFKWm`: `IG Has Image?` → **`IG Reel`** (Code) → **`IG Reel OK?`** → true = จบ · false → `IG Create Media` (ภาพ แบบเดิม)
+- **container `deal-video`** บน VPS (ซอร์ส `vps/deal-video/service/` · ของจริง `/root/deal-video/service/` · deploy ด้วย `deploy.sh`)
+  = python:3.12-slim + ffmpeg(libass) + edge-tts · อยู่บน `n8n_default` **ไม่เปิด port/ไม่มี traefik** เรียกได้จากใน n8n เท่านั้น `http://deal-video:8080`
+  `POST /render {name,sale,full,img[,upload:{url,token}]}` · `GET /health` · เรนเดอร์ทีละคลิป ~20 วิ (`--cpus 0.8 --memory 700m`)
+- `IG Reel` ทำ: สร้าง container REELS (แคปชัน + **เครดิตเพลง CC BY แทรกอัตโนมัติ**) → ส่ง `uri` ของ rupload + token ให้ service **เรนเดอร์แล้วอัปโหลดเอง**
+  → poll `status_code` ทุก 5 วิ จน FINISHED → `media_publish` · เว้น 30 วิระหว่างดีล · `onError: continueRegularOutput` + try/catch → ไม่มีทาง throw
+- ⛔ **ส่งไฟล์ binary ออกจาก Code node ไม่ได้** — task runner (`N8N_RUNNERS_ENABLED`) serialize Buffer เพี้ยน อัปโหลดไปได้แต่ Meta ตอบ
+  `Video Transcoding Error … progressive_video_not_ready` (ขาเข้า Code node รับ binary ได้ปกติเป็น Uint8Array) → จึงให้ service อัปโหลดเอง
+- บทพูด **ไม่อ่านชื่อสินค้า** (ชื่อจริงยาว 30–98 ตัว ปนอังกฤษ/รหัสรุ่น อ่านแล้วแปลก) — พูดแค่ hook (สุ่มจาก 3 แบบตาม hash ชื่อ) + ราคาเป็นคำอ่าน + CTA
+  ชื่อขึ้นจอ ตัดเป็น ≤ 2 บรรทัด × 26 ตัว (ตัดที่ช่องว่าง ไม่งั้นตัดแบบไม่แยกสระ/วรรณยุกต์ออกจากพยัญชนะ) + `…`
+  ไม่มีราคาเต็ม = ไม่มีบรรทัดราคาเดิม/ป้าย % · TTS ล้ม = ได้คลิปมีแต่เพลง (`X-Voice: 0`) ไม่ถือว่าล้ม
+- `Split Approved` ส่ง `sale`/`full` ต่อมาด้วยแล้ว (เดิมมีแค่ name/link/caption)
+- ดูผลรายดีล: execution → runData ของ `IG Reel` (`reelOk`, `reelId`, `voice`, หรือ `reelError: <ขั้น>: …`)
+- ⚠️ edge-tts ยังเป็นบริการไม่เป็นทางการ (ดูด้านล่าง) — ถ้าเริ่มล้มบ่อย `voice:false` จะโผล่ใน runData → ย้ายไป Azure Speech
 
 **เวอร์ชันมีเสียง (19 ก.ย. 69)** — `tts.py` + `build_av.py` ใน `vps/deal-video/`
 - user เลือก**เสียงผู้หญิง** (Premwadee, บทแบบคุยกัน ค่ะ/น้า) → โพสต์แล้ว https://www.instagram.com/reel/DddcrKoCBKy/ (media `18078606824365969`, แคปชันมีเครดิตเพลง)
