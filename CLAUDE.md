@@ -177,6 +177,21 @@ user กด gen ลิงก์เองจากแอป TikTok (Affiliate cen
 - **X** ⏸ node "Post to X" `disabled:true` — X เป็น pay-per-use credits แล้ว บัญชี $0 user ยังไม่ซื้อ; node เป็น httpRequest + predefinedCredentialType `twitterOAuth1Api` (twitter node v2 ใช้ OAuth1 ไม่ได้), credential n8n `TsrgrCQlMXmi03F9`
 - **บทเรียน Meta:** งานสร้างบัญชี/portfolio/appeal ต้องให้ user คลิกเอง (automation โดนแฟล็กมาแล้ว); งาน Graph API ปกติไม่โดน
 
+## Reels จากรูปสินค้า — ทดลอง (19 ก.ย. 2569)
+เหตุผล: IG มีผู้ติดตามแค่ 1 คน โพสต์ภาพนิ่งแทบไม่มีคนเห็น ส่วน Reels ถูกส่งไปหาคนที่ยังไม่ติดตามด้วย
+- **ดึงคลิปจากร้านไม่ได้** — ลิงก์ Shopee 5/5 มีแต่ `og:image` ไม่มี `og:video` → **สร้างคลิปเองจากรูป**
+- สคริปต์อยู่ `vps/deal-video/` (ตัวจริงบน VPS `/root/deal-video/sample/`):
+  `render.sh` = คลิปแนวตั้ง 720×1280 ยาว 8 วิ (รูปซูมช้า + พื้นหลังเบลอ + ป้าย -X% + ราคา + แถว CTA) ใช้เวลาทำ ~17 วิบน VPS 1 core
+  `post_reel.js` = โพสต์ Reels ด้วย **resumable upload** (`upload_type=resumable` → POST binary ไป `rupload.facebook.com` header `Authorization: OAuth` + `offset` + `file_size`)
+  → **ไม่ต้องมี URL สาธารณะของไฟล์** (ต่างจาก image_url) · ถ้าจะทำ Threads ด้วยค่อยต้องหาที่ฝากไฟล์
+- ⛔ **ห้ามใช้ `drawtext` เขียนภาษาไทย** — แม้ ffmpeg มี harfbuzz แต่ **วรรณยุกต์ที่ซ้อนบนสระบนหาย** ("นึ่ง"→"นึง", "จิ๋ว"→"จิว") ทั้งที่ข้อความต้นทางครบ
+  ให้ใช้ **libass** (`ass=filename=subs.ass:fontsdir=...`) แทน · ขนาดฟอนต์ ASS เล็กกว่า drawtext ~1.5 เท่าที่ตัวเลขเดียวกัน ต้องชดเชย
+  · `drawtext` ยังตีความ `%` เป็นรหัสพิเศษ (ป้าย `-61%` เพี้ยน) ถ้าจำเป็นต้องใช้ต้องใส่ `expansion=none`
+- ฟอนต์ Kanit (Google Fonts, OFL) โหลดไว้ที่ `/root/deal-video/fonts/` · container n8n **ไม่มี ffmpeg** มีแต่ตัว host
+- โพสต์ทดลองชิ้นแรก: https://www.instagram.com/reel/DddAjj4iMc6/ (media `17965755585178931`, ดีลหวดนึ่งข้าวเหนียว) — Meta ประมวลผลเสร็จในรอบ poll แรก (6 วิ)
+- **ดึงยอดวิวผ่าน API ยังไม่ได้** — `/{media}/insights` ตอบ `(#10) Application does not have permission` ต้องเพิ่ม `instagram_manage_insights` (ขั้นตอนเดียวกับ perms อื่น: App → Use cases → Access Token Tool → เปลี่ยน token ใน workflow) · ระหว่างนี้ดูยอดในแอป IG เอา
+- ยังไม่ได้ต่อเข้า workflow — ข้อที่ต้องทำก่อน: ชื่อยาวให้ตัดขึ้น 2 บรรทัด, ถ้าทำคลิปไม่สำเร็จต้องกลับไปโพสต์ภาพ (ห้ามทำให้ดีลหาย)
+
 ## ซ่อมย้อนหลัง (backfill) เมื่อบางช่องล้มแต่ Mark Posted ไปแล้ว
 ⛔ **ห้ามเปลี่ยนสถานะใน Notion กลับเป็น "อนุมัติแล้ว"** — รอบถัดไปจะยิงซ้ำทุกช่องรวมช่องที่สำเร็จไปแล้ว ไม่มีตัวกันซ้ำรายช่อง
 
