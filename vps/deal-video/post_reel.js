@@ -18,7 +18,8 @@ async function main() {
   const TOKEN = fb.parameters.bodyParameters.parameters.find(p => p.name === 'access_token').value;
   if (!TOKEN || !TOKEN.startsWith('EAA')) throw new Error('page token not found');
 
-  const video = fs.readFileSync(path.join(DIR, 'sample.mp4'));
+  // ไฟล์คลิประบุทาง argv ได้ (ค่าเริ่มต้น sample.mp4) เช่น node post_reel.js sample_female.mp4
+  const video = fs.readFileSync(path.join(DIR, process.argv[2] || 'sample.mp4'));
   const caption = fs.readFileSync(path.join(DIR, 'reel_caption.txt'), 'utf8');
 
   // 1) สร้าง container แบบ resumable

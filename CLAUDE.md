@@ -192,7 +192,9 @@ user กด gen ลิงก์เองจากแอป TikTok (Affiliate cen
 - **ดึงยอดวิวผ่าน API ยังไม่ได้** — `/{media}/insights` ตอบ `(#10) Application does not have permission` ต้องเพิ่ม `instagram_manage_insights` (ขั้นตอนเดียวกับ perms อื่น: App → Use cases → Access Token Tool → เปลี่ยน token ใน workflow) · ระหว่างนี้ดูยอดในแอป IG เอา
 - ยังไม่ได้ต่อเข้า workflow — ข้อที่ต้องทำก่อน: ชื่อยาวให้ตัดขึ้น 2 บรรทัด, ถ้าทำคลิปไม่สำเร็จต้องกลับไปโพสต์ภาพ (ห้ามทำให้ดีลหาย)
 
-**เวอร์ชันมีเสียง (19 ก.ย. 69)** — `tts.py` + `build_av.py` ใน `vps/deal-video/` (ยังไม่ได้โพสต์)
+**เวอร์ชันมีเสียง (19 ก.ย. 69)** — `tts.py` + `build_av.py` ใน `vps/deal-video/`
+- user เลือก**เสียงผู้หญิง** (Premwadee, บทแบบคุยกัน ค่ะ/น้า) → โพสต์แล้ว https://www.instagram.com/reel/DddcrKoCBKy/ (media `18078606824365969`, แคปชันมีเครดิตเพลง)
+  สั่ง: `N8N_KEY=… node post_reel.js sample_female.mp4` (อ่าน `reel_caption.txt` ข้างไฟล์)
 - เสียงพากย์: แบ่งบทเป็น 4 ท่อน (`vo` ใน texts.json) → สร้างเสียงทีละท่อน → **ตัดช่วงเงียบหัวท้าย** (`silenceremove` ไปกลับด้วย `areverse`)
   → วัดความยาวจริงแต่ละท่อน → **ตั้งเวลาข้อความบนจอให้ขึ้นตอนเสียงพูดถึง** (ราคาเก่า/ราคาใหม่/CTA) · ความยาวคลิปคำนวณจากเสียง (~11 วิ)
   ไม่ตัดเงียบ = คลิปยืดเป็น 15 วิ
