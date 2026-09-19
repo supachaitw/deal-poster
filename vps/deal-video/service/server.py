@@ -90,8 +90,8 @@ def wrap_name(name, per_line=26, lines=2):
 HOOKS = ['เดี๋ยวนะ! อันนี้ต้องดู', 'ใครหาอยู่ ดูนี่เลย!', 'เดี๋ยวก่อน! ดีลนี้คุ้มมาก']
 CTAS = ['ใครสนใจ กดลิงก์ในไบโอได้เลยน้า', 'สนใจกดลิงก์ในไบโอเลยค่ะ']
 # rate/pitch ต่อบทบาท: ท่อนเปิดเร็ว-สูง · ราคาเดิมเรียบ · ราคาใหม่ตื่นเต้น · ปิดช้าลงเป็นกันเอง
-PROSODY = {'hook': ('+14%', '+8Hz'), 'old': ('+6%', '+0Hz'), 'new': ('+10%', '+12Hz'), 'cta': ('+2%', '+4Hz')}
-GAP_AFTER = {'hook': 0.18, 'old': 0.12, 'new': 0.32, 'cta': 0}
+PROSODY = {'hook': ('+4%', '+8Hz'), 'old': ('-4%', '+0Hz'), 'new': ('+0%', '+12Hz'), 'cta': ('-6%', '+4Hz')}   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2)
+GAP_AFTER = {'hook': 0.55, 'old': 0.45, 'new': 0.7, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน)
 
 def script_for(d):
     name, sale, full = d.get('name') or '', d.get('sale'), d.get('full')
@@ -232,7 +232,7 @@ def render(d):
             traceback.print_exc()
             voiced, wavs = False, []
             durs = [1.3] * len(segs)          # ไม่มีเสียง: จังหวะข้อความตายตัว
-        LEAD, TAIL = 0.35, 1.2
+        LEAD, TAIL = 0.5, 1.2
         starts, cur = [], LEAD
         for i, x in enumerate(durs):
             starts.append(cur)
