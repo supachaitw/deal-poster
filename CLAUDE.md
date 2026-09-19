@@ -206,6 +206,8 @@ user กด gen ลิงก์เองจากแอป TikTok (Affiliate cen
 - `Split Approved` ส่ง `sale`/`full` ต่อมาด้วยแล้ว (เดิมมีแค่ name/link/caption)
 - ดูผลรายดีล: execution → runData ของ `IG Reel` (`reelOk`, `reelId`, `voice`, หรือ `reelError: <ขั้น>: …`)
 - ⚠️ edge-tts ยังเป็นบริการไม่เป็นทางการ (ดูด้านล่าง) — ถ้าเริ่มล้มบ่อย `voice:false` จะโผล่ใน runData → ย้ายไป Azure Speech
+- **รอบจริงรอบแรก 19 ก.ย. 69 15:00** → Reels ขึ้นสำเร็จ https://www.instagram.com/reel/DddiG--DhF8/ แต่ **ไม่มีเสียง** (edge-tts `NoAudioReceived` เป็นช่วง ๆ — ข้อความเดิมล้มแล้วผ่านเอง บางท่อนต้องลอง 4–6 ครั้ง)
+  → เพิ่ม retry 8 ครั้งถอยเวลา (timeout รวม 150 วิ) · log บอกจำนวนครั้งที่ลอง: `docker logs deal-video | grep "tts seg"`
 
 **เวอร์ชันมีเสียง (19 ก.ย. 69)** — `tts.py` + `build_av.py` ใน `vps/deal-video/`
 - user เลือก**เสียงผู้หญิง** (Premwadee, บทแบบคุยกัน ค่ะ/น้า) → โพสต์แล้ว https://www.instagram.com/reel/DddcrKoCBKy/ (media `18078606824365969`, แคปชันมีเครดิตเพลง)

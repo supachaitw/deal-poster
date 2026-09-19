@@ -130,12 +130,22 @@ def dur(p):
 
 async def _tts(segs, W):
     import edge_tts
+    # edge-tts ตอบ NoAudioReceived แบบสุ่มบ่อยมาก (ข้อความเดิมรอบนี้ล้ม รอบหน้าผ่าน — วัด 19 ก.ย. 69 บางท่อนต้องลอง 4–6 ครั้ง)
+    # → ลองซ้ำพร้อมถอยเวลา · ทางแก้จริงคือย้ายไป Azure Speech (ทางการ)
     for i, (role, text) in enumerate(segs):
         rate, pitch = PROSODY[role]
-        await edge_tts.Communicate(text, VOICE, rate=rate, pitch=pitch).save('%s/vo_%d.mp3' % (W, i))
+        for k in range(8):
+            try:
+                await edge_tts.Communicate(text, VOICE, rate=rate, pitch=pitch).save('%s/vo_%d.mp3' % (W, i))
+                break
+            except Exception:
+                if k == 7:
+                    raise
+                await asyncio.sleep(1.5 * (k + 1))
+        print('tts seg %d ok after %d tries' % (i, k + 1), flush=True)
 
 def make_voice(segs, W):
-    asyncio.run(asyncio.wait_for(_tts(segs, W), timeout=60))
+    asyncio.run(asyncio.wait_for(_tts(segs, W), timeout=150))
     wavs = []
     for i in range(len(segs)):
         wav = '%s/vo_%d.wav' % (W, i)
