@@ -128,7 +128,43 @@ def dur(p):
     return float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                                           '-of', 'default=nw=1:nk=1', p]))
 
+AZ_KEY = os.environ.get('AZURE_SPEECH_KEY', '')
+AZ_REGION = os.environ.get('AZURE_SPEECH_REGION', 'eastus')
+
+def azure_tts(text, rate, pitch, out):
+    """Azure Speech (ทางการ) — key มาจาก .env ของ container · เสียงเดียวกับ edge-tts แต่เสถียร"""
+    ssml = ('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="th-TH">'
+            '<voice name="%s"><prosody rate="%s" pitch="%s">%s</prosody></voice></speak>'
+            % (VOICE, rate, pitch, text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')))
+    r = urllib.request.Request('https://%s.tts.speech.microsoft.com/cognitiveservices/v1' % AZ_REGION,
+                               data=ssml.encode('utf-8'), method='POST', headers={
+                                   'Ocp-Apim-Subscription-Key': AZ_KEY, 'Content-Type': 'application/ssml+xml',
+                                   'X-Microsoft-OutputFormat': 'audio-24khz-96kbitrate-mono-mp3', 'User-Agent': 'deal-video'})
+    data = urllib.request.urlopen(r, timeout=30).read()
+    if len(data) < 1000:
+        raise ValueError('azure: empty audio')
+    open(out, 'wb').write(data)
+
 async def _tts(segs, W):
+    if AZ_KEY:
+        last = None
+        for i, (role, text) in enumerate(segs):
+            rate, pitch = PROSODY[role]
+            for k in range(3):
+                try:
+                    azure_tts(text, rate, pitch, '%s/vo_%d.mp3' % (W, i))
+                    last = None
+                    break
+                except Exception as e:
+                    last = e
+                    await asyncio.sleep(2 * (k + 1))
+            if last:
+                print('azure tts failed seg %d: %s -> fallback edge-tts' % (i, last), flush=True)
+                break
+            print('tts seg %d ok (azure)' % i, flush=True)
+        if last is None:
+            return
+    # ทางสำรอง: edge-tts (ไม่เป็นทางการ) — ใช้เมื่อไม่มี key หรือ Azure ล้ม
     import edge_tts
     # edge-tts ตอบ NoAudioReceived แบบสุ่มบ่อยมาก (ข้อความเดิมรอบนี้ล้ม รอบหน้าผ่าน — วัด 19 ก.ย. 69 บางท่อนต้องลอง 4–6 ครั้ง)
     # → ลองซ้ำพร้อมถอยเวลา · ทางแก้จริงคือย้ายไป Azure Speech (ทางการ)
