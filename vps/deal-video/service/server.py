@@ -88,9 +88,14 @@ def wrap_name(name, per_line=26, lines=2):
 
 # ---------- บทพูด ----------
 HOOKS = ['เดี๋ยวนะ! อันนี้ต้องดู', 'ใครหาอยู่ ดูนี่เลย!', 'เดี๋ยวก่อน! ดีลนี้คุ้มมาก']
-CTAS = ['ใครสนใจ กดลิงก์ในไบโอได้เลยน้า', 'สนใจกดลิงก์ในไบโอเลยค่ะ']
+CTAS = ['ใครสนใจ | กดลิงก์ในไบโอได้เลยน้า', 'สนใจ | กดลิงก์ในไบโอเลยค่ะ']
+# เครื่องหมาย ' | ' ในบท = หยุดหายใจสั้น ๆ ~0.33 วิ — แทนด้วย '… ' (ellipsis+space) ก่อนส่ง TTS (user 19 ก.ย. 69: คำในท่อนราคายังติดกัน)
+# ⚠️ ช่องว่างรอบ ellipsis มีผลมาก (วัด 19 ก.ย. 69): ' … ' ≈ +1.1 วิ/จุด · '… ' ≈ +0.33 · '…' ติดคำ ≈ +0.09 — ต้องเป็น '… ' เท่านั้น
+# ⛔ ห้ามใช้ SSML <break> — Azure เสียงไทยเติมหยุด ~1.4 วิต่อจุดไม่ว่า time= เท่าไร (วัดแล้ว: 5 จุด → ท่อน 4.5 วิกลายเป็น 12 วิ)
+#    ', ' ≈ +0.33 วิเท่ากับ '… ' · '. ' ไม่หยุดเลย
+PAUSE_MARK = '… '
 # rate/pitch ต่อบทบาท: ท่อนเปิดเร็ว-สูง · ราคาเดิมเรียบ · ราคาใหม่ตื่นเต้น · ปิดช้าลงเป็นกันเอง
-PROSODY = {'hook': ('+4%', '+8Hz'), 'old': ('-4%', '+0Hz'), 'new': ('+0%', '+12Hz'), 'cta': ('-6%', '+4Hz')}   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2)
+PROSODY = {'hook': ('+4%', '+8Hz'), 'old': ('-6%', '+0Hz'), 'new': ('-8%', '+12Hz'), 'cta': ('-6%', '+4Hz')}   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2)
 GAP_AFTER = {'hook': 0.55, 'old': 0.45, 'new': 0.7, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน)
 
 def script_for(d):
@@ -100,15 +105,15 @@ def script_for(d):
     pct = None
     if sale and full and full > sale:
         pct = round((full - sale) / full * 100)
-        segs.append(('old', 'ปกติขายตั้ง%sบาท' % approx_words(full)))
+        segs.append(('old', 'ปกติขาย | ตั้ง%sบาท' % approx_words(full)))
         tail = ''
         if pct >= 50:
-            tail = ' ลดไปเกินครึ่งเลยนะ'
+            tail = ' | ลดไป | เกินครึ่งเลยนะ'
         elif pct >= 15:
-            tail = ' ลดไปตั้ง%sเปอร์เซ็นต์แน่ะ' % thai_words(pct)
-        segs.append(('new', 'ตอนนี้เหลือแค่%sบาทเองค่ะ%s' % (thai_words(sale), tail)))
+            tail = ' | ลดไปตั้ง | %sเปอร์เซ็นต์แน่ะ' % thai_words(pct)
+        segs.append(('new', 'ตอนนี้ | เหลือแค่ | %sบาท | เองค่ะ%s' % (thai_words(sale), tail)))
     elif sale:
-        segs.append(('new', 'ตอนนี้ราคาแค่%sบาทเองค่ะ' % thai_words(sale)))
+        segs.append(('new', 'ตอนนี้ | ราคาแค่ | %sบาท | เองค่ะ' % thai_words(sale)))
     elif full:
         segs.append(('new', 'ราคา%sบาทค่ะ' % thai_words(full)))
     segs.append(('cta', CTAS[(h // 7) % len(CTAS)]))
@@ -135,7 +140,8 @@ def azure_tts(text, rate, pitch, out):
     """Azure Speech (ทางการ) — key มาจาก .env ของ container · เสียงเดียวกับ edge-tts แต่เสถียร"""
     ssml = ('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="th-TH">'
             '<voice name="%s"><prosody rate="%s" pitch="%s">%s</prosody></voice></speak>'
-            % (VOICE, rate, pitch, text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')))
+            % (VOICE, rate, pitch, text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+               .replace(' | ', PAUSE_MARK)))
     r = urllib.request.Request('https://%s.tts.speech.microsoft.com/cognitiveservices/v1' % AZ_REGION,
                                data=ssml.encode('utf-8'), method='POST', headers={
                                    'Ocp-Apim-Subscription-Key': AZ_KEY, 'Content-Type': 'application/ssml+xml',
@@ -172,7 +178,7 @@ async def _tts(segs, W):
         rate, pitch = PROSODY[role]
         for k in range(8):
             try:
-                await edge_tts.Communicate(text, VOICE, rate=rate, pitch=pitch).save('%s/vo_%d.mp3' % (W, i))
+                await edge_tts.Communicate(text.replace(' | ', PAUSE_MARK), VOICE, rate=rate, pitch=pitch).save('%s/vo_%d.mp3' % (W, i))
                 break
             except Exception:
                 if k == 7:
