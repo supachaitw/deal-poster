@@ -77,6 +77,13 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
     ⚠️ **การแปลงนี้ทำเพดาน 100 ดีลกลับมาเงียบ ๆ** (ตอน 27 ส.ค. เทียบ byte-identical เพราะตอนนั้นมี ≤100 ดีลพอดี) — user เห็นหน้ารวมดีลมีแค่ 2 หน้า 19 ก.ย. 69 ทั้งที่ Notion มี 365 แถว
     **แก้แล้ว 19 ก.ย. 69**: ใช้ **pagination ในตัว httpRequest v4.2** (`options.pagination`: mode `updateAParameterInEachRequest` body `start_cursor` = `{{ $response.body.next_cursor }}`, จบเมื่อ `!$response.body.has_more`, max 20 หน้า)
     → ยังใช้ credential เดิม ไม่ต้องเอา token กลับไปฝังใน Code · node คืน 1 item/หน้า ดังนั้น `Build Page` อ่าน `$input.all().flatMap(i => i.json.results)` แทน `$input.first()` · หน้า live ตอนนี้ 365 การ์ด = 8 หน้า โหลด ~2.6 วิ
+  - **จำกัดขนาดหน้า + cache แล้ว 20 ก.ย. 69** (ตอบคำถาม "Notion มีลิมิตไหม ควรย้าย DB ไป VPS ไหม") — **ยังอยู่ Notion ต่อ ไม่ย้าย**
+    เหตุผล: Notion ไม่ใช่แค่ที่เก็บ แต่เป็น **หน้าจอแก้/อนุมัติดีล** ด้วย · ข้อมูลจริงเล็กมาก (431 แถว, แคปชันเฉลี่ย 266 ตัวอักษร → ไม่ถึง 1 MB)
+    **ลิมิตที่เป็นปัญหาจริงคือฝั่งอ่าน ไม่ใช่ฝั่งเก็บ**: API ดึงทีละ 100 แถว (อ่านทั้ง DB = ceil(n/100) requests) · rate limit ~3 req/วินาที/integration · แพลนฟรีคนเดียวเก็บได้ไม่จำกัด (เพดาน 1,000 block ใช้กับ workspace หลายคนเท่านั้น)
+    อัตราโต **~14 ดีล/วัน** (ส.ค. 143 · ก.ย. 1–20 = 288) → ถ้าไม่ทำอะไรจะชนเพดาน 20 หน้า (2,000 แถว) ราวต้น ม.ค. 2570 และหน้าเว็บจะช้าขึ้นเรื่อย ๆ
+    - `Query Posted Deals` เพิ่มเงื่อนไข **`โพสต์เมื่อ` ≥ 90 วันล่าสุด** (filter เป็น `and` + jsonBody เป็น expression `={{ new Date(Date.now() - 7776000000).toISOString().slice(0,10) }}`) — ดีลเก่าราคาเพี้ยน/ลิงก์อาจตาย ไม่ควรโชว์
+    - `maxRequests` **20 → 5** = เพดานตั้งใจ 500 ดีลใหม่สุด (เรียง `โพสต์เมื่อ` desc อยู่แล้ว → ตัดหน้าท้ายคือตัดของเก่าสุด) · **กันคนละแบบ**: filter กันดีลเก่าตกค้างตอนโพสต์น้อย, cap กันหน้าบวมตอนโพสต์เยอะ
+    - ⚠️ ทั้งสองอย่างนี้ **ยังไม่ตัดอะไรออกวันนี้** (ดีลเก่าสุด 17 ส.ค. = 34 วัน, 380 แถว < 500) — เทียบก่อน/หลังได้ 380 การ์ดเท่าเดิม ถ้าวันหลังเห็นจำนวนการ์ดนิ่งที่ ~500 แปลว่าชน cap ไม่ใช่บั๊ก
   - **rotate Notion token**: สร้าง secret ใหม่ที่ notion.so/profile/integrations → แก้ค่าใน credential เดียวผ่าน n8n UI (Credentials → Notion Deal Poster) — ไม่ต้องแตะ workflow ใดเลย
 - **Telegram bot token ยังฝังใน URL** (4 โหนด: `Post to Telegram`/`TG Send Text` ใน Poster, `TG Confirm`/`TG Help` ใน Intake TG) — **ย้ายเข้า credential ไม่ได้**: token อยู่ใน URL path ซึ่ง generic credential ของ n8n ฉีดให้ไม่ได้ และเปลี่ยนเป็น Telegram node จะเสีย batching 60 วิ (throttle ที่ตั้งใจ)
   - **rotate Telegram token**: BotFather → `/revoke` @sup_dealposter_bot ได้ token ใหม่ → GET สด 2 workflow (`E6i2xEAcaUsUFKWm`, `JUE23JTCBbCsW1lS`) → replace string `bot<เก่า>` → `bot<ใหม่>` → PUT + deactivate→activate
@@ -294,6 +301,13 @@ key: `~/.ssh/id_ed25519_hostinger` (ed25519 ไม่มี passphrase) + alias 
 traefik `n8n-traefik-1` ใช้ **docker provider อย่างเดียว** (ไม่มี file provider) + `exposedbydefault=false` → subdomain ใหม่ต้องมี container ที่ติด label เอง;
 DNS เป็น **wildcard** ทุก subdomain ชี้มา VPS อยู่แล้ว **ไม่ต้องเพิ่ม A record**; cert resolver ที่ใช้ทั้งเครื่อง = `mytlschallenge`
 `deals-proxy` = nginx:alpine บน network `n8n_default` proxy ทุก path ไป `http://n8n:5678/webhook/deals`
+**cache + gzip แล้ว 20 ก.ย. 69** — เดิมทุกคนที่เปิดหน้า = ยิง Notion ใหม่ทั้งชุด (5 requests ~4–5 วิ)
+`proxy_cache` 10 นาที + `proxy_cache_key "deals-page"` เดียว (ทุก path คืนหน้าเดียวกัน · กันคนยิง `?x=random` ทำ cache บวม)
++ `proxy_cache_lock` (คนเปิดพร้อมกันตอนหมดอายุ ยิง Notion แค่คนเดียว) + `background_update`/`use_stale updating` (ต่ออายุเบื้องหลัง ไม่มีใครต้องรอ)
+⚠️ ต้องมี `proxy_ignore_headers Cache-Control Expires Set-Cookie` ไม่งั้น header จาก n8n ทำให้ไม่ cache เลย
+วัดจริง: **5.2 วิ → 0.21 วิ** (HIT) · **313 KB → 37 KB** ผ่านสาย (gzip) · ดู `X-Cache-Status` ใน response header ได้
+· cache อยู่ในตัว container (ไม่ได้ทำ volume) → restart แล้วหายเป็นปกติ คนแรกที่เปิดสร้างใหม่ให้เอง
+· ผลข้างเคียงที่ยอมรับ: ดีลที่เพิ่งโพสต์จะขึ้นหน้าเว็บช้าได้ถึง 10 นาที
 (ไฟล์จริง `/root/deals-proxy/{nginx.conf,deploy.sh}` · backup ใน `vps/` ของ repo นี้) — เลือกทำเป็น container แยก
 เพื่อ **ไม่ต้องแตะหรือรีสตาร์ต container n8n** (n8n ล่ม = ทุก workflow ล่ม)
 n8n เข้าถึงภายในได้ที่ `n8n:5678` (alias บน `n8n_default`) · Home Console live อยู่ `/root/home-console/html/index.html`

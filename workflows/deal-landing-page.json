@@ -35,7 +35,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"โพสต์แล้ว\"}},\"sorts\":[{\"property\":\"โพสต์เมื่อ\",\"direction\":\"descending\"}],\"page_size\":100}",
+        "jsonBody": "={\"filter\":{\"and\":[{\"property\":\"สถานะ\",\"select\":{\"equals\":\"โพสต์แล้ว\"}},{\"property\":\"โพสต์เมื่อ\",\"date\":{\"on_or_after\":\"{{ new Date(Date.now() - 7776000000).toISOString().slice(0,10) }}\"}}]},\"sorts\":[{\"property\":\"โพสต์เมื่อ\",\"direction\":\"descending\"}],\"page_size\":100}",
         "options": {
           "timeout": 20000,
           "pagination": {
@@ -53,7 +53,7 @@
               "paginationCompleteWhen": "other",
               "completeExpression": "={{ !$response.body.has_more }}",
               "limitPagesFetched": true,
-              "maxRequests": 20
+              "maxRequests": 5
             }
           }
         }
