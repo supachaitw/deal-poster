@@ -87,8 +87,12 @@ def wrap_name(name, per_line=26, lines=2):
     return out
 
 # ---------- บทพูด ----------
-HOOKS = ['เดี๋ยวนะ! อันนี้ต้องดู', 'ใครหาอยู่ ดูนี่เลย!', 'เดี๋ยวก่อน! ดีลนี้คุ้มมาก']
-CTAS = ['ใครสนใจ | กดลิ้งค์ในไบโอได้เลยน้า', 'สนใจ | กดลิ้งค์ในไบโอเลยค่ะ']
+HOOKS = ['เดี๋ยวนะ! อันนี้ต้องดู', 'ใครหาอยู่ ดูนี่เลย!', 'เดี๋ยวก่อน! ดีลนี้คุ้มมาก',
+         'โอ้โห | อันนี้น่าสนใจ', 'บอกต่อเลย | ดีลนี้']
+CTAS = ['ใครสนใจ | กดลิ้งค์ในไบโอได้เลยน้า', 'สนใจ | กดลิ้งค์ในไบโอเลยค่ะ',
+        'อยากได้ | กดลิ้งค์ในไบโอเลยน้า']
+# ดีลที่ไม่มีราคาเลย: ใส่ท่อนกลางไว้ไม่ให้คลิปโล่ง (ห้ามอ้างว่าถูก/ใกล้หมด — เราไม่รู้ราคาด้วยซ้ำ)
+NOPRICE = ['เดี๋ยวพาไปดูใกล้ ๆ นะคะ', 'ลองดูกันนะคะ | ว่าเป็นยังไง']
 # 'ลิ้งค์' สะกดให้เสียงสูงตามที่คนพูดจริง (user 19 ก.ย. 69: 'ลิงก์' เสียงต่ำไป) — บนจอยังเขียน 'ลิงก์' ตามพจนานุกรม
 # ⛔ ห้ามใช้ <prosody> ซ้อนเพื่อดันคำเดียว — Azure ไทยตัดเป็นคนละประโยค เติมหยุด ~2.7 วิ (วัดแล้ว 2.06 → 4.72 วิ)
 # เครื่องหมาย ' | ' ในบท = หยุดหายใจสั้น ๆ ~0.33 วิ — แทนด้วย '… ' (ellipsis+space) ก่อนส่ง TTS (user 19 ก.ย. 69: คำในท่อนราคายังติดกัน)
@@ -100,6 +104,21 @@ PAUSE_MARK = '… '
 # rate/pitch ต่อบทบาท: ท่อนเปิดเร็ว-สูง · ราคาเดิมเรียบ · ราคาใหม่ตื่นเต้น · ปิดช้าลงเป็นกันเอง
 PROSODY = {'hook': ('+4%', '+8Hz'), 'old': ('-6%', '+0Hz'), 'new': ('-8%', '+12Hz'), 'cta': ('-6%', '+4Hz')}   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2)
 GAP_AFTER = {'hook': 0.4, 'old': 0.3, 'new': 0.5, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน)
+# ขยับความเร็ว/ระดับเสียง/ช่วงเว้น รอบค่ากลางนิดหน่อยตามดีล (คงที่ต่อดีล ไม่ใช่สุ่มใหม่ทุกครั้ง)
+# — คลิปหลายตัวเรียงกันในฟีดจะได้ไม่ฟังเหมือนอ่านสคริปต์ใบเดียวกันเป๊ะ ๆ
+ROLE_BITS = {'hook': 0, 'old': 10, 'new': 20, 'cta': 30}
+
+def jitter(seed, bits, span):
+    return (((seed >> bits) % 1001) / 1000.0 * 2 - 1) * span
+
+def prosody_for(role, seed):
+    rate, pitch = PROSODY[role]
+    b = ROLE_BITS[role]
+    return ('%+d%%' % (int(rate.rstrip('%')) + int(round(jitter(seed, b, 2.5)))),
+            '%+dHz' % (int(pitch.replace('Hz', '')) + int(round(jitter(seed, b + 5, 2.5)))))
+
+def gap_for(role, seed):
+    return max(0.15, GAP_AFTER[role] + jitter(seed, ROLE_BITS[role] + 7, 0.08))
 
 def script_for(d):
     name, sale, full = d.get('name') or '', d.get('sale'), d.get('full')
@@ -119,8 +138,10 @@ def script_for(d):
         segs.append(('new', 'ตอนนี้ราคาแค่ | %sบาท…เองค่ะ' % thai_words(sale)))
     elif full:
         segs.append(('new', 'ราคา%sบาทค่ะ' % thai_words(full)))
+    else:
+        segs.append(('new', NOPRICE[(h // 3) % len(NOPRICE)]))   # ไม่มีราคาเลย = คลิปจะเหลือแค่ hook+CTA (7 วิ) โล่งไป
     segs.append(('cta', CTAS[(h // 7) % len(CTAS)]))
-    return segs, pct
+    return segs, pct, h
 
 # ---------- งานเสียง ----------
 VOICE_FX = ('silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.04,areverse,'
@@ -154,11 +175,11 @@ def azure_tts(text, rate, pitch, out):
         raise ValueError('azure: empty audio')
     open(out, 'wb').write(data)
 
-async def _tts(segs, W):
+async def _tts(segs, W, seed):
     if AZ_KEY:
         last = None
         for i, (role, text) in enumerate(segs):
-            rate, pitch = PROSODY[role]
+            rate, pitch = prosody_for(role, seed)
             for k in range(3):
                 try:
                     azure_tts(text, rate, pitch, '%s/vo_%d.mp3' % (W, i))
@@ -178,7 +199,7 @@ async def _tts(segs, W):
     # edge-tts ตอบ NoAudioReceived แบบสุ่มบ่อยมาก (ข้อความเดิมรอบนี้ล้ม รอบหน้าผ่าน — วัด 19 ก.ย. 69 บางท่อนต้องลอง 4–6 ครั้ง)
     # → ลองซ้ำพร้อมถอยเวลา · ทางแก้จริงคือย้ายไป Azure Speech (ทางการ)
     for i, (role, text) in enumerate(segs):
-        rate, pitch = PROSODY[role]
+        rate, pitch = prosody_for(role, seed)
         for k in range(8):
             try:
                 await edge_tts.Communicate(text.replace(' | ', PAUSE_MARK), VOICE, rate=rate, pitch=pitch).save('%s/vo_%d.mp3' % (W, i))
@@ -189,8 +210,8 @@ async def _tts(segs, W):
                 await asyncio.sleep(1.5 * (k + 1))
         print('tts seg %d ok after %d tries' % (i, k + 1), flush=True)
 
-def make_voice(segs, W):
-    asyncio.run(asyncio.wait_for(_tts(segs, W), timeout=150))
+def make_voice(segs, W, seed):
+    asyncio.run(asyncio.wait_for(_tts(segs, W, seed), timeout=150))
     wavs = []
     for i in range(len(segs)):
         wav = '%s/vo_%d.wav' % (W, i)
@@ -231,11 +252,11 @@ def render(d):
             raise ValueError('image too small')
         open(W + '/product.jpg', 'wb').write(data)
 
-        segs, pct = script_for(d)
+        segs, pct, seed = script_for(d)
         roles = [r for r, _ in segs]
         voiced = True
         try:
-            wavs = make_voice(segs, W)
+            wavs = make_voice(segs, W, seed)
             durs = [dur(w) for w in wavs]
         except Exception:
             traceback.print_exc()
@@ -245,7 +266,7 @@ def render(d):
         starts, cur = [], LEAD
         for i, x in enumerate(durs):
             starts.append(cur)
-            cur += x + (GAP_AFTER[roles[i]] if i < len(durs) - 1 else 0)
+            cur += x + (gap_for(roles[i], seed) if i < len(durs) - 1 else 0)
         D = max(7.0, math.ceil((starts[-1] + durs[-1] + TAIL) * 10) / 10)
         at = {r: starts[i] for i, r in enumerate(roles)}
 
@@ -265,7 +286,8 @@ def render(d):
             y_old, y_new = 912, 1010
         if 'old' in at:
             body += ev(at['old'], 'R', r'\an5\pos(360,%d)\fs54\fad(300,0)\c%s' % (y_old, GRAY), 'จากปกติ %s บาท' % money(full))
-        if 'new' in at:
+        # ไม่มีราคาเลย = ยังมีท่อน 'new' (ท่อนกลางไว้ไม่ให้คลิปโล่ง) แต่ไม่มีอะไรจะขึ้นจอ
+        if 'new' in at and (sale or full):
             txt = ('เหลือ %s บาท' % money(sale)) if sale else ('ราคา %s บาท' % money(full))
             fs = 150 if len(txt) <= 13 else 118
             if len(name_lines) == 2:
