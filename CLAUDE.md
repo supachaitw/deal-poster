@@ -280,7 +280,14 @@ node ที่ "ok" แต่ body มี `{"error": ...}` คือล้มเ
 การ์ด "🛒 Deal Poster" บน Home Console `https://home.srv1277799.hstgr.cloud` (traefik basic-auth, user `admin`) —
 endpoint `/api/dealposter` ใน container **`home-metrics`**; **ซอร์สตัวจริงคือ `/root/home-metrics/server.js`**
 (ไฟล์ `/docker/n8n/home/metrics/server.js` เป็นของเก่าคนละตัว — เคยหลงมาแล้ว 23 ส.ค. 69)
-ตัว endpoint วน `start_cursor` ดึง Notion ได้ถึง 5×100 แถว ส่งกลับ `items` ครบทุกสถานะ + `queue` + `rounds` (cache 60 วิ)
+ตัว endpoint วน `start_cursor` ดึง Notion ได้ถึง **20×100 แถว** ส่งกลับ `items` ครบทุกสถานะ + `queue` + `rounds` (cache 60 วิ)
+**20 ก.ย. 69: 5 → 20 หน้า** (เดิม 500 แถว ตอนนั้นมี 431 อีก ~5 วันจะเกิน แล้วดีลที่ไม่ถูกแก้มานานจะหายจากหน้าเงียบ ๆ ไม่มี error)
+⚠️ **ซอร์สมี 2 ที่ ต้อง sync ทั้งคู่**: `/root/home-metrics/server.js` (ที่ build ภาพจริง) และ `/docker/n8n/home/metrics/server.js`
+(= build context ของ `docker-compose.home.yml`) — ถ้าแก้ที่เดียว วันหลังใครรัน `compose up --build` จะย้อนกลับเงียบ ๆ
+⚠️ `home-metrics:base` **โดน prune หายจาก VPS แล้ว** → Dockerfile เดิม `FROM home-metrics:base` build ไม่ผ่าน
+แก้เป็น `FROM node:22-alpine` ยืนด้วยตัวเอง (แอปใช้แต่ stdlib ไม่มี node_modules)
+deploy: `docker build -t home-metrics:live /root/home-metrics` → `cd /docker/n8n && docker compose -f docker-compose.home.yml up -d --no-build --no-deps --force-recreate home-metrics`
+(**ต้องมี `--no-build`** ไม่งั้น compose จะ build จาก `./home/metrics` แทน)
 หน้าเว็บ: Home Console มี 2 ซอร์ส — `/root/home-console/html/index.html` (**ตัว live**) กับ `/docker/n8n/home/index.html` (ของเก่า ธีมมืด) — แก้ต้องแก้ทั้งคู่
 deploy หน้าเว็บ: `scp` ทับ `/root/home-console/html/index.html` แล้ว
 `docker cp /root/home-console/html/index.html home-console:/usr/share/nginx/html/index.html` (ไม่ต้อง rebuild)
