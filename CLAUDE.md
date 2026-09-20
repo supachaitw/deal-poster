@@ -288,6 +288,16 @@ endpoint `/api/dealposter` ใน container **`home-metrics`**; **ซอร์�
 แก้เป็น `FROM node:22-alpine` ยืนด้วยตัวเอง (แอปใช้แต่ stdlib ไม่มี node_modules)
 deploy: `docker build -t home-metrics:live /root/home-metrics` → `cd /docker/n8n && docker compose -f docker-compose.home.yml up -d --no-build --no-deps --force-recreate home-metrics`
 (**ต้องมี `--no-build`** ไม่งั้น compose จะ build จาก `./home/metrics` แทน)
+
+**ค่าลับย้ายออกจากซอร์สแล้ว 20 ก.ย. 69** — เดิม n8n API key + Notion token hardcode อยู่บรรทัด 135–136
+(หลุดทุกครั้งที่มีใคร `cat`/`diff` ไฟล์ — เกิดจริงวันนั้น) ตอนนี้อ่านจาก `process.env` ที่ compose ส่งเข้ามาจาก
+**`/root/home-metrics/.env`** (chmod 600 · ไม่อยู่ใน repo · ไม่อยู่ในภาพ docker) → ซอร์สไม่ต้อง sanitize ก่อน commit อีก
+- **rotate**: `ssh hostinger "bash /root/home-metrics/rotate.sh"` — ถาม 2 ค่าแบบไม่โชว์บนจอ เขียน .env แล้วสร้าง container ใหม่ + ตรวจให้ว่าใช้ได้จริง
+- ⛔ **`docker restart` ไม่อ่าน `env_file` ใหม่** — env ถูกตรึงตอน *สร้าง* container ไม่ใช่ตอน start
+  rotate ด้วย `docker restart` = **ค่าเก่ายังค้าง แต่ทุกอย่างดูผ่านหมด** (เจอจริงตอนเทส 20 ก.ย. 69) ต้อง `compose up --force-recreate` เท่านั้น
+- ⛔ Notion token ผิด **ไม่ทำให้ error** — `postJSONH` คืน body ที่ไม่มี `results` → `q.results || []` กลายเป็นลิสต์ว่าง
+  `notionError` จึงว่างทั้งที่พัง → ตรวจ rotate ต้องดู **จำนวนแถว = 0** ด้วย ไม่ใช่ดูแค่ error
+- token ของ **expense-bot / subs เป็น Notion integration คนละใบ** (ลายนิ้วมือต่างกัน) — rotate ตัวนี้ไม่กระทบ
 หน้าเว็บ: Home Console มี 2 ซอร์ส — `/root/home-console/html/index.html` (**ตัว live**) กับ `/docker/n8n/home/index.html` (ของเก่า ธีมมืด) — แก้ต้องแก้ทั้งคู่
 deploy หน้าเว็บ: `scp` ทับ `/root/home-console/html/index.html` แล้ว
 `docker cp /root/home-console/html/index.html home-console:/usr/share/nginx/html/index.html` (ไม่ต้อง rebuild)
