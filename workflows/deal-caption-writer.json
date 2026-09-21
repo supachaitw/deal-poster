@@ -36,21 +36,8 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\":100}, $pageCount > 0 ? { start_cursor: $response.body.next_cursor } : {})) }}",
-        "options": {
-          "pagination": {
-            "pagination": {
-              "paginationMode": "updateAParameterInEachRequest",
-              "parameters": {
-                "parameters": []
-              },
-              "paginationCompleteWhen": "other",
-              "completeExpression": "={{ $response.body.has_more !== true }}",
-              "limitPagesFetched": true,
-              "maxRequests": 10
-            }
-          }
-        },
+        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\":100}",
+        "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
       },

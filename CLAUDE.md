@@ -267,8 +267,14 @@ user กด gen ลิงก์เองจากแอป TikTok (Affiliate cen
 **คิวตัน — `page_size: 10` ไม่มี pagination.** 20 ก.ย. ดีลเข้าทาง Telegram **66 ตัวใน 3 ชั่วโมง** (18:00 น. 9 ตัว,
 20:00 น. 54 ตัว, 21:00 น. 3 ตัว) แต่ `Query New Deals` ขอ Notion ทีละ 10 แถวและไม่เคยอ่าน `next_cursor`
 → ทุกรอบตั้งแต่ 20:50 ตอบ `has_more: true` ค้างไว้ ทยอยได้รอบละ 10 เท่านั้น (3 ชม./รอบ = 80 ตัว/วัน เพดานจริง)
-แก้เป็น `page_size: 100` + วน cursor (`paginationMode: updateAParameterInEachRequest`,
-จบเมื่อ `$response.body.has_more !== true` — เขียนแบบนี้เพื่อให้ response เพี้ยน**หยุด** ไม่ใช่วนไม่จบ, เพดาน 10 หน้า)
+แก้เป็น `page_size: 100` (สูงสุดที่ Notion ให้) **เฉย ๆ ไม่ได้วน cursor**
+
+⛔ **กับดัก: `$response` / `$pageCount` resolve ได้เฉพาะในช่อง pagination ของโหนด HTTP Request — ใน `jsonBody` ไม่ได้**
+รอบแรกลองใส่ `start_cursor` ใน body ด้วย `$pageCount > 0 ? {...} : {}` → n8n คืน `invalid syntax` **ทุกครั้งที่รัน**
+โหนดตายตั้งแต่ Query (21 ก.ย. รอบ 20:50 ล้มทั้งรอบ exec 35878) · mock test ที่รัน jsCode ด้วย `new Function()`
+**จับไม่ได้** เพราะมันตรวจ JS ไม่ได้ตรวจ scope ของ expression n8n — ของแบบนี้ต้องยิงรันจริงเท่านั้น
+ถ้าวันไหนดีลเกิน 100 ตัวต่อ 3 ชม. จริงค่อยทำ pagination โดยใส่ cursor เป็น **body parameter ของ pagination**
+(`parameters: [{type:'body', name:'start_cursor', value:'={{ $response.body.next_cursor }}'}]`) ซึ่งอยู่ใน scope
 `Split New` ต้องแก้ด้วย: เดิมอ่าน `$json.results` = **ได้แค่หน้าแรก** ตอนนี้วน `$input.all()` + กัน page id ซ้ำ
 
 **คำบรรยายสินค้า.** เพิ่ม property `คำบรรยาย` (rich_text) ใน Deal Queue · `Claude Write Caption` เปลี่ยนเป็นขอ
