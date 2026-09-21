@@ -36,8 +36,21 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\": 10}",
-        "options": {},
+        "jsonBody": "={{ JSON.stringify(Object.assign({\"filter\":{\"property\":\"สถานะ\",\"select\":{\"equals\":\"ใหม่\"}},\"page_size\":100}, $pageCount > 0 ? { start_cursor: $response.body.next_cursor } : {})) }}",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": []
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.has_more !== true }}",
+              "limitPagesFetched": true,
+              "maxRequests": 10
+            }
+          }
+        },
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
       },
@@ -58,7 +71,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const res = $json.results || [];\nreturn res.map(p => ({ json: {\n  page_id: p.id,\n  name: (p.properties['สินค้า'].title || []).map(t => t.plain_text).join(''),\n  full: p.properties['ราคาเต็ม'] ? p.properties['ราคาเต็ม'].number : null,\n  sale: p.properties['ราคาลด'] ? p.properties['ราคาลด'].number : null,\n  link: p.properties['ลิงก์Affiliate'] ? p.properties['ลิงก์Affiliate'].url : '',\n  cat: (p.properties['หมวด'] && p.properties['หมวด'].select) ? p.properties['หมวด'].select.name : ''\n}}));"
+        "jsCode": "const out = [];\nconst seen = new Set();\n// one input item per page of Notion results now, not just the first page\nfor (const item of $input.all()) {\n  for (const p of (item.json.results || [])) {\n    if (!p || !p.id || seen.has(p.id)) continue;\n    seen.add(p.id);\n    const props = p.properties || {};\n    const title = (props[\"สินค้า\"] || {}).title || [];\n    out.push({ json: {\n      page_id: p.id,\n      name: title.map(t => t.plain_text).join(\"\"),\n      full: props[\"ราคาเต็ม\"] ? props[\"ราคาเต็ม\"].number : null,\n      sale: props[\"ราคาลด\"] ? props[\"ราคาลด\"].number : null,\n      link: props[\"ลิงก์Affiliate\"] ? props[\"ลิงก์Affiliate\"].url : \"\",\n      cat: (props[\"หมวด\"] && props[\"หมวด\"].select) ? props[\"หมวด\"].select.name : \"\"\n    }});\n  }\n}\nreturn out;"
       },
       "id": "a1b2c3d4-0003-4000-8000-000000000003",
       "name": "Split New",
@@ -88,7 +101,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 400, messages: [{ role: 'user', content: 'เขียนแคปชันโพสต์ขายดีลภาษาไทย 2-3 บรรทัด มีอีโมจิ น่าสนใจแต่ไม่โอเวอร์ สำหรับสินค้า: ' + $json.name + ' (หมวด ' + $json.cat + ')' + ($json.sale ? (' ราคาปกติ ' + ($json.full || '-') + ' บาท เหลือ ' + $json.sale + ' บาท') : ($json.full ? (' ราคา ' + $json.full + ' บาท') : ' (ไม่ทราบราคา ห้ามกล่าวถึงราคาหรือส่วนลดใด ๆ เด็ดขาด)')) + ' ห้ามแต่งข้อมูลที่ไม่มีจริง ห้ามใส่ลิงก์ ตอบเฉพาะตัวแคปชันเท่านั้น' }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 600, messages: [{ role: 'user', content:\n  'เขียนข้อความขายดีลภาษาไทยสำหรับสินค้า: ' + $json.name + ' (หมวด ' + $json.cat + ')' +\n  ($json.sale ? (' ราคาปกติ ' + ($json.full || '-') + ' บาท เหลือ ' + $json.sale + ' บาท') : ($json.full ? (' ราคา ' + $json.full + ' บาท') : ' (ไม่ทราบราคา ห้ามกล่าวถึงราคาหรือส่วนลดใด ๆ เด็ดขาด)')) +\n  ' ตอบเป็น JSON อย่างเดียว ไม่ต้องมีข้อความอื่น ไม่ต้องครอบด้วย code block รูปแบบ {\\\"caption\\\": \\\"...\\\", \\\"desc\\\": \\\"...\\\"}' +\n  ' caption = แคปชันโพสต์ 2-3 บรรทัด มีอีโมจิ น่าสนใจแต่ไม่โอเวอร์' +\n  ' desc = คำบรรยายสินค้าสำหรับพากย์เสียงในคลิปและขึ้นบนจอ 1 ประโยค ไม่เกิน 60 ตัวอักษร ไม่มีอีโมจิ ไม่มีแฮชแท็ก ไม่มีราคา ไม่มีลิงก์ อ่านออกเสียงแล้วลื่น' +\n  ' desc ต้องบรรยายเฉพาะสิ่งที่อนุมานจากชื่อสินค้าได้ตรง ๆ ห้ามเดายี่ห้อ สเปก ขนาด วัสดุ หรือคุณสมบัติที่ไม่ได้อยู่ในชื่อ ถ้าชื่อสินค้าบอกอะไรไม่ได้เลยให้ desc เป็นสตริงว่าง' +\n  ' ห้ามแต่งข้อมูลที่ไม่มีจริง ห้ามใส่ลิงก์'\n}] }) }}",
         "options": {}
       },
       "id": "a1b2c3d4-0004-4000-8000-000000000004",
@@ -103,7 +116,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cap = ($json.content && $json.content[0] && $json.content[0].text ? $json.content[0].text : '').trim();\nconst d = $('Split New').item.json;\nconst pct = d.full && d.sale ? Math.round((1 - d.sale / d.full) * 100) : null;\nlet priceLine = '';\nif (d.sale) priceLine = '💥 เหลือ ' + d.sale + ' บาท' + (pct ? ' (ลด ' + pct + '%)' : '');\nelse if (d.full) priceLine = '💰 ราคา ' + d.full + ' บาท';\nconst body = (priceLine ? priceLine + '\\n' : '') + '👉 ' + d.link;\nconst text = cap + '\\n\\n' + body + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\nreturn { json: { page_id: d.page_id, name: d.name, text } };"
+        "jsCode": "const raw = ($json.content && $json.content[0] && $json.content[0].text ? $json.content[0].text : '').trim();\n// สั่งให้ตอบ JSON ล้วน แต่บางรอบยังครอบ code block หรือมีข้อความนำ — ดึงก้อน {...} ออกมาก่อน\nlet cap = '', desc = '';\nconst m = raw.match(/\\{[\\s\\S]*\\}/);\nif (m) {\n  try {\n    const o = JSON.parse(m[0]);\n    cap = String(o.caption || '').trim();\n    desc = String(o.desc || '').trim();\n  } catch (e) {}\n}\n// พาร์สไม่ได้ = ถอยไปใช้ทั้งก้อนเป็นแคปชันแบบเดิม ดีกว่าปล่อยให้ดีลไม่มีแคปชัน\nif (!cap) cap = raw.replace(/```[a-z]*/gi, '').replace(/```/g, '').trim();\nconst d = $('Split New').item.json;\nconst pct = d.full && d.sale ? Math.round((1 - d.sale / d.full) * 100) : null;\nlet priceLine = '';\nif (d.sale) priceLine = '💥 เหลือ ' + d.sale + ' บาท' + (pct ? ' (ลด ' + pct + '%)' : '');\nelse if (d.full) priceLine = '💰 ราคา ' + d.full + ' บาท';\nconst body = (priceLine ? priceLine + '\\n' : '') + '👉 ' + d.link;\nconst text = cap + '\\n\\n' + body + '\\n\\n#ป้ายยา #ดีลเด็ด (ลิงก์ affiliate)';\nreturn { json: { page_id: d.page_id, name: d.name, text, desc } };"
       },
       "id": "a1b2c3d4-0005-4000-8000-000000000005",
       "name": "Build Caption",
@@ -129,7 +142,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { 'สถานะ': { select: { name: 'อนุมัติแล้ว' } }, 'แคปชัน': { rich_text: [{ text: { content: $json.text.slice(0, 1900) } }] } } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { 'สถานะ': { select: { name: 'อนุมัติแล้ว' } }, 'แคปชัน': { rich_text: [{ text: { content: $json.text.slice(0, 1900) } }] }, 'คำบรรยาย': { rich_text: $json.desc ? [{ text: { content: $json.desc.slice(0, 300) } }] : [] } } }) }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
@@ -249,7 +262,8 @@
   "settings": {
     "executionOrder": "v1",
     "timezone": "Asia/Bangkok",
+    "saveManualExecutions": true,
     "callerPolicy": "workflowsFromSameOwner",
-    "saveManualExecutions": true
+    "availableInMCP": false
   }
 }

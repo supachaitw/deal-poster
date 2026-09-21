@@ -1,10 +1,11 @@
 # deal-video render service — รับข้อมูลดีล คืนคลิป Reels (mp4) แนวตั้ง 720x1280 พร้อมเสียงพากย์+เพลง
 # รันใน container `deal-video` บน network n8n_default · n8n เรียก POST http://deal-video:8080/render
-# body: {"name": str, "sale": num|null, "full": num|null, "img": url}
+# body: {"name": str, "sale": num|null, "full": num|null, "img": url, "desc": str|null}
+#       desc = คำบรรยายสินค้าสั้น ๆ — มีแล้วได้ทั้งท่อนพากย์และข้อความบนจอ, ไม่มีก็เรนเดอร์เหมือนเดิม
 # (ใส่ "upload": {"url": rupload uri, "token": …} = อัปโหลดขึ้น IG ให้เลย ตอบ JSON แทนไฟล์)
 # ตอบ 200 video/mp4 (header X-Voice: 1 = มีเสียงพากย์, 0 = TTS ล้มเลยได้แค่เพลง) · ผิดพลาด = 4xx/5xx JSON
 # เรนเดอร์ทีละคลิป (HTTPServer ไม่ใช่ threaded) เพราะ VPS มี 1 core
-import asyncio, hashlib, json, math, os, shutil, subprocess, tempfile, traceback, urllib.error, urllib.request
+import asyncio, hashlib, json, math, os, re, shutil, subprocess, tempfile, traceback, urllib.error, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 FONTS = '/app/fonts'
@@ -102,11 +103,11 @@ NOPRICE = ['เดี๋ยวพาไปดูใกล้ ๆ นะคะ', 
 PAUSE_MARK = '… '
 # 'บาท…เองค่ะ' ใช้ '…' ติดคำโดยตรง = หยุดสั้นกว่า (~0.1 วิ) — user 19 ก.ย. 69 ขอให้ช่วง บาท→เอง แคบลง
 # rate/pitch ต่อบทบาท: ท่อนเปิดเร็ว-สูง · ราคาเดิมเรียบ · ราคาใหม่ตื่นเต้น · ปิดช้าลงเป็นกันเอง
-PROSODY = {'hook': ('+4%', '+8Hz'), 'old': ('-6%', '+0Hz'), 'new': ('-8%', '+12Hz'), 'cta': ('-6%', '+4Hz')}   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2)
-GAP_AFTER = {'hook': 0.4, 'old': 0.3, 'new': 0.5, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน)
+PROSODY = {'hook': ('+4%', '+8Hz'), 'desc': ('-2%', '+4Hz'), 'old': ('-6%', '+0Hz'), 'new': ('-8%', '+12Hz'), 'cta': ('-6%', '+4Hz')}   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2)
+GAP_AFTER = {'hook': 0.4, 'desc': 0.35, 'old': 0.3, 'new': 0.5, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน)
 # ขยับความเร็ว/ระดับเสียง/ช่วงเว้น รอบค่ากลางนิดหน่อยตามดีล (คงที่ต่อดีล ไม่ใช่สุ่มใหม่ทุกครั้ง)
 # — คลิปหลายตัวเรียงกันในฟีดจะได้ไม่ฟังเหมือนอ่านสคริปต์ใบเดียวกันเป๊ะ ๆ
-ROLE_BITS = {'hook': 0, 'old': 10, 'new': 20, 'cta': 30}
+ROLE_BITS = {'hook': 0, 'desc': 40, 'old': 10, 'new': 20, 'cta': 30}
 
 def jitter(seed, bits, span):
     return (((seed >> bits) % 1001) / 1000.0 * 2 - 1) * span
@@ -120,10 +121,26 @@ def prosody_for(role, seed):
 def gap_for(role, seed):
     return max(0.15, GAP_AFTER[role] + jitter(seed, ROLE_BITS[role] + 7, 0.08))
 
+DESC_MAX = 90   # ตัวอักษร — ยาวกว่านี้ท่อนพากย์กินเวลาเกิน ~5 วิ และขึ้นจอ 2 บรรทัดไม่พอ
+
+def clean_desc(s):
+    # ข้อความมาจาก Claude ผ่าน Notion — ตัดลิงก์/แฮชแท็ก/อีโมจิออกให้เหลือที่อ่านออกเสียงได้
+    s = ' '.join(str(s or '').split())
+    s = re.sub(r'https?://\S+', '', s)
+    s = re.sub(r'#\S+', '', s)
+    s = ''.join(c for c in s if ord(c) < 0x2000)   # ทิ้งอีโมจิและเครื่องหมายพิเศษ
+    s = ' '.join(s.split()).strip(' -|,.')
+    if len(s) > DESC_MAX:
+        s = s[:safe_cut(s, DESC_MAX)].rstrip() + '…'
+    return s
+
 def script_for(d):
     name, sale, full = d.get('name') or '', d.get('sale'), d.get('full')
     h = int(hashlib.md5(name.encode('utf-8')).hexdigest(), 16)
     segs = [('hook', HOOKS[h % len(HOOKS)])]
+    desc = clean_desc(d.get('desc'))
+    if desc:
+        segs.append(('desc', desc))
     pct = None
     if sale and full and full > sale:
         pct = round((full - sale) / full * 100)
@@ -274,6 +291,8 @@ def render(d):
         name_lines = wrap_name(d.get('name') or '')
         def ev(start, style, tags, text):
             return 'Dialogue: 0,%s,%s,%s,,0,0,0,,{%s}%s\n' % (ts(start), ts(D), style, tags, ass_escape(text))
+        def ev2(start, end, style, tags, text):
+            return 'Dialogue: 0,%s,%s,%s,,0,0,0,,{%s}%s\n' % (ts(start), ts(end), style, tags, ass_escape(text))
         body = ev(0, 'B', r'\an5\pos(360,118)\fs74\c' + WHITE, 'ป้ายยาดีลเด็ด')
         if pct:
             body += ev(0.8, 'B', r'\an5\pos(586,198)\fs100\shad0\c' + WHITE, '-%d%%' % pct)
@@ -284,6 +303,21 @@ def render(d):
         else:
             body += ev(0, 'B', r'\an5\pos(360,846)\fs64\c' + WHITE, name_lines[0] if name_lines else '')
             y_old, y_new = 912, 1010
+        # คำบรรยายใช้พื้นที่เดียวกับบล็อกราคา แล้วหายไปตอนราคาขึ้น
+        # (y 800-1100 มีที่พอสำหรับชื่อ+ราคาเท่านั้น ใส่พร้อมกันทั้งสามไม่ได้)
+        if 'desc' in at:
+            desc_text = next((t for r, t in segs if r == 'desc'), '')
+            if 'old' in at:
+                desc_end = at['old']
+            elif (sale or full) and 'new' in at:
+                desc_end = at['new']
+            else:
+                desc_end = D          # ไม่มีราคาให้ขึ้นจอ — ปล่อยคำบรรยายค้างไว้ไม่ให้จอโล่ง
+            desc_lines = wrap_name(desc_text, per_line=30, lines=2)
+            y_desc = 966 if len(desc_lines) == 2 else 992
+            for i, ln in enumerate(desc_lines):
+                body += ev2(at['desc'], desc_end, 'R',
+                            r'\an5\pos(360,%d)\fs46\fad(250,250)\c%s' % (y_desc + i * 54, WHITE), ln)
         if 'old' in at:
             body += ev(at['old'], 'R', r'\an5\pos(360,%d)\fs54\fad(300,0)\c%s' % (y_old, GRAY), 'จากปกติ %s บาท' % money(full))
         # ไม่มีราคาเลย = ยังมีท่อน 'new' (ท่อนกลางไว้ไม่ให้คลิปโล่ง) แต่ไม่มีอะไรจะขึ้นจอ
