@@ -374,5 +374,6 @@ DNS เป็น **wildcard** ทุก subdomain ชี้มา VPS อยู�
 n8n เข้าถึงภายในได้ที่ `n8n:5678` (alias บน `n8n_default`) · Home Console live อยู่ `/root/home-console/html/index.html`
 
 ## เมื่อจบงานแต่ละครั้ง
-export workflow ทั้ง 5 → sanitize → commit + push (ดู scripts เดิมใน session/README);
-เครื่องอื่นเริ่มงาน: `git pull` ก่อนเสมอ
+export workflow ทั้ง 5 → sanitize → commit + **push ทั้ง `origin` (GitLab) และ `github` (mirror)**;
+เครื่องอื่นเริ่มงาน: `git pull origin main` ก่อนเสมอ
+สแกน token ก่อน push ทุกครั้ง — `git log --all -p | grep -E` ไม่ใช่แค่ `git diff` เพราะ mirror พา**ทั้ง history**ไปด้วย

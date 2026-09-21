@@ -108,6 +108,9 @@ GET จาก n8n (สดเสมอ) → patch → PUT กลับ → deacti
 
 ## กติกาที่ทำให้ไม่พังข้ามเครื่อง
 1. `git pull` ก่อนแตะไฟล์เสมอ · เสร็จเป็นชิ้น commit ทันที · push โดน reject → `git pull --rebase` **ห้าม force**
+   **มี 2 remote ตั้งแต่ 21 ก.ย. 69**: `origin` = GitLab (ต้นทาง ใช้ pull จากที่นี่) ·
+   `github` = https://github.com/supachaitw/deal-poster.git (mirror สำรอง) — push ให้ครบทั้งคู่ทุกครั้ง
+   `git push origin main; git push github main` · upstream ของ `main` ตั้งไว้ที่ `origin` อย่าเผลอ `push -u github`
 2. แก้ workflow ผ่าน API แล้วต้อง **deactivate→activate** ทุกครั้ง ไม่งั้น instance ที่รันอยู่ยังใช้ของเก่า
 3. export → **sanitize เป็น `REPLACE_*`** → ค่อย commit · สแกน token ก่อน push ทุกครั้ง
 4. เขียน jsCode/expression ผ่าน script ใช้ **String.raw** + ตรวจด้วย `new Function()` ก่อน deploy
