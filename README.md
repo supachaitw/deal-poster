@@ -1,6 +1,7 @@
 # Deal Poster — Shopee Affiliate Auto-Poster
 
-ระบบโพสต์ดีล Shopee อัตโนมัติ: คัดดีล → AI เขียนแคปชัน → อนุมัติจากมือถือ → โพสต์ 3 แพลตฟอร์ม
+ระบบโพสต์ดีล Shopee/Lazada อัตโนมัติ: ป้อนดีล → AI เขียนแคปชัน + อนุมัติเอง → โพสต์ 4 ช่องทาง
+(Telegram / Facebook / Instagram / Threads — X ปิดอยู่)
 ทั้งหมดรันบน n8n (`https://n8n.srv1277799.hstgr.cloud`) — repo นี้คือ backup ของ workflow (sanitized)
 
 ## ภาพรวม
@@ -10,12 +11,19 @@
   └─ ดึงชื่อ+รูปจาก Shopee (og tags ผ่าน UA "TelegramBot") → แถวใน Notion Deal Queue
   └─ ราคาไม่ครบ → พิมพ์ "900 300" ตามในแชท → เติมแถวล่าสุดที่ราคาว่าง
 
-ทุก 3 ชม. (9:00–21:00 Asia/Bangkok) — Deal Poster v1
-  สาย A: สถานะ "ใหม่" → claude-haiku-4-5 เขียนแคปชัน → "รอตรวจ" → LINE preview (Paiyaa Bot)
-  ผู้ใช้อนุมัติ: เปลี่ยนสถานะเป็น "อนุมัติแล้ว" ใน Notion
-  สาย B: "อนุมัติแล้ว" → Telegram @paiyaa_deals (โหลดรูปเป็น binary แล้วอัปโหลด multipart —
+สาย A — Deal Caption Writer: :50 ของ 02/05/08/11/14/17/20/23 น. (Asia/Bangkok)
+  สถานะ "ใหม่" → claude-haiku-4-5 เขียนแคปชัน+คำบรรยาย → ตั้ง "อนุมัติแล้ว" **อัตโนมัติ**
+  (node `LINE Preview` ปิดอยู่ — ไม่มีขั้นให้คนกดอนุมัติแล้ว อนุมัติเองจากหน้าเว็บได้ถ้าต้องการ)
+
+สาย B — Deal Poster v1: 00/06/09/12/15/18/21 น. (Asia/Bangkok, เว้นรอบตี 3) = 7 รอบ/วัน
+  **เพดาน 6 ดีล/รอบ** (`Split Approved` ลงท้าย `.slice(0, 6)`) → สูงสุด 42 ดีล/วัน
+  คิวยาวกว่านั้นไม่หาย แค่รอรอบถัดไป — Notion คืนเรียง last_edited เก่าก่อน (FIFO)
+  "อนุมัติแล้ว" → Telegram @paiyaa_deals (โหลดรูปเป็น binary แล้วอัปโหลด multipart —
           ส่ง URL ให้ Telegram ดึงเองไม่ได้เพราะ Shopee CDN บล็อก; ถ้ารูปพลาด fallback sendMessage)
-          → X @SupachaiTW (ย่อ ≤280) → Threads @supachai_tw (2-step create/publish)
+          → Facebook เพจ ป้ายยาดีลเด็ด (/photos multipart, ไม่มีรูป → /feed)
+          → Instagram @paiyaa_deals (**Reels** เรนเดอร์จากรูป ถ้าล้ม/หมดงบเวลา → โพสต์ภาพ)
+          → Threads @paiyaa_deals (create → Settle 30 วิ → publish, ยืมรูปจาก FB CDN)
+          → [X ปิดอยู่ — บัญชีเป็น pay-per-use ยังไม่ได้ซื้อเครดิต]
           → "โพสต์แล้ว" + timestamp → LINE ยืนยัน
 ```
 
@@ -23,7 +31,7 @@
 
 | ไฟล์ | n8n id | หน้าที่ |
 |---|---|---|
-| `deal-poster-v1.json` | `E6i2xEAcaUsUFKWm` | สายโพสต์: cron `0 9-21/3 * * *` → Telegram/FB/IG/Threads |
+| `deal-poster-v1.json` | `E6i2xEAcaUsUFKWm` | สายโพสต์: cron `0 0,6,9,12,15,18,21 * * *` (tz Asia/Bangkok) → Telegram/FB/IG/Threads · 6 ดีล/รอบ |
 | `deal-caption-writer.json` | `e8aD2wCvsVYmefrq` | สายแคปชัน (แยกออกมาจากตัวหลัก): cron `50 2-23/3 * * *` → เขียนแคปชัน + ตั้งสถานะ "อนุมัติแล้ว" อัตโนมัติ |
 | `deal-intake-form.json` | `Kq3cRuTbwF9cMkA1` | เว็บฟอร์ม `/form/deal-intake` → แถวใหม่สถานะ "ใหม่" |
 | `deal-intake-telegram.json` | `JUE23JTCBbCsW1lS` | DM @sup_dealposter_bot: ลิงก์→og→Claude parse→แถว; ตัวเลข→เติมราคา |
@@ -56,10 +64,16 @@ X (Twitter) ไม่อยู่ใน JSON — เป็น n8n credential แ
 
 ## Notion Deal Queue
 
-DB `589f80403f534993b49fd9fdd4d292ff` — properties: สินค้า(title), ราคาเต็ม/ราคาลด(number),
-ลิงก์Affiliate(url), หมวด(select: gadget/ความงาม/บ้าน/แฟชั่น/อื่นๆ),
-สถานะ(select: ใหม่/รอตรวจ/อนุมัติแล้ว/โพสต์แล้ว), แคปชัน(rich_text), โพสต์เมื่อ(date)
+DB `589f80403f534993b49fd9fdd4d292ff` — properties: สินค้า(title), ราคาเต็ม/ราคาลด/คอม%(number),
+ลิงก์Affiliate/ลิงก์ตะกร้า/รูป(url), TTProductId(rich_text),
+หมวด(select: gadget/ความงาม/บ้าน/แฟชั่น/อาหาร/รถ/สัตว์เลี้ยง/Fitness/กาแฟ/อื่นๆ),
+แหล่ง(select: shopee/lazada/tiktok), สถานะ(select: ใหม่/รอตรวจ/อนุมัติแล้ว/โพสต์แล้ว),
+แคปชัน/คำบรรยาย(rich_text), โพสต์เมื่อ(date)
 ต้องแชร์ DB ให้ integration ผ่าน ⋯ → Connections
+
+⚠️ **`รูป` ถูกเขียนโดย `Mark Posted` ตอนโพสต์สำเร็จ** (เอา `photoUrl` ที่ `Build Post Body` ดึง og:image มา)
+→ แถวที่ `รูป` ว่าง แปลว่า **ยังไม่ถูกโพสต์** ไม่ใช่ "ไม่มีรูปเลยโพสต์ไม่ได้" — อย่าไล่ผิดทาง
+(ตรวจ 21 ก.ย. 69: รอบ 21:00 น. Notion คืนมา 10 แถว `รูป` ว่างทั้งหมด แล้ว 6 แถวแรกโพสต์ผ่านครบ)
 
 ## Monitoring
 

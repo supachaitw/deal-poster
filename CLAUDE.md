@@ -29,7 +29,7 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 | id | ชื่อ | หน้าที่ |
 |---|---|---|
 | `E6i2xEAcaUsUFKWm` | Deal Poster v1 — โพสต์ดีลที่อนุมัติแล้ว | cron `0 0,6,9,12,15,18,21 * * *` — **สาย B อย่างเดียว**: "อนุมัติแล้ว"→Telegram(รูป binary)+FB→IG(**Reels** ถอยเป็นภาพได้)/Threads(create→**Settle 30 วิ**→publish)→[X ปิดอยู่]→Mark Posted→**Build Posted Alert**→LINE |
-| `e8aD2wCvsVYmefrq` | Deal Caption Writer | cron `50 2-23/3 * * *` — **สาย A ที่แยกออกมา**: "ใหม่"→Claude แคปชัน→`Save Draft to Notion`→LINE preview |
+| `e8aD2wCvsVYmefrq` | Deal Caption Writer | cron `50 2-23/3 * * *` — **สาย A ที่แยกออกมา**: "ใหม่"→Claude แคปชัน+คำบรรยาย→`Save Draft to Notion`→[`LINE Preview` **ปิดอยู่**] |
 | `Kq3cRuTbwF9cMkA1` | Deal Intake Form | `/form/deal-intake` — บังคับแค่ลิงก์ ช่องอื่นเว้นได้ (OG+Claude parse เหมือนสาย TG; ค่าที่กรอกชนะค่า parse) |
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
@@ -60,6 +60,8 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 ⚠️ **โครงสร้างเปลี่ยนไปแล้ว — พบ 7 ก.ย. 69 (session/เครื่องอื่นแก้ไว้ repo ตามไม่ทัน)**: สาย A ถูก**แยกออกจาก Deal Poster v1 ไปเป็น workflow `e8aD2wCvsVYmefrq`** และ
 **ไม่มีขั้นอนุมัติด้วยมือแล้ว** — `Save Draft to Notion` PATCH สถานะเป็น **"อนุมัติแล้ว" ทันที** (เดิมเป็น "รอตรวจ" แล้วรอคนกด)
 → LINE Preview กลายเป็นแค่ "แจ้งให้ดู" ไม่ใช่ "ให้อนุมัติ" · แถวสถานะ "ใหม่" จะถูกโพสต์อัตโนมัติภายใน ~3 ชม.
+  **อัปเดต 21 ก.ย. 69:** node `LINE Preview` ตอนนี้ `disabled: true` — ไม่มีแจ้งเตือนสาย A เข้า LINE เลย
+  (ยังได้ `Build Posted Alert` ตอนโพสต์เสร็จตามเดิม) · ถ้าเงียบผิดปกติ อย่าไปไล่หา token LINE ก่อน เช็คโหนดนี้
 **ผลต่อการทดสอบ: ห้ามสร้างแถวทดสอบที่สถานะ "ใหม่" เด็ดขาด** (จะหลุดไปโพสต์ลงเพจจริง) — ทดสอบให้ลงที่ "รอตรวจ" เท่านั้น
 
 Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใหม่→(รอตรวจ)→อนุมัติแล้ว→โพสต์แล้ว
@@ -276,6 +278,13 @@ user กด gen ลิงก์เองจากแอป TikTok (Affiliate cen
 ถ้าวันไหนดีลเกิน 100 ตัวต่อ 3 ชม. จริงค่อยทำ pagination โดยใส่ cursor เป็น **body parameter ของ pagination**
 (`parameters: [{type:'body', name:'start_cursor', value:'={{ $response.body.next_cursor }}'}]`) ซึ่งอยู่ใน scope
 `Split New` ต้องแก้ด้วย: เดิมอ่าน `$json.results` = **ได้แค่หน้าแรก** ตอนนี้วน `$input.all()` + กัน page id ซ้ำ
+
+**คอขวดย้ายไปอยู่ฝั่งโพสต์แทน (ตรวจ 21 ก.ย. 69).** สาย A คลายแล้ว แต่ `Deal Poster v1` ยังมีเพดานของมันเอง:
+`Query Approved Deals` ขอ `page_size: 10` **ไม่มี `sorts`** → Notion คืนเรียง `last_edited` เก่าก่อน (FIFO
+ไม่มีดีลไหนโดนแซงถาวร) แล้ว `Split Approved` ปิดท้าย **`.slice(0, 6)`** → **6 ดีล/รอบ × 7 รอบ = 42 ดีล/วัน**
+วันที่ดีลเข้าเกินนั้น (20 ก.ย. เข้ามา 66) คิว "อนุมัติแล้ว" จะค้างข้ามวันเป็นเรื่องปกติ **ไม่ใช่อาการเสีย** —
+ดูได้จาก `has_more: true` ใน runData ของ `Query Approved Deals` · ถ้าจะเร่ง ต้องคิดเผื่อ `IG Reel` ที่มี
+budget 200 วิ/รอบอยู่แล้ว (ดีลเกินงบถอยไปโพสต์ภาพ) — เพิ่มจำนวนดีล = สัดส่วน Reels ต่อรอบลดลงตาม
 
 **คำบรรยายสินค้า.** เพิ่ม property `คำบรรยาย` (rich_text) ใน Deal Queue · `Claude Write Caption` เปลี่ยนเป็นขอ
 JSON `{caption, desc}` ครั้งเดียว (max_tokens 400→600) · `Build Caption` ดึงก้อน `{...}` ด้วย regex แล้ว parse
