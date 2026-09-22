@@ -5,7 +5,7 @@
 # (ใส่ "upload": {"url": rupload uri, "token": …} = อัปโหลดขึ้น IG ให้เลย ตอบ JSON แทนไฟล์)
 # ตอบ 200 video/mp4 (header X-Voice: 1 = มีเสียงพากย์, 0 = TTS ล้มเลยได้แค่เพลง) · ผิดพลาด = 4xx/5xx JSON
 # เรนเดอร์ทีละคลิป (HTTPServer ไม่ใช่ threaded) เพราะ VPS มี 1 core
-import asyncio, hashlib, json, math, os, re, shutil, subprocess, tempfile, traceback, urllib.error, urllib.request
+import asyncio, hashlib, json, math, os, re, shutil, subprocess, tempfile, time, traceback, urllib.error, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 FONTS = '/app/fonts'
@@ -136,6 +136,29 @@ def prosody_for(role, seed):
 
 def gap_for(role, seed):
     return max(0.15, GAP_AFTER[role] + jitter(seed, ROLE_BITS[role] + 7, 0.08))
+
+# ---------- สลับรอบมีพากย์ / เพลงล้วน (22 ก.ย. 69) ----------
+# user ขอให้สลับกับคลิปแบบไม่มีเสียงพากย์ (ยังมีเพลง) เป็นรอบ ๆ
+# ตัดสินใจที่ service ไม่ใช่ที่ n8n → ไม่ต้องแตะ workflow ที่โพสต์ลง 4 แพลตฟอร์ม
+# payload ส่ง "voice": true/false มา = บังคับ (เผื่อทดสอบมือ) · ไม่ส่ง = auto ตามรอบ
+ROUND_HOURS = [0, 6, 9, 12, 15, 18, 21]   # ต้องตรงกับ cron ของ Deal Poster v1 — แก้ที่นั่นต้องแก้ที่นี่ด้วย
+
+def voice_for_round(now=None):
+    # Asia/Bangkok = UTC+7 ตลอดปี ไม่มี DST เลยบวกตรง ๆ ไม่ต้องพึ่ง tzdata ในคอนเทนเนอร์
+    now = (now if now is not None else time.time()) + 7 * 3600
+    hour = time.gmtime(now).tm_hour
+    idx = max(i for i, h in enumerate(ROUND_HOURS) if h <= hour)
+    # +วันด้วย เพื่อให้สลอตเดิมพลิกทุกวัน ไม่งั้น 00:00 จะมีพากย์ตลอดกาลและเทียบผลไม่ได้
+    # (รอบ/วันเป็นเลขคี่ = 7 → ข้ามวันแล้วยังสลับต่อเนื่อง ไม่ซ้ำสองรอบติด)
+    return ((int(now // 86400) + idx) % 2) == 0
+
+def silent_durs(segs, budget=7.5, floor=1.0):
+    # คลิปไม่มีพากย์ = คนต้องอ่านเอง แบ่งเวลาตามความยาวข้อความแทนการให้เท่ากันทุกท่อน
+    # (เดิมตายตัว 1.3 วิ/ท่อน → คำบรรยาย 90 ตัวได้เวลาเท่า hook 20 ตัว อ่านไม่ทัน)
+    # คุมด้วย budget รวม ความยาวคลิปเลยใกล้เคียงแบบมีพากย์ ไม่ยืดจนคนเลื่อนผ่าน
+    w = [max(len(t), 8) for _, t in segs]
+    tot = float(sum(w))
+    return [max(floor, budget * x / tot) for x in w]
 
 DESC_MAX = 90   # ตัวอักษร — ยาวกว่านี้ท่อนพากย์กินเวลาเกิน ~5 วิ และขึ้นจอ 2 บรรทัดไม่พอ
 
@@ -287,14 +310,20 @@ def render(d):
 
         segs, pct, seed = script_for(d)
         roles = [r for r, _ in segs]
-        voiced = True
-        try:
-            wavs = make_voice(segs, W, seed)
-            durs = [dur(w) for w in wavs]
-        except Exception:
-            traceback.print_exc()
-            voiced, wavs = False, []
-            durs = [1.3] * len(segs)          # ไม่มีเสียง: จังหวะข้อความตายตัว
+        want = d.get('voice')
+        forced = want is not None
+        want = voice_for_round() if not forced else bool(want)
+        voiced, wavs = False, []
+        if want:
+            try:
+                wavs = make_voice(segs, W, seed)
+                durs = [dur(w) for w in wavs]
+                voiced = True
+            except Exception:
+                traceback.print_exc()   # TTS ล้ม → ถอยไปเพลงล้วน ไม่ถือว่าเรนเดอร์ล้ม
+        if not voiced:
+            durs = silent_durs(segs)
+        print('[render] voice=%s (%s)' % (voiced, 'req' if forced else 'auto'), flush=True)
         LEAD, TAIL = 0.5, 1.2
         starts, cur = [], LEAD
         for i, x in enumerate(durs):
@@ -322,7 +351,9 @@ def render(d):
         # คำบรรยายใช้พื้นที่เดียวกับบล็อกราคา แล้วหายไปตอนราคาขึ้น
         # (y 800-1100 มีที่พอสำหรับชื่อ+ราคาเท่านั้น ใส่พร้อมกันทั้งสามไม่ได้)
         if 'desc' in at:
-            desc_text = next((t for r, t in segs if r == 'desc'), '')
+            # ⛔ ห้ามดึงจาก segs — ตั้งแต่รอบ #7 ท่อนพากย์มีคำเชื่อม/ตัวคั่น ' | ' ปนอยู่ (DESC_LEADS)
+            # ซึ่งเป็นสัญญาณให้ TTS หยุดหายใจเท่านั้น ขึ้นจอต้องเป็นคำบรรยายล้วน
+            desc_text = clean_desc(d.get('desc'))
             if 'old' in at:
                 desc_end = at['old']
             elif (sale or full) and 'new' in at:
@@ -424,7 +455,8 @@ class H(BaseHTTPRequestHandler):
                     body, code = he.read().decode('utf-8', 'replace')[:800], he.code
                 return self._json(200 if code == 200 else 502, {
                     'uploaded': code == 200, 'status': code, 'response': body[:800],
-                    'bytes': len(mp4), 'voice': voiced, 'duration': D, 'lines': lines})
+                    'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto',
+                    'duration': D, 'lines': lines})
         except subprocess.CalledProcessError as e:
             return self._json(500, {'error': 'ffmpeg failed', 'detail': (e.stderr or b'')[-800:].decode('utf-8', 'replace')})
         except Exception as e:
@@ -434,6 +466,7 @@ class H(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'video/mp4')
         self.send_header('Content-Length', str(len(mp4)))
         self.send_header('X-Voice', '1' if voiced else '0')
+        self.send_header('X-Voice-Mode', 'req' if forced else 'auto')
         self.send_header('X-Duration', str(D))
         self.end_headers()
         self.wfile.write(mp4)
