@@ -48,7 +48,11 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
   · Location ต้องเป็น URL เต็ม สร้างจาก header `x-forwarded-host` (relative path โหนด redirect เคยเขียนเพี้ยนเป็น `https://webhook/deals`)
   · ผลข้างเคียง: ดีลที่หลุดจาก 120 ใบล่าสุดแล้ว ลิงก์ `go?d=` เก่าที่คนแชร์ไว้จะพากลับหน้าแรกแทนร้าน (เพราะ `sd.links` สร้างใหม่ทุกรอบจาก 120 ใบที่โชว์)
 - **หน้าสถิติ** `GET /webhook/deals-stats` (`Stats Webhook` → `Build Stats`) — ตาราง ดีล/ร้าน/จำนวนคลิก/ล่าสุด 200 แถว, รวม 7 วัน, แยกตาม host · ข้อมูลอยู่ใน staticData ล้วน ไม่ออกนอกเครื่อง · **ไม่มี auth** (เปิดผ่าน n8n ตรง ไม่ผ่าน traefik basic-auth) แต่ไม่มีอะไรลับ
-- ⚠️ `deals-proxy` proxy **ทุก path ไป `/webhook/deals`** (cache key เดียว) → `deals.srv1277799.hstgr.cloud/webhook/go?...` ใช้ไม่ได้ผ่าน proxy; ลิงก์ในหน้าเป็น relative `/webhook/go` จึงยิงไปที่ host ที่เปิดหน้า — ถ้าเปิดผ่าน `deals.` จะโดน proxy ตีกลับเป็นหน้ารวมดีล **ต้องเช็คว่าคลิกจากหน้า live พาไปร้านจริงไหม** (ยังไม่ได้ทดสอบ 25 ก.ย.)
+- ⛔ **บั๊กที่มากับของใหม่ (พบ+แก้ 25 ก.ย. 69)**: `deals-proxy` เดิม proxy **ทุก path ไป `/webhook/deals`** → คลิกการ์ดจากโดเมน `deals.` (ที่อยู่ในไบโอ IG) ได้ **404 ทุกใบตั้งแต่ 24 ก.ย.** (ยิงตรง n8n ได้ 307 ปกติ จึงไม่มีใครเห็นตอนเทส)
+  แก้ที่ `/root/deals-proxy/nginx.conf`: เพิ่ม `location = /webhook/go` ส่งต่อ `$is_args$args` ไป n8n ตรง **ไม่ cache** + `proxy_redirect off` + ส่ง `X-Forwarded-Host` (Count Click ใช้สร้าง URL กลับหน้าแรก)
+  · conf เป็น bind-mount read-only → แก้ไฟล์บน host แล้ว `docker exec deals-proxy nginx -t && docker exec deals-proxy nginx -s reload` ไม่ต้อง recreate · backup ที่ `nginx.conf.bak-20260925` · repo: `vps/deals-proxy.nginx.conf`
+  · ทดสอบ: `curl -sI 'https://deals.srv1277799.hstgr.cloud/webhook/go?d=<id>'` ต้องได้ 307 + `location` เป็นร้าน + `X-Cache-Status: BYPASS`
+  · **บทเรียน: เพิ่ม path ใหม่ใน Landing Page ทีไร ต้องเพิ่ม location ใน deals-proxy ด้วยเสมอ** (`/webhook/deals-stats` ยังเข้าได้ทาง n8n ตรงเท่านั้น ตั้งใจไม่เปิดผ่าน `deals.`)
 
 **Deal Poster v1 เปลี่ยน 24 ก.ย. 69 (session อื่น)**: `LINE Posted Alert` → **`TG Posted Alert`** (`api.telegram.org/bot…/sendMessage` chat_id `8336016992`) — แจ้งเตือน "โพสต์เสร็จ" ย้ายจาก LINE ไป Telegram
 → **LINE ไม่มีการแจ้งเตือนอะไรจากสายโพสต์เลยแล้ว** (LINE Preview ปิดตั้งแต่ 21 ก.ย.) · LINE channel token ยังฝังอยู่แค่ใน Intake LINE
@@ -433,7 +437,7 @@ DNS เป็น **wildcard** ทุก subdomain ชี้มา VPS อยู�
 วัดจริง: **5.2 วิ → 0.21 วิ** (HIT) · **313 KB → 37 KB** ผ่านสาย (gzip) · ดู `X-Cache-Status` ใน response header ได้
 · cache อยู่ในตัว container (ไม่ได้ทำ volume) → restart แล้วหายเป็นปกติ คนแรกที่เปิดสร้างใหม่ให้เอง
 · ผลข้างเคียงที่ยอมรับ: ดีลที่เพิ่งโพสต์จะขึ้นหน้าเว็บช้าได้ถึง 10 นาที
-(ไฟล์จริง `/root/deals-proxy/{nginx.conf,deploy.sh}` · backup ใน `vps/` ของ repo นี้) — เลือกทำเป็น container แยก
+(ไฟล์จริง `/root/deals-proxy/{nginx.conf,deploy.sh}` · backup ใน `vps/` ของ repo นี้ · **25 ก.ย. 69 เพิ่ม `location = /webhook/go` ไม่ cache** ดูหัวข้อหน้ารวมดีล 24 ก.ย.) — เลือกทำเป็น container แยก
 เพื่อ **ไม่ต้องแตะหรือรีสตาร์ต container n8n** (n8n ล่ม = ทุก workflow ล่ม)
 n8n เข้าถึงภายในได้ที่ `n8n:5678` (alias บน `n8n_default`) · Home Console live อยู่ `/root/home-console/html/index.html`
 
