@@ -56,6 +56,27 @@ Host hostinger
 ```
 ทดสอบ: `ssh hostinger 'hostname'` → ต้องได้ `srv1277799` โดยไม่ถามรหัส
 
+## 3b. ทำงานบน VPS เอง (`srv1277799`) — ตั้งแล้ว 25 ก.ย. 69
+เครื่องนี้คือตัวที่ n8n / `deal-video` / `home-metrics` / `deals-proxy` รันอยู่ → **ไม่ต้องใช้ SSH ไปไหน**
+repo อยู่ที่ `/srv/claude/deal-poster` · ทำผ่าน Claude Code (เว็บ/remote) ที่ผูกกับเครื่องนี้ได้เลย
+- **n8n API key + Notion token ไม่ต้องดึงจาก Notion** — ใช้ค่าเดิมที่ `home-metrics` ใช้อยู่แล้ว (ไฟล์ chmod 600, ไม่อยู่ใน repo):
+  ```bash
+  set -a; . /root/home-metrics/.env; set +a     # ได้ $DP_N8N_KEY (n8n) และ $DP_NOTION (Notion)
+  curl -s -o /dev/null -w '%{http_code}\n' -H "X-N8N-API-KEY: $DP_N8N_KEY" \
+    'https://n8n.srv1277799.hstgr.cloud/api/v1/workflows?limit=1'   # ต้องได้ 200
+  ```
+  → rotate ที่ `rotate.sh` ของ home-metrics ที่เดียว เครื่องนี้ได้ค่าใหม่เองทันที · **อย่า copy ค่าไปไฟล์อื่น**
+- คำสั่งใน CLAUDE.md ที่เขียนว่า `ssh hostinger '…'` / `scp hostinger:…` → บนเครื่องนี้**รันคำสั่งข้างในตรง ๆ** / ใช้ `cp` แทน
+  (ไม่ได้ตั้ง alias `hostinger` วนกลับตัวเอง — Claude Code auto mode ไม่ให้แก้ `~/.ssh/config`/`authorized_keys` ถ้าอยากได้ให้ user เพิ่มเอง)
+- deploy ต่าง ๆ (`/root/deal-video/service/deploy.sh`, `docker build home-metrics`, `docker cp` หน้า Home Console) รันตรงบนเครื่องได้เลย
+  **แต่กติกา "เทียบ diff กับตัว live ก่อนทับ" ยังเหมือนเดิม** — ตัว live อยู่ `/root/...` ส่วน repo อยู่ `vps/...`
+- git: remote เป็น **SSH** (`git@gitlab.com:…` / `git@github.com:supachaitw/…`) ใช้ key `~/.ssh/id_ed25519_dealposter`
+  ผ่าน `git config core.sshCommand` **ของ repo นี้เท่านั้น** (ไม่แตะ `~/.ssh/config`)
+  → public key ต้องถูกเพิ่มที่ GitLab (Preferences → SSH Keys) และ GitHub (Settings → SSH and GPG keys) ครั้งเดียว ไม่งั้น pull/push ไม่ได้
+  ทดสอบ: `git fetch origin main` และ `git ls-remote github` ต้องไม่ถาม password
+- ⚠️ ระวังตอนแตะ container: **`docker restart n8n` = ทุก workflow หยุด** เช็ค execution ที่ค้าง (`running/new/waiting`) ก่อนเสมอ
+  จังหวะปลอดภัย xx:25–xx:45 ของชั่วโมงที่ไม่มีรอบโพสต์ (ดู CLAUDE.md หัวข้อ n8n CLI)
+
 ## 4. Notion (ถ้าจะให้ Claude อ่าน/แก้คิวดีลได้เอง)
 ต่อ Notion connector ในเครื่องนั้น แล้วใช้ Deal Queue DB `589f80403f534993b49fd9fdd4d292ff`
 (ตัว workflow ใช้ integration token ของตัวเองอยู่แล้ว ส่วนนี้แค่ให้ผู้ช่วยเข้าถึงได้)
@@ -80,7 +101,7 @@ Host hostinger
 | Instagram | `@paiyaa_deals` IG User id `17841440317177953` |
 | Threads | `@paiyaa_deals` uid `28104225519212652` · แอป Paiyaa Poster `1730166771434587` |
 | LINE OA | Paiyaa Bot `@558klaxp` |
-| VPS | `root@srv1277799.hstgr.cloud` (Hostinger, มี browser terminal ใน hPanel เผื่อ ssh ใช้ไม่ได้) |
+| VPS | `root@srv1277799.hstgr.cloud` = **72.62.248.226** (Hostinger, มี browser terminal ใน hPanel เผื่อ ssh ใช้ไม่ได้) · repo บน VPS: `/srv/claude/deal-poster` (ดูข้อ 3b) |
 
 ## ถ้า token พัง (เผื่อต้องออกใหม่)
 - **Facebook / Instagram** — Access Token Tool → User Token ของแอป Paiyaa Pages → `GET /me/accounts` หรือ `GET /{page_id}?fields=access_token` ได้ page token ที่ไม่มีวันหมดอายุ
