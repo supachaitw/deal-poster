@@ -28,14 +28,31 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 ## Workflows (n8n IDs)
 | id | ชื่อ | หน้าที่ |
 |---|---|---|
-| `E6i2xEAcaUsUFKWm` | Deal Poster v1 — โพสต์ดีลที่อนุมัติแล้ว | cron `0 0,6,9,12,15,18,21 * * *` — **สาย B อย่างเดียว**: "อนุมัติแล้ว"→Telegram(รูป binary)+FB→IG(**Reels** ถอยเป็นภาพได้)/Threads(create→**Settle 30 วิ**→publish)→[X ปิดอยู่]→Mark Posted→**Build Posted Alert**→LINE |
+| `E6i2xEAcaUsUFKWm` | Deal Poster v1 — โพสต์ดีลที่อนุมัติแล้ว | cron `0 0,6,9,12,15,18,21 * * *` — **สาย B อย่างเดียว**: "อนุมัติแล้ว"→Telegram(รูป binary)+FB→IG(**Reels** ถอยเป็นภาพได้)/Threads(create→**Settle 30 วิ**→publish)→[X ปิดอยู่]→Mark Posted→**Build Posted Alert**→**Telegram** (`TG Posted Alert` chat_id `8336016992` — เปลี่ยนจาก LINE 24 ก.ย. 69) |
 | `e8aD2wCvsVYmefrq` | Deal Caption Writer | cron `50 2-23/3 * * *` — **สาย A ที่แยกออกมา**: "ใหม่"→Claude แคปชัน+คำบรรยาย→`Save Draft to Notion`→[`LINE Preview` **ปิดอยู่**] |
 | `Kq3cRuTbwF9cMkA1` | Deal Intake Form | `/form/deal-intake` — บังคับแค่ลิงก์ ช่องอื่นเว้นได้ (OG+Claude parse เหมือนสาย TG; ค่าที่กรอกชนะค่า parse) |
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
 | `UXGp6aS7EclTqCtl` | Threads Token Keeper | จันทร์ 07:00 refresh token 60 วัน แล้ว PUT กลับ |
-| `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล ดึง Notion สด สำหรับใส่ไบโอ IG · **มีรูปสินค้า + แบ่งหน้าละ 50 (27 ส.ค. 69)** |
+| `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล ดึง Notion สด สำหรับใส่ไบโอ IG · มีรูปสินค้า · **24 ก.ย. 69: โชว์แค่ 120 ดีลใหม่สุด · cache 10 นาทีใน staticData · ลิงก์การ์ดผ่าน `/webhook/go?d=` นับคลิก · สถิติที่ `/webhook/deals-stats`** (ดูหัวข้อด้านล่าง) |
 | `qHcCduq7ec3an1zk` | TikTok OAuth Callback | `GET /webhook/tt-oauth-cb-k4w8` — หน้ารับ `code`+`state` ตอน creator authorize แล้วให้ user copy ส่งให้ Claude (สร้าง 29 ส.ค. 69 รอใช้ใน Phase 0 TikTok) |
+
+**หน้ารวมดีลเปลี่ยนใหญ่ 24 ก.ย. 69 — ทำจาก session อื่น, repo ตามไม่ทันจนถึง 25 ก.ย.** (พบตอนเห็นหน้าเว็บมี 120 การ์ดทั้งที่ดึงมา 500)
+- **โชว์แค่ 120 ดีลใหม่สุด**: `Build Page` ปิดท้าย `deals.slice(0, 120)` (คอมเมนต์ในโค้ด: ของเก่ากว่านั้นส่วนใหญ่เป็น flash sale หมดอายุแล้ว)
+  หัวหน้าเขียน "ดีลล่าสุด 120 รายการ จากทั้งหมด N" → **N = จำนวนที่ Query ดึงได้ ไม่ใช่จำนวนการ์ด** · ตอนนี้ N ชน cap 500 (maxRequests 5) แล้ว = ปกติ ไม่ใช่บั๊ก
+  · หน้าละ `PER=30` (เดิม 50) · การ์ดที่ชื่อมีคำว่า "ทดสอบ" ถูกกรองออก
+- **cache ชั้นที่ 2 ใน n8n**: `Deals Webhook` → `Cache Check` (อ่าน `$getWorkflowStaticData('global')` ถ้า `builtAt` < 600 วิ ส่ง HTML เดิมทันที) → `Cached?` → ถ้าไม่ทันค่อย `Query Posted Deals` → `Build Page` เขียน `sd.page/builtAt/links/dealCount`
+  · `?refresh=1` บังคับสร้างใหม่ · ซ้อนกับ cache 10 นาทีของ `deals-proxy` อีกชั้น → ดีลใหม่โผล่หน้าเว็บช้าได้ถึง ~20 นาที (ไม่ใช่อาการเสีย)
+  · ⚠️ staticData เก็บใน DB ของ n8n ตอน execution จบ — ถ้า workflow ถูก PUT ทับ staticData **ยังอยู่** แต่ถ้า import ใหม่เป็น id อื่นจะหาย (แค่ cache/สถิติคลิก ไม่ใช่ข้อมูลหลัก)
+- **นับคลิก**: การ์ดทุกใบลิงก์ไป `/webhook/go?d=<notion page id>` → `Count Click` เช็คว่า id อยู่ใน `sd.links` (ที่ `Build Page` เห็นตอนสร้างหน้า — กัน open redirect) นับ `sd.clicks[id]` แล้ว 302 ไปลิงก์ affiliate · id ไม่รู้จัก → กลับหน้า deals
+  · Location ต้องเป็น URL เต็ม สร้างจาก header `x-forwarded-host` (relative path โหนด redirect เคยเขียนเพี้ยนเป็น `https://webhook/deals`)
+  · ผลข้างเคียง: ดีลที่หลุดจาก 120 ใบล่าสุดแล้ว ลิงก์ `go?d=` เก่าที่คนแชร์ไว้จะพากลับหน้าแรกแทนร้าน (เพราะ `sd.links` สร้างใหม่ทุกรอบจาก 120 ใบที่โชว์)
+- **หน้าสถิติ** `GET /webhook/deals-stats` (`Stats Webhook` → `Build Stats`) — ตาราง ดีล/ร้าน/จำนวนคลิก/ล่าสุด 200 แถว, รวม 7 วัน, แยกตาม host · ข้อมูลอยู่ใน staticData ล้วน ไม่ออกนอกเครื่อง · **ไม่มี auth** (เปิดผ่าน n8n ตรง ไม่ผ่าน traefik basic-auth) แต่ไม่มีอะไรลับ
+- ⚠️ `deals-proxy` proxy **ทุก path ไป `/webhook/deals`** (cache key เดียว) → `deals.srv1277799.hstgr.cloud/webhook/go?...` ใช้ไม่ได้ผ่าน proxy; ลิงก์ในหน้าเป็น relative `/webhook/go` จึงยิงไปที่ host ที่เปิดหน้า — ถ้าเปิดผ่าน `deals.` จะโดน proxy ตีกลับเป็นหน้ารวมดีล **ต้องเช็คว่าคลิกจากหน้า live พาไปร้านจริงไหม** (ยังไม่ได้ทดสอบ 25 ก.ย.)
+
+**Deal Poster v1 เปลี่ยน 24 ก.ย. 69 (session อื่น)**: `LINE Posted Alert` → **`TG Posted Alert`** (`api.telegram.org/bot…/sendMessage` chat_id `8336016992`) — แจ้งเตือน "โพสต์เสร็จ" ย้ายจาก LINE ไป Telegram
+→ **LINE ไม่มีการแจ้งเตือนอะไรจากสายโพสต์เลยแล้ว** (LINE Preview ปิดตั้งแต่ 21 ก.ย.) · LINE channel token ยังฝังอยู่แค่ใน Intake LINE
+· settings ทุก workflow มี `availableInMCP: false` เพิ่มมาเอง (n8n อัปเดตเวอร์ชัน) ไม่ใช่การแก้ของใคร
 
 **รูปสินค้าบนหน้ารวมดีล (27 ส.ค. 69)** — เพิ่ม property **`รูป` (url)** ใน Notion เก็บ `og:image` ของดีล
 - คนเขียนคือ node **`Mark Posted`** (เติม `รูป` ตอนมาร์ค "โพสต์แล้ว" ดึงจาก `$('Build Post Body').item.json.photoUrl` ที่สายโพสต์หามาแล้ว)
@@ -421,6 +438,10 @@ DNS เป็น **wildcard** ทุก subdomain ชี้มา VPS อยู�
 n8n เข้าถึงภายในได้ที่ `n8n:5678` (alias บน `n8n_default`) · Home Console live อยู่ `/root/home-console/html/index.html`
 
 ## เมื่อจบงานแต่ละครั้ง
-export workflow ทั้ง 5 → sanitize → commit + **push ทั้ง `origin` (GitLab) และ `github` (mirror)**;
+export workflow **ทั้ง 8** → sanitize → commit + **push ทั้ง `origin` (GitLab) และ `github` (mirror)**;
 เครื่องอื่นเริ่มงาน: `git pull origin main` ก่อนเสมอ
+- **ใช้สคริปต์ `scripts/export_workflows.py`** (เพิ่ม 25 ก.ย. 69): ดึงทั้ง 8 ตัวจาก API → เก็บเฉพาะ `{name,nodes,connections,settings}` → แทน token ด้วย regex เป็น `REPLACE_*`
+  → **ปฏิเสธเขียนไฟล์ถ้ายังเหลือสตริงหน้าตาเหมือน secret** · บน VPS: `set -a; . /root/home-metrics/.env; set +a; python3 scripts/export_workflows.py` · เครื่องอื่น: `N8N_KEY=… python3 scripts/export_workflows.py`
+  ถ้ามี token รูปแบบใหม่เข้ามาในอนาคต (เช่น Azure/TikTok) ต้องเพิ่ม pattern ใน `SANITIZE` **และ** `LEAK` ทั้งคู่
+- `git diff` หลัง export: diff ที่มีแต่ `availableInMCP`/ลำดับ key = format เฉย ๆ ไม่ต้องจด · diff ที่โหนดเพิ่ม/หาย/โค้ดเปลี่ยน = **มีคนแก้บน n8n โดยไม่จด → ต้องไล่ดูและจดลง CLAUDE.md** (เกิดแล้ว 7 ก.ย. และ 24 ก.ย. 69)
 สแกน token ก่อน push ทุกครั้ง — `git log --all -p | grep -E` ไม่ใช่แค่ `git diff` เพราะ mirror พา**ทั้ง history**ไปด้วย

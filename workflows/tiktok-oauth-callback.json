@@ -83,6 +83,7 @@
   "settings": {
     "executionOrder": "v1",
     "timezone": "Asia/Bangkok",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   }
 }

@@ -75,7 +75,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.all().flatMap(i => (i.json && i.json.results) || []);\nconst esc = s => String(s==null?'':s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('\"').join('&quot;');\nconst num = v => (v==null? null : Number(v));\nconst deals = rows.map(p => {\n  const pr = p.properties||{};\n  const t = ((pr['สินค้า']||{}).title)||[];\n  return {\n    name: t.map(x=>x.plain_text).join('').trim(),\n    link: (pr['ลิงก์Affiliate']||{}).url || '',\n    full: num((pr['ราคาเต็ม']||{}).number),\n    sale: num((pr['ราคาลด']||{}).number),\n    cat : ((pr['หมวด']||{}).select||{}).name || '',\n    when: ((pr['โพสต์เมื่อ']||{}).date||{}).start || '',\n    img : (pr['รูป']||{}).url || ''\n  };\n}).filter(d => d.name && d.link && d.name.indexOf('ทดสอบ') === -1);\nconst money = n => (n==null? '' : Number(n).toLocaleString('th-TH',{maximumFractionDigits:2}));\nconst tn = u => {\n  if(!u || u.indexOf('susercontent.com/file/') < 0) return u;\n  const seg = u.slice(u.lastIndexOf('/')+1);\n  if(seg.indexOf('.') > -1 || seg.slice(-3) === '_tn') return u;\n  return u + '_tn';\n};\nconst cards = deals.map(d => {\n  const off = (d.full && d.sale && d.full > d.sale) ? Math.round((1 - d.sale/d.full)*100) : null;\n  const price = d.sale!=null ? ('<span class=\"now\">' + money(d.sale) + ' ฿</span>' + (d.full!=null&&d.full>d.sale ? ' <span class=\"was\">' + money(d.full) + ' ฿</span>' : '')) : '';\n  const thumb = d.img\n    ? '<img class=\"thumb\" src=\"' + esc(tn(d.img)) + '\" data-o=\"' + esc(d.img) + '\" alt=\"\" loading=\"lazy\" decoding=\"async\" referrerpolicy=\"no-referrer\" onerror=\"if(this.dataset.f){this.remove()}else{this.dataset.f=1;this.src=this.dataset.o}\">'\n    : '';\n  return '<a class=\"card\" href=\"' + esc(d.link) + '\" target=\"_blank\" rel=\"noopener nofollow\">' +\n    (off!=null ? '<span class=\"off\">-' + off + '%</span>' : '') +\n    thumb +\n    '<div class=\"body\">' +\n    (d.cat ? '<span class=\"chip\">' + esc(d.cat) + '</span>' : '') +\n    '<div class=\"name\">' + esc(d.name) + '</div>' +\n    '<div class=\"price\">' + price + '</div>' +\n    '<div class=\"go\">ดูดีล →</div></div></a>';\n}).join('');\nconst page = '<!doctype html><html lang=\"th\"><head><meta charset=\"utf-8\">' +\n  '<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">' +\n  '<title>ป้ายยาดีลเด็ด — รวมดีลล่าสุด</title>' +\n  '<meta name=\"robots\" content=\"noindex\">' +\n  '<style>' +\n  ':root{--bg:#faf6f0;--sf:#fffcf8;--sf2:#f3eadf;--ln:#dfd1bf;--tx:#382c22;--mu:#6f5f51;--ac:#8b5e3c}' +\n  '*{box-sizing:border-box}body{margin:0;padding:20px 14px 48px;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"Noto Sans Thai\",sans-serif;color:var(--tx);background:radial-gradient(1200px 600px at 80% -10%,#f1e3d3 0%,transparent 60%),radial-gradient(900px 500px at -10% 110%,#eaddce 0%,transparent 55%),var(--bg)}' +\n  '.wrap{max-width:560px;margin:0 auto}' +\n  'h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:8px}' +\n  '.sub{color:var(--mu);font-size:14px;margin:0 0 20px}' +\n  '.card{position:relative;display:flex;gap:12px;align-items:flex-start;background:linear-gradient(180deg,var(--sf2),var(--sf));border:1px solid var(--ln);border-left:4px solid var(--ac);border-radius:14px;padding:14px 16px;margin-bottom:12px;text-decoration:none;color:inherit;box-shadow:0 6px 18px rgba(56,44,34,.10)}' +\n  '.card:active{transform:scale(.99)}' +\n  '.chip{display:inline-block;font-size:11px;color:var(--mu);border:1px solid var(--ln);border-radius:99px;padding:2px 9px;margin-bottom:8px}' +\n  '.off{position:absolute;top:12px;right:14px;background:var(--ac);color:#fffcf8;font-size:12px;font-weight:700;border-radius:8px;padding:3px 8px}' +\n  '.body{flex:1;min-width:0}' +\n  '.thumb{flex:0 0 92px;width:92px;height:92px;border-radius:10px;object-fit:cover;background:var(--sf2);border:1px solid var(--ln);display:block}' +\n  '@media(max-width:380px){.thumb{flex-basis:74px;width:74px;height:74px}}' +\n  '.name{font-weight:600;line-height:1.45;margin-bottom:8px;padding-right:52px}' +\n  '.now{font-size:19px;font-weight:800;color:var(--ac)}' +\n  '.was{color:var(--mu);text-decoration:line-through;font-size:13px;margin-left:4px}' +\n  '.go{margin-top:10px;font-size:13px;font-weight:700;color:var(--ac)}' +\n  '.pager{display:none;align-items:center;justify-content:center;gap:12px;margin:18px 0 4px;color:var(--mu);font-size:13px;flex-wrap:wrap}' +\n  '.pager button{font:inherit;font-size:13px;padding:7px 14px;border-radius:9px;cursor:pointer;border:1px solid var(--ln);background:var(--sf);color:var(--tx)}' +\n  '.pager button:hover:not(:disabled){border-color:var(--ac);color:var(--ac)}' +\n  '.pager button:disabled{opacity:.4;cursor:default}' +\n  '.foot{text-align:center;color:var(--mu);font-size:12px;margin-top:24px;line-height:1.8}' +\n  '.empty{color:var(--mu);text-align:center;padding:40px 0}' +\n  '</style></head><body><div class=\"wrap\">' +\n  '<h1>🛒 ป้ายยาดีลเด็ด</h1>' +\n  '<p class=\"sub\">รวมดีลล่าสุด ' + deals.length + ' รายการ · แตะการ์ดเพื่อไปที่ร้าน</p>' +\n  '<div class=\"pager\" id=\"pgTop\"></div>' +\n  (cards || '<div class=\"empty\">ยังไม่มีดีลในตอนนี้</div>') +\n  '<div class=\"pager\" id=\"pgBot\"></div>' +\n  '<p class=\"foot\">ลิงก์ในหน้านี้เป็นลิงก์ affiliate<br>Telegram @paiyaa_deals · Facebook ป้ายยาดีลเด็ด</p>' +\n  '<script>(function(){' +\n  'var PER=50,page=0;' +\n  'var cards=[].slice.call(document.querySelectorAll(\".card\"));' +\n  'var pages=Math.max(1,Math.ceil(cards.length/PER));' +\n  'var bars=[document.getElementById(\"pgTop\"),document.getElementById(\"pgBot\")];' +\n  'function bar(pg){' +\n  'pg.textContent=\"\";' +\n  'var b1=document.createElement(\"button\");b1.textContent=\"\\\\u2039 \\\\u0e22\\\\u0e49\\\\u0e2d\\\\u0e19\\\\u0e2b\\\\u0e25\\\\u0e31\\\\u0e07\";' +\n  'b1.disabled=(page===0);b1.onclick=function(){if(page>0){page--;render();}};' +\n  'var sp=document.createElement(\"span\");' +\n  'sp.textContent=(page*PER+1)+\"-\"+Math.min(cards.length,(page+1)*PER)+\" \\\\u0e08\\\\u0e32\\\\u0e01 \"+cards.length+\" \\\\u00b7 \\\\u0e2b\\\\u0e19\\\\u0e49\\\\u0e32 \"+(page+1)+\"/\"+pages;' +\n  'var b2=document.createElement(\"button\");b2.textContent=\"\\\\u0e16\\\\u0e31\\\\u0e14\\\\u0e44\\\\u0e1b \\\\u203a\";' +\n  'b2.disabled=(page+1>=pages);b2.onclick=function(){if(page+1<pages){page++;render();}};' +\n  'pg.appendChild(b1);pg.appendChild(sp);pg.appendChild(b2);}' +\n  'function render(){' +\n  'for(var i=0;i<cards.length;i++){cards[i].style.display=(i>=page*PER&&i<(page+1)*PER)?\"\":\"none\";}' +\n  'for(var k=0;k<bars.length;k++){if(!bars[k])continue;' +\n  'if(pages<2){bars[k].style.display=\"none\";}else{bars[k].style.display=\"flex\";bar(bars[k]);}}' +\n  'window.scrollTo(0,0);}' +\n  'render();})();</script>' +\n  '</div></body></html>';\nreturn [{ json: { page } }];"
+        "jsCode": "const rows = $input.all().flatMap(i => (i.json && i.json.results) || []);\nconst esc = s => String(s==null?'':s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('\"').join('&quot;');\nconst num = v => (v==null? null : Number(v));\nconst deals = rows.map(p => {\n  const pr = p.properties||{};\n  const t = ((pr['สินค้า']||{}).title)||[];\n  return {\n    id: p.id,\n    name: t.map(x=>x.plain_text).join('').trim(),\n    link: (pr['ลิงก์Affiliate']||{}).url || '',\n    full: num((pr['ราคาเต็ม']||{}).number),\n    sale: num((pr['ราคาลด']||{}).number),\n    cat : ((pr['หมวด']||{}).select||{}).name || '',\n    when: ((pr['โพสต์เมื่อ']||{}).date||{}).start || '',\n    img : (pr['รูป']||{}).url || ''\n  };\n}).filter(d => d.name && d.link && d.name.indexOf('ทดสอบ') === -1);\n// click tracking: every card goes through /webhook/go?d=<notion page id>, which counts and 302s\nconst sd = $getWorkflowStaticData('global');\nconst links = {};\nfor (const d of deals) { const host = ((String(d.link).match(/^https?:\\/\\/([^\\/?#]+)/) || [])[1]) || ''; links[d.id] = { url: d.link, name: d.name, host }; }   // no URL global in the Code sandbox\nconst shown = deals.slice(0, 120);   // newest first (Notion sort); older ones are mostly expired flash sales\n\nconst money = n => (n==null? '' : Number(n).toLocaleString('th-TH',{maximumFractionDigits:2}));\nconst tn = u => {\n  if(!u || u.indexOf('susercontent.com/file/') < 0) return u;\n  const seg = u.slice(u.lastIndexOf('/')+1);\n  if(seg.indexOf('.') > -1 || seg.slice(-3) === '_tn') return u;\n  return u + '_tn';\n};\nconst cards = shown.map(d => {\n  const off = (d.full && d.sale && d.full > d.sale) ? Math.round((1 - d.sale/d.full)*100) : null;\n  const price = d.sale!=null ? ('<span class=\"now\">' + money(d.sale) + ' ฿</span>' + (d.full!=null&&d.full>d.sale ? ' <span class=\"was\">' + money(d.full) + ' ฿</span>' : '')) : '';\n  const thumb = d.img\n    ? '<img class=\"thumb\" src=\"' + esc(tn(d.img)) + '\" data-o=\"' + esc(d.img) + '\" alt=\"\" loading=\"lazy\" decoding=\"async\" referrerpolicy=\"no-referrer\" onerror=\"if(this.dataset.f){this.remove()}else{this.dataset.f=1;this.src=this.dataset.o}\">'\n    : '';\n  return '<a class=\"card\" href=\"/webhook/go?d=' + encodeURIComponent(d.id) + '\" target=\"_blank\" rel=\"noopener nofollow\">' +\n    (off!=null ? '<span class=\"off\">-' + off + '%</span>' : '') +\n    thumb +\n    '<div class=\"body\">' +\n    (d.cat ? '<span class=\"chip\">' + esc(d.cat) + '</span>' : '') +\n    '<div class=\"name\">' + esc(d.name) + '</div>' +\n    '<div class=\"price\">' + price + '</div>' +\n    '<div class=\"go\">ดูดีล →</div></div></a>';\n}).join('');\nconst page = '<!doctype html><html lang=\"th\"><head><meta charset=\"utf-8\">' +\n  '<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">' +\n  '<title>ป้ายยาดีลเด็ด — รวมดีลล่าสุด</title>' +\n  '<meta name=\"robots\" content=\"noindex\">' +\n  '<style>' +\n  ':root{--bg:#faf6f0;--sf:#fffcf8;--sf2:#f3eadf;--ln:#dfd1bf;--tx:#382c22;--mu:#6f5f51;--ac:#8b5e3c}' +\n  '*{box-sizing:border-box}body{margin:0;padding:20px 14px 48px;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"Noto Sans Thai\",sans-serif;color:var(--tx);background:radial-gradient(1200px 600px at 80% -10%,#f1e3d3 0%,transparent 60%),radial-gradient(900px 500px at -10% 110%,#eaddce 0%,transparent 55%),var(--bg)}' +\n  '.wrap{max-width:560px;margin:0 auto}' +\n  'h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:8px}' +\n  '.sub{color:var(--mu);font-size:14px;margin:0 0 20px}' +\n  '.card{position:relative;display:flex;gap:12px;align-items:flex-start;background:linear-gradient(180deg,var(--sf2),var(--sf));border:1px solid var(--ln);border-left:4px solid var(--ac);border-radius:14px;padding:14px 16px;margin-bottom:12px;text-decoration:none;color:inherit;box-shadow:0 6px 18px rgba(56,44,34,.10)}' +\n  '.card:active{transform:scale(.99)}' +\n  '.chip{display:inline-block;font-size:11px;color:var(--mu);border:1px solid var(--ln);border-radius:99px;padding:2px 9px;margin-bottom:8px}' +\n  '.off{position:absolute;top:12px;right:14px;background:var(--ac);color:#fffcf8;font-size:12px;font-weight:700;border-radius:8px;padding:3px 8px}' +\n  '.body{flex:1;min-width:0}' +\n  '.thumb{flex:0 0 92px;width:92px;height:92px;border-radius:10px;object-fit:cover;background:var(--sf2);border:1px solid var(--ln);display:block}' +\n  '@media(max-width:380px){.thumb{flex-basis:74px;width:74px;height:74px}}' +\n  '.name{font-weight:600;line-height:1.45;margin-bottom:8px;padding-right:52px}' +\n  '.now{font-size:19px;font-weight:800;color:var(--ac)}' +\n  '.was{color:var(--mu);text-decoration:line-through;font-size:13px;margin-left:4px}' +\n  '.go{margin-top:10px;font-size:13px;font-weight:700;color:var(--ac)}' +\n  '.pager{display:none;align-items:center;justify-content:center;gap:12px;margin:18px 0 4px;color:var(--mu);font-size:13px;flex-wrap:wrap}' +\n  '.pager button{font:inherit;font-size:13px;padding:7px 14px;border-radius:9px;cursor:pointer;border:1px solid var(--ln);background:var(--sf);color:var(--tx)}' +\n  '.pager button:hover:not(:disabled){border-color:var(--ac);color:var(--ac)}' +\n  '.pager button:disabled{opacity:.4;cursor:default}' +\n  '.foot{text-align:center;color:var(--mu);font-size:12px;margin-top:24px;line-height:1.8}' +\n  '.empty{color:var(--mu);text-align:center;padding:40px 0}' +\n  '</style></head><body><div class=\"wrap\">' +\n  '<h1>🛒 ป้ายยาดีลเด็ด</h1>' +\n  '<p class=\"sub\">ดีลล่าสุด ' + shown.length + ' รายการ' + (deals.length > shown.length ? ' จากทั้งหมด ' + deals.length : '') + ' · แตะการ์ดเพื่อไปที่ร้าน</p>' +\n  '<div class=\"pager\" id=\"pgTop\"></div>' +\n  (cards || '<div class=\"empty\">ยังไม่มีดีลในตอนนี้</div>') +\n  '<div class=\"pager\" id=\"pgBot\"></div>' +\n  '<p class=\"foot\">ลิงก์ในหน้านี้เป็นลิงก์ affiliate<br>Telegram @paiyaa_deals · Facebook ป้ายยาดีลเด็ด</p>' +\n  '<script>(function(){' +\n  'var PER=30,page=0;' +\n  'var cards=[].slice.call(document.querySelectorAll(\".card\"));' +\n  'var pages=Math.max(1,Math.ceil(cards.length/PER));' +\n  'var bars=[document.getElementById(\"pgTop\"),document.getElementById(\"pgBot\")];' +\n  'function bar(pg){' +\n  'pg.textContent=\"\";' +\n  'var b1=document.createElement(\"button\");b1.textContent=\"\\\\u2039 \\\\u0e22\\\\u0e49\\\\u0e2d\\\\u0e19\\\\u0e2b\\\\u0e25\\\\u0e31\\\\u0e07\";' +\n  'b1.disabled=(page===0);b1.onclick=function(){if(page>0){page--;render();}};' +\n  'var sp=document.createElement(\"span\");' +\n  'sp.textContent=(page*PER+1)+\"-\"+Math.min(cards.length,(page+1)*PER)+\" \\\\u0e08\\\\u0e32\\\\u0e01 \"+cards.length+\" \\\\u00b7 \\\\u0e2b\\\\u0e19\\\\u0e49\\\\u0e32 \"+(page+1)+\"/\"+pages;' +\n  'var b2=document.createElement(\"button\");b2.textContent=\"\\\\u0e16\\\\u0e31\\\\u0e14\\\\u0e44\\\\u0e1b \\\\u203a\";' +\n  'b2.disabled=(page+1>=pages);b2.onclick=function(){if(page+1<pages){page++;render();}};' +\n  'pg.appendChild(b1);pg.appendChild(sp);pg.appendChild(b2);}' +\n  'function render(){' +\n  'for(var i=0;i<cards.length;i++){cards[i].style.display=(i>=page*PER&&i<(page+1)*PER)?\"\":\"none\";}' +\n  'for(var k=0;k<bars.length;k++){if(!bars[k])continue;' +\n  'if(pages<2){bars[k].style.display=\"none\";}else{bars[k].style.display=\"flex\";bar(bars[k]);}}' +\n  'window.scrollTo(0,0);}' +\n  'render();})();</script>' +\n  '</div></body></html>';\nsd.page = page; sd.builtAt = Date.now(); sd.links = links; sd.dealCount = deals.length;\nif (!sd.clicks) sd.clicks = {};\nreturn [{ json: { page, cached: false } }];"
       },
       "id": "lp-html",
       "name": "Build Page",
@@ -113,6 +113,156 @@
         672,
         0
       ]
+    },
+    {
+      "id": "af6bce7e-af40-4a90-a5d2-2b9f70baa208",
+      "name": "Cache Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Serve the page from workflow static data while it is younger than CACHE_SEC.\n// Notion takes ~5 s for 495 rows; the TikTok in-app browser does not wait that long.\n// ?refresh=1 forces a rebuild.\nconst CACHE_SEC = 600;\nconst sd = $getWorkflowStaticData('global');\nconst q = ($input.first().json.query) || {};\nconst age = sd.builtAt ? (Date.now() - sd.builtAt) / 1000 : Infinity;\nif (sd.page && age < CACHE_SEC && !q.refresh) return [{ json: { page: sd.page, cached: true, ageSec: Math.round(age) } }];\nreturn [{ json: { cached: false, ageSec: age === Infinity ? null : Math.round(age) } }];"
+      }
+    },
+    {
+      "id": "c31a907e-4b52-47da-a78b-574dbe27e811",
+      "name": "Cached?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b4ffe806-026e-4556-bbe1-5080ad48d64b",
+              "leftValue": "={{ $json.cached }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5b03c122-7232-4c2c-81a7-2134742b204e",
+      "name": "Go Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "go",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "649d9f43-e04b-4436-bb9a-1adf54224a9e"
+    },
+    {
+      "id": "a0140826-da9e-4fd0-a9af-70df2db26fed",
+      "name": "Count Click",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// /webhook/go?d=<notion page id>: count the click, then 302 to the affiliate link.\n// Only ids the page builder saw are redirect targets (no open redirect); anything else goes home.\nconst sd = $getWorkflowStaticData('global');\nconst q = ($input.first().json.query) || {};\nconst id = String(q.d || '');\nconst hit = sd.links && sd.links[id];\n// a relative Location is rewritten badly by the redirect node (seen: https://webhook/deals), so build it from the request host\nconst h = ($input.first().json.headers) || {};\nconst home = 'https://' + (h['x-forwarded-host'] || h.host || 'n8n.srv1277799.hstgr.cloud') + '/webhook/deals';\nif (!hit) return [{ json: { url: home, known: false } }];\nif (!sd.clicks) sd.clicks = {};\nconst c = sd.clicks[id] || { n: 0, first: Date.now(), last: 0 };\nc.n += 1; c.last = Date.now();\nsd.clicks[id] = c;\nreturn [{ json: { url: hit.url, known: true, n: c.n } }];"
+      }
+    },
+    {
+      "id": "dbd6ee16-2538-4c66-a699-0dceab480a8b",
+      "name": "Redirect",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "respondWith": "redirect",
+        "redirectURL": "={{ $json.url }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "cfe6da87-e8dc-431f-ab42-36ad8c04c34a",
+      "name": "Stats Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        500
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "deals-stats",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "ba3c628f-0de6-439d-af49-c6efd84f1370"
+    },
+    {
+      "id": "64f19b0a-dfed-4b1f-bf40-267fba4946e3",
+      "name": "Build Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        500
+      ],
+      "parameters": {
+        "jsCode": "// /webhook/deals-stats: which deals get clicked. Static-data only, nothing leaves the box.\nconst sd = $getWorkflowStaticData('global');\nconst esc = s => String(s==null?'':s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');\nconst clicks = sd.clicks || {}; const links = sd.links || {};\nconst week = Date.now() - 7*86400000;\nconst rows = Object.keys(clicks).map(id => ({ id, n: clicks[id].n, last: clicks[id].last, name: (links[id]||{}).name || id, host: (links[id]||{}).host || '' }))\n  .sort((a,b) => b.n - a.n);\nconst total = rows.reduce((s,r) => s + r.n, 0);\nconst recent = rows.filter(r => r.last >= week).reduce((s,r) => s + r.n, 0);\nconst byHost = {}; for (const r of rows) byHost[r.host] = (byHost[r.host]||0) + r.n;\nconst fmt = t => t ? new Date(t + 7*3600000).toISOString().replace('T',' ').slice(0,16) : '-';\nconst tr = rows.slice(0, 200).map(r => '<tr><td>' + esc(r.name).slice(0,70) + '</td><td>' + esc(r.host.replace(/^s\\./,'')) + '</td><td class=\"n\">' + r.n + '</td><td>' + fmt(r.last) + '</td></tr>').join('');\nconst hosts = Object.keys(byHost).map(h => esc(h.replace(/^s\\./,'')) + ' ' + byHost[h]).join(' · ');\nconst page = '<!doctype html><html lang=\"th\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>สถิติคลิก — ป้ายยาดีลเด็ด</title>' +\n '<style>body{font-family:-apple-system,\"Segoe UI\",\"Noto Sans Thai\",sans-serif;margin:0;padding:20px 14px;color:#382c22;background:#faf6f0}.wrap{max-width:720px;margin:0 auto}h1{font-size:20px}p{color:#6f5f51;font-size:14px}table{width:100%;border-collapse:collapse;font-size:13px;background:#fffcf8}th,td{padding:8px 6px;border-bottom:1px solid #dfd1bf;text-align:left;vertical-align:top}th{color:#6f5f51;font-weight:600}td.n{text-align:right;font-weight:700;color:#8b5e3c}</style></head><body><div class=\"wrap\">' +\n '<h1>📊 สถิติคลิก</h1>' +\n '<p>คลิกทั้งหมด <b>' + total + '</b> · 7 วันล่าสุด <b>' + recent + '</b> · ดีลที่เคยถูกคลิก ' + rows.length + ' จาก ' + Object.keys(links).length + '<br>' + (hosts || 'ยังไม่มีคลิก') + '<br>หน้า deals สร้างล่าสุด ' + fmt(sd.builtAt) + ' (เวลาไทย) · ' + (sd.dealCount || 0) + ' ดีล</p>' +\n '<table><tr><th>ดีล</th><th>ร้าน</th><th>คลิก</th><th>ล่าสุด</th></tr>' + (tr || '<tr><td colspan=4>ยังไม่มีคลิก</td></tr>') + '</table>' +\n '</div></body></html>';\nreturn [{ json: { page } }];"
+      }
+    },
+    {
+      "id": "6867d5ca-8dd6-48e2-a057-01682df430cb",
+      "name": "Respond Stats",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        500
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.page }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
     }
   ],
   "connections": {
@@ -120,7 +270,7 @@
       "main": [
         [
           {
-            "node": "Query Posted Deals",
+            "node": "Cache Check",
             "type": "main",
             "index": 0
           }
@@ -143,6 +293,79 @@
         [
           {
             "node": "Respond HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Check": {
+      "main": [
+        [
+          {
+            "node": "Cached?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cached?": {
+      "main": [
+        [
+          {
+            "node": "Respond HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Posted Deals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Go Webhook": {
+      "main": [
+        [
+          {
+            "node": "Count Click",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count Click": {
+      "main": [
+        [
+          {
+            "node": "Redirect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stats Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Stats": {
+      "main": [
+        [
+          {
+            "node": "Respond Stats",
             "type": "main",
             "index": 0
           }

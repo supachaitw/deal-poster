@@ -153,23 +153,23 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.line.me/v2/bot/message/push",
+        "url": "https://api.telegram.org/botREPLACE_TELEGRAM_BOT_TOKEN/sendMessage",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer REPLACE_LINE_CHANNEL_TOKEN"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ to: 'U72a09a140c06dd099b438153c3b45dd9', messages: [{ type: 'text', text: $json.alert }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: '8336016992', text: $json.alert, disable_web_page_preview: true }) }}",
         "options": {}
       },
       "id": "a1b2c3d4-0012-4000-8000-000000000012",
-      "name": "LINE Posted Alert",
+      "name": "TG Posted Alert",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -1016,7 +1016,7 @@
       "main": [
         [
           {
-            "node": "LINE Posted Alert",
+            "node": "TG Posted Alert",
             "type": "main",
             "index": 0
           }
