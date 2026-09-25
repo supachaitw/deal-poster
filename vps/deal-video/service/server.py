@@ -437,6 +437,7 @@ class H(BaseHTTPRequestHandler):
                     d[k] = float(d[k]) if d.get(k) not in (None, '', 0) else None
                 except (TypeError, ValueError):
                     d[k] = None
+            forced = d.get('voice') is not None   # โหมดบังคับ/auto ใช้ตอบ header+JSON ด้านล่าง (เดิมนิยามแค่ใน render() → NameError ทำทุก request ตอบ 500 ตั้งแต่ 22 ก.ย. 69)
             mp4, voiced, D, lines = render(d)
             up = d.get('upload')
             if up:

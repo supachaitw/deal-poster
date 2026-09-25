@@ -288,9 +288,16 @@ user กด gen ลิงก์เองจากแอป TikTok (Affiliate cen
 | 20 ก.ย. #6 | **hook 5 แบบ / CTA 3 แบบ** (เดิม 3/2) + **ขยับ rate/pitch/ช่วงเว้นรายดีล** (`prosody_for`/`gap_for` สุ่มคงที่จาก hash ชื่อ ±2.5%/±2.5Hz/±0.08 วิ) + ดีลไม่มีราคาได้ท่อนกลาง (`NOPRICE`) แทนคลิปโล่ง 7 วิ | รอผลฟัง |
 | 21 ก.ย. #7 | **บทพูดล้วน ไม่แตะเสียง/prosody/FX เลย** — hook 5→11 · CTA 3→6 · NOPRICE 2→4 · เพิ่มคำเชื่อมแบบคนพูด (`DESC_LEADS`) และท่อนราคาหลายสำนวน (`OLD_LINES`/`NEW_LINES`/`SALE_LINES`/`FULL_LINES`) เลือกด้วย hash ชื่อเหมือนเดิม → ชุดผสม **15 → 1,782 แบบ** | **รอ deploy + รอผลฟัง** |
 
-⚠️ **รอบ #7 แก้ไว้ใน repo แล้วแต่ยังไม่ได้ deploy** — session ที่ทำ (Claude Code บนเว็บ) ssh เข้า VPS ไม่ได้
-ต้องรัน `scp` ไฟล์ขึ้น `/root/deal-video/service/server.py` แล้ว `bash /root/deal-video/service/deploy.sh` เอง
-**เทียบ diff กับตัว live ก่อนทับเสมอ** (ซอร์ส 2 ที่แบบเดียวกับ home-metrics — repo อาจตามไม่ทัน)
+✅ **รอบ #7+#8 deploy แล้ว 22 ก.ย. 69 11:35 UTC** (scp จาก Windows → ไฟล์ live เป็น CRLF แต่เนื้อหาตรง repo ทุกบรรทัด · เทียบด้วย `diff --strip-trailing-cr`)
+⛔ **แต่รอบ #8 พาบั๊กมาด้วย — Reels ล้มทุกดีล 22–25 ก.ย. 69 (~3 วัน, ทุกรอบ)**: `forced` ถูกนิยามใน `render()` แต่ถูกใช้ใน `do_POST`
+(header `X-Voice-Mode` และ JSON `voice_mode`) → **NameError หลังเรนเดอร์+อัปโหลดเสร็จแล้ว** service ตอบ 500 →
+n8n เห็น `render+upload: Request failed with status code 500` → ถอยไปโพสต์ภาพทุกดีล (container REELS ที่อัปโหลดไว้ค้างเป็นกำพร้าใน IG)
+ซ้ำร้าย ดีลละ ~40 วิถูกเผาไปเปล่า ๆ ก่อนถอย → รอบ 6 ดีลชนงบ 200 วิ 1–2 ดีลท้ายเป็น `budget:` ไปด้วย
+· **แก้แล้ว 25 ก.ย. 69** (นิยาม `forced` ใน `do_POST` 1 บรรทัด, deploy ใหม่, `sample.sh` ผ่านทั้ง 2 โหมด) · backup `server.py.bak.20260925`
+· **บทเรียน**: (1) deploy `server.py` ทีไรต้องรัน `sample.sh` ทันที — บั๊กนี้โผล่ตั้งแต่ request แรก แต่ไม่มีใครยิงเทส 3 วัน
+  (2) ดู `runData` ของ `IG Reel` หลังรอบแรกที่ deploy เสมอ: `reelOk:false` ทุกดีล = พัง ไม่ใช่ปกติ · (3) Python ไม่มี compiler เตือนตัวแปรนอก scope → `python3 -m py_compile` ผ่านก็ยังพังได้ ต้องยิงจริง
+· ประวัติ 24 ก.ย. 69 ที่เห็นในรายการ execution: รอบ 02:00–11:00 UTC สถานะ `error` ที่ `LINE Posted Alert` "too many requests" (LINE rate limit → เป็นเหตุให้ session นั้นย้าย alert ไป TG)
+  และ **สาย IG ไม่ได้รันเลยในรอบพวกนั้น** (ลำดับ branch ของ executionOrder v1 ไป LINE ก่อน IG พอ error ก็จบ) · รอบ 14:00 UTC `crashed` "possible out-of-memory" ระหว่าง Post to Facebook (n8n ถูก restart ~15:00 UTC วันนั้น)
 
 บทเรียนรอบ #7: ให้น้ำหนักคำเชื่อมเท่ากันทุกช่องไม่ได้ — รอบแรกตั้ง `DESC_LEADS` 4 ช่องเท่ากัน ลองรันกับดีลจริง
 12 ตัวแล้วคำเชื่อมโผล่ 11/12 **จำเจกว่าเดิม** เพราะคนพูดจริงไม่ได้ขึ้นต้นด้วยคำเชื่อมทุกประโยค →
