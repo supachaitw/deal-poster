@@ -424,7 +424,10 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     write('s.css', css)
     mp = build(deals, now)
-    map_path = os.path.join(ROOT, 'deals.map')
+    # map อยู่ในโฟลเดอร์ที่ mount ทั้งโฟลเดอร์ — เดิม mount ไฟล์เดี่ยว /root/deals-site/deals.map แล้ว os.replace เปลี่ยน inode
+    # → container เห็นไฟล์เก่าค้าง (26 ก.ย. 69 ค้างที่ 04:16 UTC ดีลใหม่ทุกตัวกด 'ไปที่ร้าน' แล้วเด้งกลับหน้าแรก) reload กี่รอบก็ไม่ช่วย
+    map_dir = os.path.join(ROOT, 'map'); os.makedirs(map_dir, exist_ok=True)
+    map_path = os.path.join(map_dir, 'deals.map')
     old = open(map_path, encoding='utf-8').read() if os.path.exists(map_path) else ''
     if old != mp:
         with open(map_path + '.tmp', 'w', encoding='utf-8') as f:

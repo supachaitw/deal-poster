@@ -520,6 +520,11 @@ export workflow **ทั้ง 8** → sanitize → commit + **push ทั้ง
 - **นับคลิก**: การ์ด/ปุ่มลิงก์ไป `/go?d=<id>` → nginx `map` จากไฟล์ `/root/deals-site/deals.map` (gen.py เขียนใหม่ทุกรอบ + reload nginx เฉพาะเมื่อเปลี่ยน) → 302 ไปลิงก์ affiliate
   · id เก่าแบบมีขีด (`/webhook/go?d=…` ที่เคยแชร์) ยังใช้ได้ (map มีทั้ง 2 แบบ) · id ไม่รู้จัก → หน้าแรก · **log `/root/deals-site/log/go.log`** (บันทึกเฉพาะ id ที่รู้จัก) · ดูสถิติ: `python3 /root/deals-site/gen.py stats`
   · สถิติเดิมใน n8n staticData (3 คลิก) ทิ้งไป
+- ⛔ **บั๊กปุ่ม "ไปที่ร้าน" เด้งกลับหน้าแรก (พบ+แก้ 26 ก.ย. 69 21:05 น.)** — user เห็นหลายปุ่มกดแล้วไม่ไปร้าน · ยิงตรวจ `/go?d=` ทั้ง 454 id: พัง 12 = **ทุกดีลที่โพสต์หลัง 04:16 UTC** ของวันนั้น
+  สาเหตุ: `deals.map` ถูก bind-mount **เป็นไฟล์เดี่ยว** แต่ `gen.py` เขียน `.tmp` แล้ว `os.replace` → inode ใหม่ · bind-mount ของไฟล์ผูกกับ inode เดิม → ในคอนเทนเนอร์เป็นไฟล์เก่าค้างตลอด (`nginx -s reload` ผ่านทุกรอบแต่โหลดของเก่า, `gen.log` ไม่มี error ให้เห็น) · เขียนทับในที่ (`cp`) ก็ไม่ช่วยเพราะ inode ที่ mount ถูก unlink ไปแล้ว
+  แก้: map ย้ายไป **`/root/deals-site/map/deals.map`** และ mount **ทั้งโฟลเดอร์** (`-v $ROOT/map:/etc/nginx/map:ro`) · nginx.conf `include /etc/nginx/map/deals.map` · recreate ด้วย `deploy.sh` (ดาวน์ ~2 วิ) · ทดสอบบังคับ map เปลี่ยนแล้ว reload เห็นของใหม่จริง · ไฟล์เก่า `/root/deals-site/deals.map` ลบแล้ว
+  **กฎ: bind-mount ไฟล์ที่มีคนเขียนแบบ atomic (tmp+rename) ไม่ได้ ต้อง mount โฟลเดอร์** (ใช้กับ nginx.conf ของ deals-proxy ด้วย — ตอนนี้แก้ด้วย editor ในที่จึงยังรอด แต่ถ้าวันไหนสคริปต์เขียนแบบ rename จะพังแบบเดียวกัน)
+  ตรวจสุขภาพเร็ว ๆ: `grep -oE '^"[0-9a-f]{32}" "[^"]*"' /root/deals-site/map/deals.map` แล้ว curl `/go?d=<id>` ทุกตัว เทียบ `redirect_url` กับค่าใน map (สคริปต์อยู่ใน transcript 26 ก.ย.)
 - **รูปสินค้าผ่านโดเมนเรา** `/img/s/<shopee seg>` และ `/img/l/<lazada path>` → nginx proxy + cache 14 วันใน `/root/deals-site/cache` → same-origin, เร็ว, และ **FB/LINE preview bot ดึง og:image ได้** (ดึงจาก Shopee CDN ตรงไม่ได้)
 - **n8n `teJKfYg0xuG9OSfc` (Deal Landing Page) ไม่ถูกใช้จากโดเมน `deals.` แล้ว** — ยัง active อยู่ เข้าได้ทาง n8n ตรง (`/webhook/deals`, `/webhook/deals-stats`) เก็บไว้เป็น fallback ยังไม่ลบ
   · `/webhook/deals` บน `deals.` → 301 ไปหน้าแรก

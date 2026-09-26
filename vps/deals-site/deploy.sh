@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # deals-site — public deals website at https://paiyaadeals.com (old: deals.srv1277799.hstgr.cloud -> 301)
 #   /root/deals-site/{gen.py,s.css}  generator (cron */10)   ·  /root/deals-site/html  static output
-#   /root/deals-site/deals.map       id -> affiliate url for nginx `map` (gen.py reloads nginx when it changes)
+#   /root/deals-site/map/deals.map   id -> affiliate url for nginx `map` (gen.py reloads nginx when it changes)
+#   ⚠️ mount the *directory* map/, never the file: gen.py writes tmp+os.replace (new inode) and a file bind-mount keeps the old inode forever
 #   /root/deals-proxy/nginx.conf     nginx config (kept at the old path so older notes still point somewhere real)
 # Run on the VPS: bash /root/deals-site/deploy.sh   (recreates the deals-proxy container, ~2 s downtime)
 set -euo pipefail
@@ -11,14 +12,14 @@ NAME="deals-proxy"
 NET="n8n_default"
 ROOT="/root/deals-site"
 
-mkdir -p "$ROOT/html" "$ROOT/log" "$ROOT/cache"
-touch "$ROOT/deals.map"
+mkdir -p "$ROOT/html" "$ROOT/log" "$ROOT/cache" "$ROOT/map"
+touch "$ROOT/map/deals.map"
 [ -s "$ROOT/html/index.html" ] || NO_RELOAD=1 python3 "$ROOT/gen.py"
 
 docker rm -f "$NAME" 2>/dev/null || true
 docker run -d --name "$NAME" --restart unless-stopped --network "$NET" \
   -v /root/deals-proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
-  -v "$ROOT/deals.map:/etc/nginx/deals.map:ro" \
+  -v "$ROOT/map:/etc/nginx/map:ro" \
   -v "$ROOT/html:/usr/share/nginx/html:ro" \
   -v "$ROOT/log:/var/log/nginx" \
   -v "$ROOT/cache:/var/cache/nginx" \
