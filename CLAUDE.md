@@ -484,7 +484,7 @@ export workflow **ทั้ง 8** → sanitize → commit + **push ทั้ง
 → `POST /api/dealposter/approve` รับ `{id, hide:true|false}` เพิ่ม (PATCH checkbox ไม่แตะสถานะ) · `gen.py` ข้ามแถวที่ติ๊ก + **dedupe อัตโนมัติ** (ลิงก์ affiliate เดียวกัน หรือชื่อเหมือนกัน → เก็บแถวใหม่สุด; รอบแรกตัดไป 48 จาก 500)
 · ลบแถวใน Notion ก็หายจากเว็บเหมือนกัน (ภายใน 10 นาที) · server.js แก้ทั้ง 2 สำเนา + rebuild แล้ว · backup `server.js.bak-20260926`, `dealposter.html.bak-20260926`
 
-**Google login แทน basic-auth ของ home. (เตรียมไว้ 26 ก.ย. 69 — รอ OAuth client จาก user)** — ซอร์ส `vps/oauth2-proxy/` · ของจริง `/root/oauth2-proxy/{docker-compose.yml,switch.sh,emails.txt,.env}`
+**Google login แทน basic-auth ของ home. — ✅ เปิดใช้แล้ว 26 ก.ย. 69 09:50 UTC** (OAuth client อยู่หน้า Notion Config หัวข้อ "Google OAuth (home login" · ค่าอยู่ `/root/oauth2-proxy/.env`) — ซอร์ส `vps/oauth2-proxy/` · ของจริง `/root/oauth2-proxy/{docker-compose.yml,switch.sh,emails.txt,.env}`
 - **2 ชั้น** (user สั่ง 26 ก.ย.): `home.` ทั้งหน้า = เฉพาะอีเมลใน `emails.txt` (**supachai.twr@gmail.com** — คนละอีเมลกับที่ใช้ใน Claude) ผ่าน container `oauth2-proxy` → middleware `google-auth` ·
   **`dp.srv1277799.hstgr.cloud`** = หน้า Deal Poster สำหรับคนอื่น login Google บัญชีไหนก็ได้ ผ่าน `oauth2-proxy-dp` → middleware `google-auth-dp` · เปิดได้แค่ `/dealposter.html` + `/hc-*` + `/api/dealposter*` (router `dp-page`/`dp-root`/`dp-api` ใน `docker-compose.home.yml`, `/` redirect ไป dealposter.html) path อื่น 404
   · cookie คนละชื่อ/คนละโดเมน (`_oauth2_home` @home. · `_oauth2_dp` @dp.) session ของคนอื่นใช้กับ home. ไม่ได้
