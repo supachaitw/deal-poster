@@ -479,3 +479,12 @@ export workflow **ทั้ง 8** → sanitize → commit + **push ทั้ง
 - ⚠️ ลิงก์ "เสนอดีล/ติดต่อ" ชี้ไปเพจ FB **ไม่ชี้ไปฟอร์ม intake** (ฟอร์มสร้างแถวสถานะ "ใหม่" ที่โพสต์อัตโนมัติ ถ้าเปิดสาธารณะ = ใครก็ยัดดีลลงเพจได้)
 - **home. ใส่ basic-auth กลับแล้ว 26 ก.ย. 69** (ก่อนหน้านั้นเปิดสาธารณะทั้ง `home` และ `home-api` router มาระยะหนึ่ง — ปุ่มอนุมัติดีลใน `/dealposter.html` ยิงได้โดยไม่ต้อง login) ·
   `course.html` ยังสาธารณะผ่าน router `home-course` เหมือนเดิม · backup compose `docker-compose.home.yml.bak-20260926`
+
+**ซ่อนดีลซ้ำจากเว็บ (26 ก.ย. 69)** — Notion เพิ่ม checkbox **`ซ่อนเว็บ`** · หน้า Deal Poster (`home./dealposter.html`) แถว "โพสต์แล้ว" มีปุ่ม **🚫 ซ่อนจากเว็บ / 👁 แสดงบนเว็บ**
+→ `POST /api/dealposter/approve` รับ `{id, hide:true|false}` เพิ่ม (PATCH checkbox ไม่แตะสถานะ) · `gen.py` ข้ามแถวที่ติ๊ก + **dedupe อัตโนมัติ** (ลิงก์ affiliate เดียวกัน หรือชื่อเหมือนกัน → เก็บแถวใหม่สุด; รอบแรกตัดไป 48 จาก 500)
+· ลบแถวใน Notion ก็หายจากเว็บเหมือนกัน (ภายใน 10 นาที) · server.js แก้ทั้ง 2 สำเนา + rebuild แล้ว · backup `server.js.bak-20260926`, `dealposter.html.bak-20260926`
+
+**Google login แทน basic-auth ของ home. (เตรียมไว้ 26 ก.ย. 69 — รอ OAuth client จาก user)** — ซอร์ส `vps/oauth2-proxy/` · ของจริง `/root/oauth2-proxy/{docker-compose.yml,switch.sh,emails.txt,.env}`
+- oauth2-proxy (Google provider, อนุญาตเฉพาะอีเมลใน `emails.txt`) เป็น traefik middleware `google-auth` (forwardAuth) · route `/oauth2/*` บน home. · cookie โดเมน `.srv1277799.hstgr.cloud` อายุ 30 วัน → ใช้ครอบ subdomain อื่นได้ทีหลังแค่เปลี่ยน middleware
+- ขั้นตอน: user สร้าง OAuth client (Web) ใน Google Cloud Console, redirect URI `https://home.srv1277799.hstgr.cloud/oauth2/callback` → ใส่ `OAUTH2_PROXY_CLIENT_ID/SECRET` ใน `/root/oauth2-proxy/.env` → `bash /root/oauth2-proxy/switch.sh` (ตรวจ proxy ก่อนแล้วค่อยสลับ router `home`+`home-api`) · ย้อนกลับ: `switch.sh rollback`
+- ⚠️ ถ้า container `oauth2-proxy` ตายขณะ router ชี้ `google-auth` → traefik ปิด router = home. ไม่ตอบ (404) ให้ `switch.sh rollback` ชั่วคราว

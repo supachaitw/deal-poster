@@ -77,6 +77,8 @@ def to_deal(p):
     link = (pr.get('ลิงก์Affiliate') or {}).get('url') or ''
     if not name or not link or 'ทดสอบ' in name:
         return None
+    if (pr.get('ซ่อนเว็บ') or {}).get('checkbox'):   # ติ๊ก 'ซ่อนเว็บ' ใน Notion / ปุ่มบนหน้า Deal Poster = ไม่ขึ้นเว็บ
+        return None
     host = (re.match(r'^https?://([^/?#]+)', link) or [None, ''])[1].lower()
     src = ((pr.get('แหล่ง') or {}).get('select') or {}).get('name') or ''
     if not src:
@@ -397,6 +399,18 @@ def build(deals, now):
 CSS_V = ''
 
 
+def dedupe(deals):
+    """Same affiliate link or same (normalised) name posted twice -> keep the newest only (rows are newest-first)."""
+    seen_link, seen_name, out = set(), set(), []
+    for d in deals:
+        key = re.sub(r'\s+', ' ', d['name'].strip().lower())
+        if d['link'] in seen_link or key in seen_name:
+            continue
+        seen_link.add(d['link']); seen_name.add(key); out.append(d)
+    return out
+
+
+
 def main():
     global CSS_V
     if len(sys.argv) > 1 and sys.argv[1] == 'stats':
@@ -406,7 +420,7 @@ def main():
     CSS_V = hashlib.md5(css.encode('utf-8')).hexdigest()[:8]
     now = datetime.datetime.now(TZ)
     rows = notion_query(token())
-    deals = [d for d in (to_deal(p) for p in rows) if d]
+    deals = dedupe([d for d in (to_deal(p) for p in rows) if d])
     os.makedirs(OUT, exist_ok=True)
     write('s.css', css)
     mp = build(deals, now)
@@ -426,7 +440,7 @@ def main():
         for f in os.listdir(ddir):
             if f not in keep:
                 os.remove(os.path.join(ddir, f))
-    print('%s built %d deals (%d rows) -> %s' % (now.strftime('%Y-%m-%d %H:%M'), len(deals), len(rows), OUT))
+    print('%s built %d deals (%d rows, hidden/dup removed %d) -> %s' % (now.strftime('%Y-%m-%d %H:%M'), len(deals), len(rows), len(rows) - len(deals), OUT))
 
 
 def stats():
