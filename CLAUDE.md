@@ -459,3 +459,11 @@ export workflow **ทั้ง 8** → sanitize → commit + **push ทั้ง
   ถ้ามี token รูปแบบใหม่เข้ามาในอนาคต (เช่น Azure/TikTok) ต้องเพิ่ม pattern ใน `SANITIZE` **และ** `LEAK` ทั้งคู่
 - `git diff` หลัง export: diff ที่มีแต่ `availableInMCP`/ลำดับ key = format เฉย ๆ ไม่ต้องจด · diff ที่โหนดเพิ่ม/หาย/โค้ดเปลี่ยน = **มีคนแก้บน n8n โดยไม่จด → ต้องไล่ดูและจดลง CLAUDE.md** (เกิดแล้ว 7 ก.ย. และ 24 ก.ย. 69)
 สแกน token ก่อน push ทุกครั้ง — `git log --all -p | grep -E` ไม่ใช่แค่ `git diff` เพราะ mirror พา**ทั้ง history**ไปด้วย
+
+## ออกแบบเว็บสาธารณะใหม่ (26 ก.ย. 2569) — รอ user ตัดสินใจ
+- แบบร่างอยู่ที่ Design canvas `https://claude.ai/artifact/EwwtwcNFiYKbcBwHhYSTQj` (4 artboard: หน้าแรกมือถือ / รายละเอียดดีล / หน้าแรกเดสก์ท็อป / โครงสร้างเว็บ)
+  โทน: พื้นครีม `#FBF7F0` · ตัวอักษร `#23201C` · ราคา/CTA `#C63F1E` · ปุ่มสมัคร/ความน่าเชื่อถือ `#1F6E63` · ฟอนต์ Kanit (หัว/ราคา — ตัวเดียวกับคลิป Reels) + Noto Sans Thai (เนื้อความ)
+- ⚠️ **home. ไม่มี basic-auth แล้ว** — `docker-compose.home.yml` ถอด `middlewares=home-auth` ออกจาก router `home` และ `home-api` ทั้งคู่ (มีคอมเมนต์ "PUBLIC" + บรรทัด rollback ไว้)
+  → `/dealposter.html`, `POST /api/dealposter/approve`, `/subs.html`, `/api/metrics` เปิดให้ทุกคน · หัวข้อ Monitoring ด้านบนที่บอกว่า basic-auth ครอบอยู่ **ไม่จริงแล้ว**
+- ข้อเสนอในแบบ: แยก "หน้าสาธารณะ" (ดีล — ทำเป็น static HTML ที่ n8n สร้างทุก 10 นาที, ถอด `noindex`, มีหน้าดีลรายชิ้น `/d/<slug>` + หมวด `/c/<หมวด>`) ออกจาก "คอนโซลส่วนตัว" (ของเดิมทั้งหมด ใส่ auth กลับ)
+  ข้อมูลจริงที่ใช้ตัดสินใจ: หน้า deals. ตอบ 3.4 วิ (ไม่ cache), 120 การ์ด มีป้าย % แค่ 10 ใบ (ราคาเต็มว่างเป็นส่วนใหญ่), คลิกรวม 3 ครั้งตั้งแต่ 24 ก.ย.
