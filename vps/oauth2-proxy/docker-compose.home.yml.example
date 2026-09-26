@@ -1,0 +1,85 @@
+name: home
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE 2026-09-12: ไฟล์นี้ถูกแก้ให้ "ตรงกับของจริงที่รันอยู่" แล้ว + เอา basicauth ออก
+#   - home-console เสิร์ฟไฟล์จาก bind mount /root/home-console/html (ไม่ใช่จาก image)
+#     ใช้ nginx:alpine เพราะ image home-console:prebind มี label basicauth ฝังอยู่ข้างใน
+#   - home-metrics ใช้ image ที่ build จาก server.js ตัวที่รันจริง (home-metrics:live)
+#   อย่ารัน deploy-home.sh (v8) ทับ: มันจะเขียน compose ใหม่ + ใส่ basicauth กลับ
+#   และทับ index.html/server.js ด้วยเวอร์ชันเก่า
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  home:
+    image: nginx:alpine
+    container_name: home-console
+    restart: always
+    networks: [proxy]
+    volumes:
+      - /root/home-console/html:/usr/share/nginx/html
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n_default
+      - "traefik.http.routers.home.rule=Host(`home.srv1277799.hstgr.cloud`)"
+      - traefik.http.routers.home.tls=true
+      - traefik.http.routers.home.entrypoints=web,websecure
+      - traefik.http.routers.home.tls.certresolver=mytlschallenge
+      - traefik.http.services.home.loadbalancer.server.port=80
+      - traefik.http.routers.home.middlewares=home-auth   # 26/09/2569 ใส่ auth กลับ (หน้าสาธารณะย้ายไป deals.)
+      - "traefik.http.routers.home-course.rule=Host(`home.srv1277799.hstgr.cloud`) && Path(`/course.html`)"
+      - traefik.http.routers.home-course.priority=200
+      - traefik.http.routers.home-course.tls=true
+      - traefik.http.routers.home-course.entrypoints=web,websecure
+      - traefik.http.routers.home-course.tls.certresolver=mytlschallenge
+      - traefik.http.routers.home-course.service=home
+      # 26/09/2569 dp. = หน้า Deal Poster สำหรับคนอื่น (login Google บัญชีไหนก็ได้ ผ่าน oauth2-proxy-dp) เปิดได้แค่ /dealposter.html + asset hc-*
+      - "traefik.http.routers.dp-page.rule=Host(`dp.srv1277799.hstgr.cloud`) && (Path(`/dealposter.html`) || PathPrefix(`/hc-`))"
+      - traefik.http.routers.dp-page.priority=200
+      - traefik.http.routers.dp-page.entrypoints=websecure
+      - traefik.http.routers.dp-page.tls=true
+      - traefik.http.routers.dp-page.tls.certresolver=mytlschallenge
+      - traefik.http.routers.dp-page.service=home
+      - traefik.http.routers.dp-page.middlewares=google-auth-dp
+      - "traefik.http.routers.dp-root.rule=Host(`dp.srv1277799.hstgr.cloud`) && Path(`/`)"
+      - traefik.http.routers.dp-root.priority=201
+      - traefik.http.routers.dp-root.entrypoints=websecure
+      - traefik.http.routers.dp-root.tls=true
+      - traefik.http.routers.dp-root.tls.certresolver=mytlschallenge
+      - traefik.http.routers.dp-root.service=home
+      - traefik.http.routers.dp-root.middlewares=dp-redirect
+      - traefik.http.middlewares.dp-redirect.redirectregex.regex=^https://dp\.srv1277799\.hstgr\.cloud/$$
+      - traefik.http.middlewares.dp-redirect.redirectregex.replacement=https://dp.srv1277799.hstgr.cloud/dealposter.html
+      # เก็บ definition ไว้สำหรับ rollback (ตอนนี้ไม่มี router ไหนอ้างถึง)
+      - traefik.http.middlewares.home-auth.basicauth.users=REPLACE_HTPASSWD
+
+  home-metrics:
+    build: ./home/metrics
+    image: home-metrics:live
+    container_name: home-metrics
+    restart: always
+    # ค่าลับอยู่ในไฟล์นี้ ไม่ได้อยู่ในซอร์ส/ภาพ docker — rotate แล้ว restart พอ ไม่ต้อง rebuild
+    env_file:
+      - /root/home-metrics/.env
+    volumes:
+      - ./goldea-ea/state:/goldea:ro
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n_default
+      - "traefik.http.routers.home-api.rule=Host(`home.srv1277799.hstgr.cloud`) && PathPrefix(`/api`)"
+      - traefik.http.routers.home-api.priority=100
+      - traefik.http.routers.home-api.tls=true
+      - traefik.http.routers.home-api.entrypoints=web,websecure
+      - traefik.http.routers.home-api.tls.certresolver=mytlschallenge
+      - traefik.http.services.home-api.loadbalancer.server.port=8080
+      - traefik.http.routers.home-api.middlewares=home-auth   # 26/09/2569 ใส่ auth กลับ
+      # 26/09/2569 API ของหน้า Deal Poster บนโดเมน dp. (เฉพาะ /api/dealposter*) login Google บัญชีไหนก็ได้
+      - "traefik.http.routers.dp-api.rule=Host(`dp.srv1277799.hstgr.cloud`) && PathPrefix(`/api/dealposter`)"
+      - traefik.http.routers.dp-api.priority=100
+      - traefik.http.routers.dp-api.entrypoints=websecure
+      - traefik.http.routers.dp-api.tls=true
+      - traefik.http.routers.dp-api.tls.certresolver=mytlschallenge
+      - traefik.http.routers.dp-api.service=home-api
+      - traefik.http.routers.dp-api.middlewares=google-auth-dp
+networks:
+  proxy:
+    name: n8n_default
+    external: true

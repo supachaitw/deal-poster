@@ -1,22 +1,31 @@
-# oauth2-proxy — Google login for home.srv1277799.hstgr.cloud (replaces traefik basic-auth `home-auth`)
+# oauth2-proxy — Google login for the Home Console (replaces traefik basic-auth `home-auth`)
 # live: /root/oauth2-proxy/docker-compose.yml  ·  secrets in /root/oauth2-proxy/.env (chmod 600, not in repo)
-#   OAUTH2_PROXY_CLIENT_ID / OAUTH2_PROXY_CLIENT_SECRET  = Google OAuth client (Web application)
+#   OAUTH2_PROXY_CLIENT_ID / OAUTH2_PROXY_CLIENT_SECRET  = ONE Google OAuth client (Web application) with TWO redirect URIs:
+#       https://home.srv1277799.hstgr.cloud/oauth2/callback   and   https://dp.srv1277799.hstgr.cloud/oauth2/callback
 #   OAUTH2_PROXY_COOKIE_SECRET                            = 32 random bytes base64 (.cookie-secret)
-# switch on with: bash /root/oauth2-proxy/switch.sh   (see that file for rollback)
+# two instances, two trust levels:
+#   oauth2-proxy     -> middleware `google-auth`    : ONLY the e-mails in emails.txt (owner)  -> whole home.
+#   oauth2-proxy-dp  -> middleware `google-auth-dp` : ANY Google account                     -> dp. = /dealposter.html + /api/dealposter* only
+# switch on with: bash /root/oauth2-proxy/switch.sh   (rollback: switch.sh rollback)
+x-common: &common
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1
+  restart: always
+  env_file: [/root/oauth2-proxy/.env]
+  networks: [proxy]
+
 services:
   oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1
+    <<: *common
     container_name: oauth2-proxy
-    restart: always
-    env_file: [/root/oauth2-proxy/.env]
     environment:
       OAUTH2_PROXY_PROVIDER: google
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_UPSTREAMS: static://202
       OAUTH2_PROXY_REDIRECT_URL: https://home.srv1277799.hstgr.cloud/oauth2/callback
-      OAUTH2_PROXY_WHITELIST_DOMAINS: .srv1277799.hstgr.cloud
-      OAUTH2_PROXY_COOKIE_DOMAINS: .srv1277799.hstgr.cloud
+      OAUTH2_PROXY_WHITELIST_DOMAINS: home.srv1277799.hstgr.cloud
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_home
+      OAUTH2_PROXY_COOKIE_DOMAINS: home.srv1277799.hstgr.cloud
       OAUTH2_PROXY_COOKIE_SECURE: "true"
       OAUTH2_PROXY_COOKIE_SAMESITE: lax
       OAUTH2_PROXY_COOKIE_EXPIRE: 720h
@@ -27,11 +36,9 @@ services:
       OAUTH2_PROXY_SILENCE_PING_LOGGING: "true"
     volumes:
       - /root/oauth2-proxy/emails.txt:/etc/oauth2-proxy/emails.txt:ro
-    networks: [proxy]
     labels:
       - traefik.enable=true
       - traefik.docker.network=n8n_default
-      # /oauth2/* on home. goes straight to the proxy (login, callback, sign_out) — no auth middleware here
       - "traefik.http.routers.oauth2.rule=Host(`home.srv1277799.hstgr.cloud`) && PathPrefix(`/oauth2/`)"
       - traefik.http.routers.oauth2.priority=300
       - traefik.http.routers.oauth2.entrypoints=websecure
@@ -39,10 +46,44 @@ services:
       - traefik.http.routers.oauth2.tls.certresolver=mytlschallenge
       - traefik.http.routers.oauth2.service=oauth2
       - traefik.http.services.oauth2.loadbalancer.server.port=4180
-      # the middleware other routers attach: 202 = pass, otherwise 302 to Google sign-in
       - traefik.http.middlewares.google-auth.forwardauth.address=http://oauth2-proxy:4180/
       - traefik.http.middlewares.google-auth.forwardauth.trustForwardHeader=true
       - traefik.http.middlewares.google-auth.forwardauth.authResponseHeaders=X-Auth-Request-Email,X-Auth-Request-User
+
+  oauth2-proxy-dp:
+    <<: *common
+    container_name: oauth2-proxy-dp
+    environment:
+      OAUTH2_PROXY_PROVIDER: google
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_REDIRECT_URL: https://dp.srv1277799.hstgr.cloud/oauth2/callback
+      OAUTH2_PROXY_WHITELIST_DOMAINS: dp.srv1277799.hstgr.cloud
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_dp
+      OAUTH2_PROXY_COOKIE_DOMAINS: dp.srv1277799.hstgr.cloud
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_EXPIRE: 168h
+      OAUTH2_PROXY_COOKIE_REFRESH: 1h
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SILENCE_PING_LOGGING: "true"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n_default
+      - "traefik.http.routers.oauth2-dp.rule=Host(`dp.srv1277799.hstgr.cloud`) && PathPrefix(`/oauth2/`)"
+      - traefik.http.routers.oauth2-dp.priority=300
+      - traefik.http.routers.oauth2-dp.entrypoints=websecure
+      - traefik.http.routers.oauth2-dp.tls=true
+      - traefik.http.routers.oauth2-dp.tls.certresolver=mytlschallenge
+      - traefik.http.routers.oauth2-dp.service=oauth2-dp
+      - traefik.http.services.oauth2-dp.loadbalancer.server.port=4180
+      - traefik.http.middlewares.google-auth-dp.forwardauth.address=http://oauth2-proxy-dp:4180/
+      - traefik.http.middlewares.google-auth-dp.forwardauth.trustForwardHeader=true
+      - traefik.http.middlewares.google-auth-dp.forwardauth.authResponseHeaders=X-Auth-Request-Email,X-Auth-Request-User
+
 networks:
   proxy:
     name: n8n_default
