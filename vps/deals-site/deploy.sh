@@ -6,6 +6,7 @@
 # Run on the VPS: bash /root/deals-site/deploy.sh   (recreates the deals-proxy container, ~2 s downtime)
 set -euo pipefail
 DOMAIN="deals.srv1277799.hstgr.cloud"
+NEWDOMAIN="paiyaadeals.com"   # 26/09/2569 โดเมนจริง (A record @ และ www -> VPS)
 NAME="deals-proxy"
 NET="n8n_default"
 ROOT="/root/deals-site"
@@ -23,7 +24,7 @@ docker run -d --name "$NAME" --restart unless-stopped --network "$NET" \
   -v "$ROOT/cache:/var/cache/nginx" \
   --label "traefik.enable=true" \
   --label "traefik.docker.network=${NET}" \
-  --label "traefik.http.routers.deals.rule=Host(\`${DOMAIN}\`)" \
+  --label "traefik.http.routers.deals.rule=Host(\`${DOMAIN}\`) || Host(\`${NEWDOMAIN}\`) || Host(\`www.${NEWDOMAIN}\`)" \
   --label "traefik.http.routers.deals.entrypoints=web,websecure" \
   --label "traefik.http.routers.deals.tls=true" \
   --label "traefik.http.routers.deals.tls.certresolver=mytlschallenge" \
