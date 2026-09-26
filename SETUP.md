@@ -95,6 +95,8 @@ repo อยู่ที่ `/srv/claude/deal-poster` · ทำผ่าน Claud
 | หน้ารวมดีล (ไบโอ IG) | `https://deals.srv1277799.hstgr.cloud` |
 | ฟอร์มลงดีล | `https://n8n.srv1277799.hstgr.cloud/form/deal-intake` |
 | Home Console | `https://home.srv1277799.hstgr.cloud` (basic-auth user `admin`) |
+| เว็บดีลสาธารณะ | **https://paiyaadeals.com** (Hostinger, จด 26 ก.ย. 69) · เก่า `deals.srv1277799.hstgr.cloud` 301 มา · ซอร์ส `vps/deals-site/` live `/root/deals-site/` |
+| Home Console | `https://home.srv1277799.hstgr.cloud` login Google (เจ้าของ) · `https://dp.srv1277799.hstgr.cloud` หน้า Deal Poster สำหรับคนอื่น |
 | Notion Deal Queue | `589f80403f534993b49fd9fdd4d292ff` |
 | Telegram | ช่อง `@paiyaa_deals` · บอทรับดีล `@sup_dealposter_bot` |
 | Facebook | https://www.facebook.com/paiyaa.deals · page_id `1330886503433772` · แอป Paiyaa Pages `2350093015523231` |

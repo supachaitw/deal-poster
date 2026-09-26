@@ -34,7 +34,7 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
 | `JUE23JTCBbCsW1lS` | Deal Intake Telegram | webhook `deal-intake-tg-x7k2`, บอท @sup_dealposter_bot |
 | `731A7ASm8bI0F79B` | Deal Intake LINE | webhook `deal-intake-line-p9m4`, LINE OA "Paiyaa Bot" @558klaxp |
 | `UXGp6aS7EclTqCtl` | Threads Token Keeper | จันทร์ 07:00 refresh token 60 วัน แล้ว PUT กลับ |
-| `teJKfYg0xuG9OSfc` | Deal Landing Page | `https://deals.srv1277799.hstgr.cloud` (= `GET /webhook/deals`) — หน้า HTML รวมดีล ดึง Notion สด สำหรับใส่ไบโอ IG · มีรูปสินค้า · **24 ก.ย. 69: โชว์แค่ 120 ดีลใหม่สุด · cache 10 นาทีใน staticData · ลิงก์การ์ดผ่าน `/webhook/go?d=` นับคลิก · สถิติที่ `/webhook/deals-stats`** (ดูหัวข้อด้านล่าง) |
+| `teJKfYg0xuG9OSfc` | Deal Landing Page | ~~`https://deals.srv1277799.hstgr.cloud`~~ **เลิกใช้ 26 ก.ย. 69 — เว็บจริงคือ https://paiyaadeals.com (static, ดูหัวข้อ "เว็บดีลสาธารณะตัวใหม่")** · workflow ยัง active เข้าได้ทาง n8n ตรง (= `GET /webhook/deals`) — หน้า HTML รวมดีล ดึง Notion สด สำหรับใส่ไบโอ IG · มีรูปสินค้า · **24 ก.ย. 69: โชว์แค่ 120 ดีลใหม่สุด · cache 10 นาทีใน staticData · ลิงก์การ์ดผ่าน `/webhook/go?d=` นับคลิก · สถิติที่ `/webhook/deals-stats`** (ดูหัวข้อด้านล่าง) |
 | `qHcCduq7ec3an1zk` | TikTok OAuth Callback | `GET /webhook/tt-oauth-cb-k4w8` — หน้ารับ `code`+`state` ตอน creator authorize แล้วให้ user copy ส่งให้ Claude (สร้าง 29 ส.ค. 69 รอใช้ใน Phase 0 TikTok) |
 
 **หน้ารวมดีลเปลี่ยนใหญ่ 24 ก.ย. 69 — ทำจาก session อื่น, repo ตามไม่ทันจนถึง 25 ก.ย.** (พบตอนเห็นหน้าเว็บมี 120 การ์ดทั้งที่ดึงมา 500)
@@ -460,7 +460,10 @@ export workflow **ทั้ง 8** → sanitize → commit + **push ทั้ง
 - `git diff` หลัง export: diff ที่มีแต่ `availableInMCP`/ลำดับ key = format เฉย ๆ ไม่ต้องจด · diff ที่โหนดเพิ่ม/หาย/โค้ดเปลี่ยน = **มีคนแก้บน n8n โดยไม่จด → ต้องไล่ดูและจดลง CLAUDE.md** (เกิดแล้ว 7 ก.ย. และ 24 ก.ย. 69)
 สแกน token ก่อน push ทุกครั้ง — `git log --all -p | grep -E` ไม่ใช่แค่ `git diff` เพราะ mirror พา**ทั้ง history**ไปด้วย
 
-## เว็บดีลสาธารณะตัวใหม่ (26 ก.ย. 2569) — `deals.` เป็น static site แล้ว ไม่ผ่าน n8n ตอนคนเปิด
+## เว็บดีลสาธารณะตัวใหม่ (26 ก.ย. 2569) — **https://paiyaadeals.com** (static site ไม่ผ่าน n8n ตอนคนเปิด)
+**โดเมนจริง `paiyaadeals.com` จดที่ Hostinger 26 ก.ย. 69** (หมดอายุ 26 ก.ย. 70 · DNS zone ใน hPanel: A `@` → `72.62.248.226`, CNAME `www` → apex · ⚠️ user ยังไม่ได้เปิด auto-renew ตอนจด — เตือนก่อนหมดอายุ)
+· traefik router `deals` รับ 3 โฮสต์ (ใบรับรองใบเดียว SAN ครบ) · nginx: `deals.srv1277799.hstgr.cloud` และ `www.` → **301** ไป `https://paiyaadeals.com$request_uri` (ลิงก์เก่า `/go?d=`/`/webhook/go` ยังใช้ได้) · `gen.py` `SITE` default = โดเมนใหม่ (canonical/og/sitemap/RSS)
+· บทเรียน: เพิ่ม `server {}` ใหม่ใน nginx ต้องให้ block หลักมี **`default_server`** ไม่งั้น block ที่อยู่ก่อนกลายเป็น default (โดเมนเก่าเคย 301 ไปโดเมนที่ DNS ยังไม่ชี้ ~1 นาที) · ACME ล้มถ้า DNS ยังชี้ parking → recreate `deals-proxy` ให้ traefik ขอใหม่
 แบบร่างที่ user อนุมัติ ("จัดไป"): Design canvas `https://claude.ai/artifact/EwwtwcNFiYKbcBwHhYSTQj` (หน้าแรกมือถือ / รายละเอียดดีล / เดสก์ท็อป / โครงสร้าง)
 โทน: พื้นครีม `#FBF7F0` · ตัวอักษร `#23201C` · ราคา/CTA `#C63F1E` · ปุ่มสมัคร `#1F6E63` · Kanit (หัว/ราคา ตัวเดียวกับคลิป Reels) + Noto Sans Thai
 - **โครง**: `/root/deals-site/gen.py` (ซอร์ส `vps/deals-site/`) ดึง Notion (สถานะ "โพสต์แล้ว" · `โพสต์เมื่อ` ≤ 90 วัน · ≤ 500 แถว) → เขียน HTML ลง `/root/deals-site/html/`

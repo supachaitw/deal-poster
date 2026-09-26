@@ -1,4 +1,4 @@
-# deals-site — เว็บดีลสาธารณะ (static)
+# deals-site — เว็บดีลสาธารณะ https://paiyaadeals.com (static)
 ดูหัวข้อ "เว็บดีลสาธารณะตัวใหม่ (26 ก.ย. 2569)" ใน CLAUDE.md · ไฟล์จริงบน VPS: `/root/deals-site/{gen.py,s.css,deploy.sh}` + `/root/deals-proxy/nginx.conf`
 - `gen.py` — Notion → HTML (stdlib only) · `python3 gen.py stats` = สถิติคลิก
 - `s.css` — สไตล์ทั้งเว็บ (gen.py ฝัง hash เป็น `?v=`)

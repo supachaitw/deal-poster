@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deals-site — public deals website at deals.srv1277799.hstgr.cloud
+# deals-site — public deals website at https://paiyaadeals.com (old: deals.srv1277799.hstgr.cloud -> 301)
 #   /root/deals-site/{gen.py,s.css}  generator (cron */10)   ·  /root/deals-site/html  static output
 #   /root/deals-site/deals.map       id -> affiliate url for nginx `map` (gen.py reloads nginx when it changes)
 #   /root/deals-proxy/nginx.conf     nginx config (kept at the old path so older notes still point somewhere real)

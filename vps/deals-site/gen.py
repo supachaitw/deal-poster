@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""deals-site generator — Notion Deal Queue -> static HTML for deals.srv1277799.hstgr.cloud
+"""deals-site generator — Notion Deal Queue -> static HTML for paiyaadeals.com
 
 Runs on the VPS host from cron every 10 minutes (see deploy.sh). stdlib only.
   python3 gen.py            build site into $OUT (default /root/deals-site/html)
@@ -11,7 +11,7 @@ import os, re, sys, json, html, hashlib, datetime, urllib.request, urllib.parse,
 
 ROOT = os.environ.get('DEALS_ROOT', '/root/deals-site')
 OUT = os.environ.get('OUT', ROOT + '/html')
-SITE = os.environ.get('SITE_URL', 'https://deals.srv1277799.hstgr.cloud')
+SITE = os.environ.get('SITE_URL', 'https://paiyaadeals.com')   # 26 ก.ย. 69 โดเมนจริง (deals.srv… 301 มาที่นี่)
 DB = '589f80403f534993b49fd9fdd4d292ff'
 DAYS = 90
 MAX_PAGES = 5
