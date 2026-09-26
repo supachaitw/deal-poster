@@ -460,10 +460,22 @@ export workflow **ทั้ง 8** → sanitize → commit + **push ทั้ง
 - `git diff` หลัง export: diff ที่มีแต่ `availableInMCP`/ลำดับ key = format เฉย ๆ ไม่ต้องจด · diff ที่โหนดเพิ่ม/หาย/โค้ดเปลี่ยน = **มีคนแก้บน n8n โดยไม่จด → ต้องไล่ดูและจดลง CLAUDE.md** (เกิดแล้ว 7 ก.ย. และ 24 ก.ย. 69)
 สแกน token ก่อน push ทุกครั้ง — `git log --all -p | grep -E` ไม่ใช่แค่ `git diff` เพราะ mirror พา**ทั้ง history**ไปด้วย
 
-## ออกแบบเว็บสาธารณะใหม่ (26 ก.ย. 2569) — รอ user ตัดสินใจ
-- แบบร่างอยู่ที่ Design canvas `https://claude.ai/artifact/EwwtwcNFiYKbcBwHhYSTQj` (4 artboard: หน้าแรกมือถือ / รายละเอียดดีล / หน้าแรกเดสก์ท็อป / โครงสร้างเว็บ)
-  โทน: พื้นครีม `#FBF7F0` · ตัวอักษร `#23201C` · ราคา/CTA `#C63F1E` · ปุ่มสมัคร/ความน่าเชื่อถือ `#1F6E63` · ฟอนต์ Kanit (หัว/ราคา — ตัวเดียวกับคลิป Reels) + Noto Sans Thai (เนื้อความ)
-- ⚠️ **home. ไม่มี basic-auth แล้ว** — `docker-compose.home.yml` ถอด `middlewares=home-auth` ออกจาก router `home` และ `home-api` ทั้งคู่ (มีคอมเมนต์ "PUBLIC" + บรรทัด rollback ไว้)
-  → `/dealposter.html`, `POST /api/dealposter/approve`, `/subs.html`, `/api/metrics` เปิดให้ทุกคน · หัวข้อ Monitoring ด้านบนที่บอกว่า basic-auth ครอบอยู่ **ไม่จริงแล้ว**
-- ข้อเสนอในแบบ: แยก "หน้าสาธารณะ" (ดีล — ทำเป็น static HTML ที่ n8n สร้างทุก 10 นาที, ถอด `noindex`, มีหน้าดีลรายชิ้น `/d/<slug>` + หมวด `/c/<หมวด>`) ออกจาก "คอนโซลส่วนตัว" (ของเดิมทั้งหมด ใส่ auth กลับ)
-  ข้อมูลจริงที่ใช้ตัดสินใจ: หน้า deals. ตอบ 3.4 วิ (ไม่ cache), 120 การ์ด มีป้าย % แค่ 10 ใบ (ราคาเต็มว่างเป็นส่วนใหญ่), คลิกรวม 3 ครั้งตั้งแต่ 24 ก.ย.
+## เว็บดีลสาธารณะตัวใหม่ (26 ก.ย. 2569) — `deals.` เป็น static site แล้ว ไม่ผ่าน n8n ตอนคนเปิด
+แบบร่างที่ user อนุมัติ ("จัดไป"): Design canvas `https://claude.ai/artifact/EwwtwcNFiYKbcBwHhYSTQj` (หน้าแรกมือถือ / รายละเอียดดีล / เดสก์ท็อป / โครงสร้าง)
+โทน: พื้นครีม `#FBF7F0` · ตัวอักษร `#23201C` · ราคา/CTA `#C63F1E` · ปุ่มสมัคร `#1F6E63` · Kanit (หัว/ราคา ตัวเดียวกับคลิป Reels) + Noto Sans Thai
+- **โครง**: `/root/deals-site/gen.py` (ซอร์ส `vps/deals-site/`) ดึง Notion (สถานะ "โพสต์แล้ว" · `โพสต์เมื่อ` ≤ 90 วัน · ≤ 500 แถว) → เขียน HTML ลง `/root/deals-site/html/`
+  ใช้เวลา ~3 วิ · **cron `*/10`** (`crontab -l | grep deals-site`, log `/root/deals-site/gen.log`) · container `deals-proxy` (nginx:alpine) เสิร์ฟไฟล์ตรง → ทุกหน้า ~40 ms (เดิม 3.4 วิตอน cache หมด)
+  · deploy/สร้าง container ใหม่: `bash /root/deals-site/deploy.sh` · แก้แค่ nginx: แก้ `/root/deals-proxy/nginx.conf` แล้ว `docker exec deals-proxy sh -c 'nginx -t && nginx -s reload'`
+- **หน้า**: `/` (ลดแรงวันนี้ = off ≥ 20% ใน 14 วัน top 6 · ดีลล่าสุด 48 ใบ + ปุ่ม "ดูดีลเพิ่ม" โหลด `/deals.json` ฝั่ง client · ค้นหาก็ใช้ไฟล์เดียวกัน) ·
+  `/c/<beauty|home|fashion|gadget|food|auto|other>` หน้าหมวด · **`/d/<notion id ไม่มีขีด>` หน้าดีลรายชิ้น** (og:image + JSON-LD Product + ปุ่มแชร์ LINE/FB + ดีลคล้ายกัน) ·
+  `/about` `/policy` `/sitemap.xml` `/rss.xml` `/robots.txt` · **ไม่มี `noindex` แล้ว** ตั้งใจให้ Google เก็บ
+- **นับคลิก**: การ์ด/ปุ่มลิงก์ไป `/go?d=<id>` → nginx `map` จากไฟล์ `/root/deals-site/deals.map` (gen.py เขียนใหม่ทุกรอบ + reload nginx เฉพาะเมื่อเปลี่ยน) → 302 ไปลิงก์ affiliate
+  · id เก่าแบบมีขีด (`/webhook/go?d=…` ที่เคยแชร์) ยังใช้ได้ (map มีทั้ง 2 แบบ) · id ไม่รู้จัก → หน้าแรก · **log `/root/deals-site/log/go.log`** (บันทึกเฉพาะ id ที่รู้จัก) · ดูสถิติ: `python3 /root/deals-site/gen.py stats`
+  · สถิติเดิมใน n8n staticData (3 คลิก) ทิ้งไป
+- **รูปสินค้าผ่านโดเมนเรา** `/img/s/<shopee seg>` และ `/img/l/<lazada path>` → nginx proxy + cache 14 วันใน `/root/deals-site/cache` → same-origin, เร็ว, และ **FB/LINE preview bot ดึง og:image ได้** (ดึงจาก Shopee CDN ตรงไม่ได้)
+- **n8n `teJKfYg0xuG9OSfc` (Deal Landing Page) ไม่ถูกใช้จากโดเมน `deals.` แล้ว** — ยัง active อยู่ เข้าได้ทาง n8n ตรง (`/webhook/deals`, `/webhook/deals-stats`) เก็บไว้เป็น fallback ยังไม่ลบ
+  · `/webhook/deals` บน `deals.` → 301 ไปหน้าแรก
+- **แก้ดีไซน์**: แก้ `s.css`/template ใน `gen.py` ที่ repo → `cp` ไป `/root/deals-site/` → รัน `python3 /root/deals-site/gen.py` (CSS มี `?v=<hash>` cache-bust เอง) · ห้ามแก้ไฟล์ใน `html/` ตรง ๆ จะถูกทับใน 10 นาที
+- ⚠️ ลิงก์ "เสนอดีล/ติดต่อ" ชี้ไปเพจ FB **ไม่ชี้ไปฟอร์ม intake** (ฟอร์มสร้างแถวสถานะ "ใหม่" ที่โพสต์อัตโนมัติ ถ้าเปิดสาธารณะ = ใครก็ยัดดีลลงเพจได้)
+- **home. ใส่ basic-auth กลับแล้ว 26 ก.ย. 69** (ก่อนหน้านั้นเปิดสาธารณะทั้ง `home` และ `home-api` router มาระยะหนึ่ง — ปุ่มอนุมัติดีลใน `/dealposter.html` ยิงได้โดยไม่ต้อง login) ·
+  `course.html` ยังสาธารณะผ่าน router `home-course` เหมือนเดิม · backup compose `docker-compose.home.yml.bak-20260926`
