@@ -26,7 +26,9 @@ VOICE_ORDER = ['niwat', 'krit']
 GOOGLE_AI_KEY = os.environ.get('GOOGLE_AI_KEY', '').strip()
 GEMINI_MODEL = 'gemini-3.8-flash-tts'
 GEMINI_VOICES = [('Puck', 'm'), ('Achird', 'm'), ('Zubenelgenubi', 'm'), ('Leda', 'f'), ('Laomedeia', 'f'), ('Sulafat', 'f')]
-GEMINI_STYLE = 'อ่านเป็นภาษาไทยแบบคนเล่าดีลให้เพื่อนฟังในคลิปสั้น เป็นกันเอง กระตือรือร้นนิดหน่อย พูดชัด จังหวะปานกลาง อ่านเฉพาะข้อความต่อไปนี้ ไม่ต้องเพิ่มคำอื่น:\n\n'
+# ⛔ ห้ามใส่คำสั่งสไตล์นำหน้าบท — วัด 27 ก.ย. 69: Gemini TTS อ่านคำสั่งออกเสียงไปด้วย (ท่อน 2.4 วิ → 4.1–13.5 วิ ตามความยาวคำสั่ง)
+#   และ systemInstruction ใช้กับโมเดล TTS ไม่ได้ (400 'Developer instruction is not enabled') → ส่งข้อความล้วน ใช้โทนธรรมชาติของแต่ละเสียง
+GEMINI_STYLE = ''
 GEMINI_COOLDOWN_UNTIL = 0.0
 
 def voice_for(seed, d=None):
@@ -455,11 +457,22 @@ async def _tts(segs, W, seed, vkey='niwat'):
                         pass
                     failed = 'HTTP %d' % e.code
                     if e.code == 429:
-                        # free tier = 10 คำขอ/วัน/โมเดล (วัด 27 ก.ย. 69: quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier) → พัก 6 ชม. · โควตาต่อนาที → พัก 90 วิ
+                        # free tier = 10 คำขอ/วัน/โมเดล (quotaId …PerDay…-FreeTier) → พัก 6 ชม. ถอย Azure ทันที
+                        # paid tier (เปิด billing 27 ก.ย. 69) เหลือเพดานต่อนาที ~10 คำขอ (quotaId GenerateRequestsPerMinutePerProjectPerModel) → รอตาม retryDelay (≤20 วิ) แล้วลองใหม่ 1 ครั้ง ค่อยถอย
                         daily = 'PerDay' in body
-                        GEMINI_COOLDOWN_UNTIL = time.time() + (6 * 3600 if daily else 90)
-                        failed = 'HTTP 429 (%s quota)' % ('daily' if daily else 'per-minute')
-                        break            # ชนโควตา: ไม่รอ retry ถอยไป Azure ทั้งคลิปทันที
+                        if daily:
+                            GEMINI_COOLDOWN_UNTIL = time.time() + 6 * 3600
+                            failed = 'HTTP 429 (daily quota)'
+                            break
+                        m = re.search(r'retryDelay\W+(\d+)', body)
+                        wait = min(int(m.group(1)) if m else 15, 20)
+                        failed = 'HTTP 429 (per-minute quota)'
+                        if k == 0:
+                            print('gemini 429 per-minute → wait %ds' % wait, flush=True)
+                            await asyncio.sleep(wait)
+                            continue
+                        GEMINI_COOLDOWN_UNTIL = time.time() + 60
+                        break
                     await asyncio.sleep(2 * (k + 1))
                 except Exception as e:
                     failed = str(e)[:80]
