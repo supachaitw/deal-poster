@@ -14,6 +14,11 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
   push โดน reject → `git pull --rebase` แล้ว push ใหม่ **ห้าม force push**
   (กฎชุดนี้มาจากบทเรียน expense-bot ที่ session แก้จากไฟล์เก่าแล้วทับฟีเจอร์หาย 2 รอบ)
 - **ห้าม print token/secret ลง output หรือ commit ลง repo** — ใช้ใน script เท่านั้น, ไฟล์ใน `workflows/` ต้อง sanitize เป็น `REPLACE_*` ก่อน commit เสมอ (ดู pattern ใน git log)
+  **หลุดมาแล้ว 3 ครั้ง (24 ส.ค. FB token · 27 ก.ย. Telegram token บางส่วน + Bitkub HMAC secret) → user สั่ง "ป้องกันตัวเองหน่อย" 27 ก.ย. 69 → มีกลไกบังคับแล้ว:**
+  · **ของดิบจาก n8n API / `docker inspect` / env / `.env` ห้ามขึ้นจอตรง ๆ** — ต่อท่อ `| python3 scripts/redact.py` เสมอ หรือใช้ `python3 scripts/n8n_get.py <id> ["node"]` (แสดง node/jsCode หลัง redact · `--raw-to FILE` เขียนดิบลงไฟล์ไว้ patch โดยไม่พิมพ์)
+  · **hook `.claude/hooks/guard_bash.py`** (PreToolUse ใน `.claude/settings.json`) **บล็อก**คำสั่ง Bash ที่แตะแหล่งความลับโดยไม่ผ่าน redact · python heredoc ที่แตะ n8n API ต้องมี `# noraw` (คำสัญญาว่าไม่ print ค่าดิบ — print ได้แค่ฟิลด์ที่เลือกแล้ว เช่น ชื่อ node/สถานะ/ความยาว) หรือ import redact · โดนบล็อกแล้ว**ห้ามเลี่ยง** ให้แก้คำสั่งตามข้อความ
+  · `redact.py` จับทั้ง token รูปแบบรู้จัก (FB/Threads/Telegram/Anthropic/JWT/Bearer/Notion/…), ค่าของคีย์ชื่อ secret/token/key/password/authorization, และสตริงสุ่มยาว (hex ≥32 ยกเว้น Notion id ใน URL/`"id"`, base64 ≥48) · token รูปแบบใหม่ → เพิ่มใน `KNOWN` ที่นี่ + `SANITIZE`/`LEAK` ใน export_workflows.py
+  · บทเรียนรูปแบบที่หลุด: (1) dump jsCode/params ทั้งก้อน "เพื่อดูโครง" (2) `str(url)[:45]` คิดว่าตัดสั้นพอแล้ว (3) print พารามิเตอร์ node แล้ว exclude แค่คีย์ `value` แต่ secret อยู่คีย์อื่น → **อย่าเลือก "ยกเว้นคีย์ที่รู้" ให้เลือก "พิมพ์เฉพาะคีย์ที่ต้องการ" แล้วผ่าน redact**
 - n8n API key อยู่หน้า Notion **"🔐 Claude Daily Brief — Config"** — ดึงจากที่นั่น อย่า hardcode ที่อื่น
 - แก้ workflow ผ่าน API: `PUT /api/v1/workflows/{id}` รับเฉพาะ `{name,nodes,connections,settings}` แล้วต้อง **deactivate→activate** ทุกครั้ง
 - ⛔ **ห้าม PUT ไฟล์จาก `workflows/` เข้า n8n เด็ดขาด** — ไฟล์พวกนั้น sanitize แล้ว token เป็น `REPLACE_*` ยิงเข้าไปคือ**ทุกช่องทางตายพร้อมกัน** ต้องไล่ขอ token ใหม่ทีละอัน
