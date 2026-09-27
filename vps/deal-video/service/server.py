@@ -11,7 +11,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 FONTS = '/app/fonts'
 MUSIC = '/app/music/Carefree.mp3'
-FPS = 30
+FPS = int(os.environ.get('FPS', '24'))   # #18: 30 → 24 (Reels รับได้ · วัด 11.0s → 9.7s)
+# #18 27 ก.ย. 69 วัดบนคลิปเพลง 11.8 วิ (idle): graph เดิม veryfast 14.7s/745KB · graph ใหม่ (bg/fg ทำครั้งเดียว) veryfast 10.9s/715KB · superfast 10.1s/1.4MB · ultrafast 9.3s/4.2MB
+# → คง veryfast (ไฟล์เท่าเดิม อัปโหลดไม่ช้าลง) · preset/crf/fps ตั้งผ่าน env ไว้ทดลอง
+X264_PRESET = os.environ.get('X264_PRESET', 'veryfast')
+X264_CRF = int(os.environ.get('X264_CRF', '22'))
 VOICE = 'th-TH-NiwatNeural'   # ค่าหลัก + ตัวสำรอง edge-tts (edge-tts ไม่มี Krit)
 # 27 ก.ย. 69 #16 user: "ใช้ Niwat สลับกับ K1" — สลับต่อดีลตาม hash ชื่อ (คงที่ ทำตัวอย่างซ้ำได้) · K1 = Krit MAI-Voice-2 ไม่ใส่สไตล์
 # ⚠️ MAI-Voice-2 ไม่ตอบสนอง <prosody rate/pitch> (วัด 27 ก.ย.: rate -6% กับ 0% ยาวเท่ากัน) ใช้จังหวะธรรมชาติของมันเอง
@@ -634,9 +638,16 @@ def render(d):
 
         frames = int(round(D * FPS))
         n = len(wavs)
+        # 27 ก.ย. 69 #18 ลดต้นทุน ffmpeg: พื้นหลังเบลอและรูปสินค้าย่อทำครั้งเดียวเป็น PNG (เดิมกรอง boxblur 30:3 บน 720x1280 และ zoompan บน 1200x1200 ทุกเฟรม)
+        t_pre = time.time()
+        run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/product.jpg', '-vf',
+             'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,boxblur=30:3,eq=brightness=-0.22:saturation=1.15', W + '/bg.png'])
+        run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/product.jpg', '-vf',
+             'scale=720:720:force_original_aspect_ratio=increase,crop=720:720', W + '/fg.png'])
+        print('[render] pre-scale %.1fs' % (time.time() - t_pre), flush=True)
         badge = ("drawbox=x=486:y=146:w=200:h=100:color=0xE53935@1:t=fill:enable='gte(t,0.8)',\n" if pct else '')
-        g = f"""[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,boxblur=30:3,eq=brightness=-0.22:saturation=1.15,setsar=1[bg];
-[1:v]scale=1200:1200:force_original_aspect_ratio=increase,crop=1200:1200,zoompan=z='min(zoom+0.0005,1.14)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=600x600:fps={FPS},setsar=1[fg];
+        g = f"""[0:v]setsar=1[bg];
+[1:v]zoompan=z='min(zoom+0.0005,1.14)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=600x600:fps={FPS},setsar=1[fg];
 [bg][fg]overlay=60:190:shortest=1,
 drawbox=x=56:y=186:w=608:h=608:color=white@0.92:t=5,
 {badge}drawbox=x=0:y=1108:w=720:h=104:color=0x8B5E3C@0.95:t=fill:enable='gte(t,{at['cta']:.2f})',
@@ -654,11 +665,11 @@ fade=t=in:st=0:d=0.4,fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
         open(W + '/graph.txt', 'w', encoding='utf-8').write(g)
 
         cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
-               '-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', W + '/product.jpg', '-i', W + '/product.jpg']
+               '-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', W + '/bg.png', '-i', W + '/fg.png']
         for w in wavs:
             cmd += ['-i', w]
         cmd += ['-i', MUSIC, '-filter_complex_script', W + '/graph.txt', '-map', '[v]', '-map', '[aout]',
-                '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-r', str(FPS),
+                '-c:v', 'libx264', '-preset', X264_PRESET, '-crf', str(X264_CRF), '-r', str(FPS),
                 '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', W + '/out.mp4']
         run(cmd)
         return open(W + '/out.mp4', 'rb').read(), voiced, D, [t for _, t in segs]
@@ -700,7 +711,10 @@ class H(BaseHTTPRequestHandler):
                 except (TypeError, ValueError):
                     d[k] = None
             forced = d.get('voice') is not None   # โหมดบังคับ/auto ใช้ตอบ header+JSON ด้านล่าง (เดิมนิยามแค่ใน render() → NameError ทำทุก request ตอบ 500 ตั้งแต่ 22 ก.ย. 69)
+            t_r = time.time()
             mp4, voiced, D, lines = render(d)
+            render_s = round(time.time() - t_r, 1)
+            print('[timing] render=%.1fs dur=%s voice=%s' % (render_s, D, voiced), flush=True)
             up = d.get('upload')
             if up:
                 # อัปโหลดให้เลย (resumable ของ IG) — ส่ง binary ออกจาก Code node ของ n8n ไม่ได้
@@ -711,15 +725,18 @@ class H(BaseHTTPRequestHandler):
                 r = urllib.request.Request(up['url'], data=mp4, method='POST', headers={
                     'Authorization': 'OAuth ' + up['token'], 'offset': '0', 'file_size': str(len(mp4)),
                     'Content-Type': 'application/octet-stream'})
+                t_u = time.time()
                 try:
                     body = urllib.request.urlopen(r, timeout=120).read().decode('utf-8', 'replace')
                     code = 200
                 except urllib.error.HTTPError as he:
                     body, code = he.read().decode('utf-8', 'replace')[:800], he.code
+                upload_s = round(time.time() - t_u, 1)
+                print('[timing] upload=%.1fs status=%s bytes=%d' % (upload_s, code, len(mp4)), flush=True)
                 return self._json(200 if code == 200 else 502, {
                     'uploaded': code == 200, 'status': code, 'response': body[:800],
                     'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto',
-                    'duration': D, 'lines': lines})
+                    'duration': D, 'lines': lines, 'render_s': render_s, 'upload_s': upload_s})
         except subprocess.CalledProcessError as e:
             return self._json(500, {'error': 'ffmpeg failed', 'detail': (e.stderr or b'')[-800:].decode('utf-8', 'replace')})
         except Exception as e:
@@ -739,4 +756,4 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     print('deal-video listening :8080', flush=True)
-    HTTPServer(('0.0.0.0', 8080), H).serve_forever()
+    HTTPServer(('0.0.0.0', int(os.environ.get('PORT', '8080'))), H).serve_forever()
