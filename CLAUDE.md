@@ -103,7 +103,11 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 - `Build Caption` / `Split Approved`: มีทั้ง sale+full → `💥 เหลือ X (ลด Y%)` · มีแค่ sale → `💥 เหลือ X` · มีแค่ full → `💰 ราคา X` · ไม่มีเลย → ไม่มีบรรทัดราคา
 - `Split Approved` สร้างแคปชันขั้นต่ำให้เองถ้าช่องแคปชันว่าง — **"อนุมัติแล้ว" = ต้องโพสต์เสมอ** (เดิม `.filter(i => i.json.caption)` ทิ้งเงียบ ๆ)
 
-## แปลงลิงก์ Shopee ธรรมดาเป็น affiliate อัตโนมัติ (27 ก.ย. 2569) — **รอ App ID/Secret จาก user**
+## แปลงลิงก์ Shopee ธรรมดาเป็น affiliate อัตโนมัติ (27 ก.ย. 2569) — ⛔ **ติดเกณฑ์ Shopee ยังขอ Open API ไม่ได้ (โค้ดพร้อม รอวันมีสิทธิ์)**
+**27 ก.ย. 69 user เปิดหน้า help.shopee.co.th "ขั้นตอนการขอเปิด Affiliate Open API"**: ต้องยื่นฟอร์ม และเกณฑ์คือ (1) ยอดคำสั่งซื้อ affiliate **> 1,000 รายการ/เดือน** (2) มีเว็บ/ผู้ติดตามจำนวนมาก ส่ง Monthly visit / Reach / Engagement (3) เนื้อหาคุณภาพ ไม่ clickbait — ทีมงานตัดสินเป็นที่สิ้นสุด
+→ บัญชีตอนนี้ (IG 1 follower, เว็บเพิ่งเปิด) ไม่ผ่านแน่ · **endpoint `/afflink` + intake patch เก็บไว้เฉย ๆ** (ไม่มี creds = ตอบ `no credentials` ใช้ลิงก์เดิม ไม่มีผลข้างเคียง) · ทางเลือกที่เสนอ user: (ก) กดแชร์จากปุ่ม affiliate ในแอป Shopee ("แชร์และรับค่าคอม") ได้ลิงก์ `s.shopee.co.th` เลย ไม่ต้องเข้าเว็บ (ข) เครือข่าย sub-affiliate เช่น Involve Asia / Accesstrade ที่มี deeplink API ให้ publisher ทั่วไป — เปลี่ยน backend ของ `/afflink` ไปเรียกแทนได้ (ยังไม่ได้ทำ/ยังไม่ได้ตรวจเงื่อนไข) (ค) ยื่นฟอร์มไว้ก่อนเผื่อผ่าน
+
+(รายละเอียดเดิม — ยังใช้ได้ทันทีที่มี App ID/Secret)
 user: "ส่งลิงก์ Shopee ไหนก็ได้ แล้วให้แปลงให้ เหมือนที่ทำมือในเว็บ affiliate" → ใช้ **Shopee Affiliate Open API** (ทางการ) ไม่ใช่กดเว็บแทนคน
 - **endpoint ใน deal-video**: `POST http://deal-video:8080/afflink {url}` → `{ok, link, original, final, origin, reason}` (โค้ดใน `server.py` หัวข้อ Shopee affiliate link)
   ขั้นตอน: ไม่ใช่ Shopee → ข้าม · เป็น `s.shopee.co.th`/`shope.ee` อยู่แล้ว → คืนเดิม (`already affiliate`) · อื่น ๆ ตาม redirect ด้วย HEAD (แกะ `universal-link?redir=` ของ Shopee) → ต้องได้หน้าสินค้า `-i.<shop>.<item>` หรือ `/product/<shop>/<item>` หรือหน้าร้าน → เรียก GraphQL `generateShortLink(originUrl, subIds:["dealposter"])` ที่ `open-api.affiliate.shopee.co.th/graphql`
