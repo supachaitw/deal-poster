@@ -374,6 +374,8 @@ n8n เห็น `render+upload: Request failed with status code 500` → ถอ
 · ⛔ บทเรียนตอนแก้: เขียนไฟล์ด้วย `open(p,'w')` แล้ว exception ก่อน `.write()` = **ไฟล์ว่างเปล่าทันที** (เกิดจริง 26 ก.ย. 69 กับ server.py ใน repo — กู้จาก git ได้เพราะ commit ไว้แล้ว) → เขียนลง `.new` แล้ว `os.replace` เสมอ
 · แหล่งเทรนด์ที่ใช้: Krevio "7 สูตร hook 2026", Kapook พจนานุกรม Gen Z 2569, สถิติแฮชแท็ก TikTok ไทย 22 ก.ย. 69 (aclosetwriter), Opus/Zeely/Kineclip hook 2026 — ควรสำรวจใหม่ทุก ~1 เดือน ศัพท์เปลี่ยนเร็ว
 
+**เปลี่ยนตัวเสียง (27 ก.ย. 69 — user: "ฟังแล้วรู้เลยว่าเป็น AI")** — สำรวจ `GET /cognitiveservices/voices/list` ที่ eastus: เสียงไทยแท้มี Premwadee/Achara (หญิง), Niwat (ชาย) และ **รุ่นใหม่ `th-TH-Nattapong:MAI-Voice-2` / `th-TH-Krit:MAI-Voice-2`** (ชาย มีสไตล์ friendlycheerful/excited/… ใช้ผ่าน `<mstts:express-as style=…>`) · เสียง multilingual/DragonHD (Emma/Ava/Xiaoxiao ฯลฯ 232 ตัว) พูดไทยได้เป็นภาษารอง · **ทุกตัวรวม HD/MAI สังเคราะห์ได้บน tier F0** (เทสแล้ว 8/8 ผ่าน) · ส่งตัวอย่างบทเดียวกัน 8 เสียง (A Achara · B Emma ML · C Ava ML · D Xiaoxiao ML · E Emma DragonHD · F Nattapong MAI · G Krit MAI · H Niwat) TG msg 1251–1258 **รอ user เลือก** · ถ้าเปลี่ยนเสียง: `VOICE` ใน server.py + ต้องปรับ `PROSODY` ใหม่ (ค่าเดิมจูนกับ Premwadee) + คำลงท้าย ค่ะ/ครับ ถ้าเป็นเสียงชาย + ถ้าใช้ MAI style ต้องเพิ่ม namespace mstts ใน SSML ของ `azure_tts` · ทางเลือกนอก Azure ถ้ายังไม่พอใจ: ElevenLabs (ไทยได้ ธรรมชาติมาก มีค่าใช้จ่าย), OpenAI TTS, Botnoi Voice (ไทยโดยเฉพาะ)
+
 **ไอเดียที่ยังไม่ได้ลอง** (คิวถัดไป): ขึ้นเสียงท้ายประโยคคำถาม · ใส่เสียงหายใจเบา ๆ ก่อน hook ·
 ลองเสียง `th-TH-AcharaNeural` เทียบ Premwadee · ปรับ `aecho` ให้แห้งลงเมื่อฟังแล้วเหมือนอยู่ห้องโถง
 
