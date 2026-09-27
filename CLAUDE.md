@@ -98,6 +98,18 @@ Notion Deal Queue DB `589f80403f534993b49fd9fdd4d292ff` — สถานะ: ใ
 - `Build Caption` / `Split Approved`: มีทั้ง sale+full → `💥 เหลือ X (ลด Y%)` · มีแค่ sale → `💥 เหลือ X` · มีแค่ full → `💰 ราคา X` · ไม่มีเลย → ไม่มีบรรทัดราคา
 - `Split Approved` สร้างแคปชันขั้นต่ำให้เองถ้าช่องแคปชันว่าง — **"อนุมัติแล้ว" = ต้องโพสต์เสมอ** (เดิม `.filter(i => i.json.caption)` ทิ้งเงียบ ๆ)
 
+## แปลงลิงก์ Shopee ธรรมดาเป็น affiliate อัตโนมัติ (27 ก.ย. 2569) — **รอ App ID/Secret จาก user**
+user: "ส่งลิงก์ Shopee ไหนก็ได้ แล้วให้แปลงให้ เหมือนที่ทำมือในเว็บ affiliate" → ใช้ **Shopee Affiliate Open API** (ทางการ) ไม่ใช่กดเว็บแทนคน
+- **endpoint ใน deal-video**: `POST http://deal-video:8080/afflink {url}` → `{ok, link, original, final, origin, reason}` (โค้ดใน `server.py` หัวข้อ Shopee affiliate link)
+  ขั้นตอน: ไม่ใช่ Shopee → ข้าม · เป็น `s.shopee.co.th`/`shope.ee` อยู่แล้ว → คืนเดิม (`already affiliate`) · อื่น ๆ ตาม redirect ด้วย HEAD (แกะ `universal-link?redir=` ของ Shopee) → ต้องได้หน้าสินค้า `-i.<shop>.<item>` หรือ `/product/<shop>/<item>` หรือหน้าร้าน → เรียก GraphQL `generateShortLink(originUrl, subIds:["dealposter"])` ที่ `open-api.affiliate.shopee.co.th/graphql`
+  ลายเซ็น: header `Authorization: SHA256 Credential=<appId>, Timestamp=<unix วินาที>, Signature=sha256(appId+timestamp+payload+secret)` (payload = JSON body ตรงตัวไบต์ต่อไบต์) · error code 10020 = ลายเซ็น/เวลาผิด · 10035 = บัญชียังไม่ได้สิทธิ์ Open API
+  creds: `SHOPEE_AFF_APP_ID` / `SHOPEE_AFF_SECRET` ใน **`/root/deal-video/service/.env`** (ไม่อยู่ใน repo/n8n · เพิ่มแล้วต้อง `sh deploy.sh` เพราะ env ตรึงตอนสร้าง container) · ยังไม่มี = ตอบ `reason: no credentials` intake ใช้ลิงก์เดิม
+  ⛔ **ลิงก์แชร์วิดีโอ Shopee (`th.shp.ee/...` → `sv.shopee.co.th/share-video/...`) แปลงไม่ได้** — หน้าไม่มี product id เลย (ตัวอย่างที่ user ส่งมาเป็นแบบนี้พอดี) ต้องแชร์จาก**หน้าสินค้า** · ตอบกลับในแชทจะบอกเหตุผล
+- **intake ทั้ง 3 ทาง** (`Extract` ใน TG/LINE, `Prep` ใน Form): หลังหา `source` ถ้าเป็น shopee → `await this.helpers.httpRequest(... /afflink ...)` ใน try/catch → สำเร็จแทน `url` (เก็บ `origUrl`) · ไม่สำเร็จ `affNote` = เหตุผล · **ทุกอย่างปลายน้ำอ่าน `url` เดิม ไม่ต้องแก้ node อื่น** · `Build Reply` (TG/LINE) ต่อท้าย "🔗 แปลงเป็นลิงก์ affiliate ให้แล้ว" หรือ "⚠️ ยังไม่ใช่ลิงก์ affiliate (เหตุผล)"
+- **ยังไม่ได้ทดสอบ intake จริงแบบ end-to-end** (ทดสอบแค่ endpoint จาก container + syntax ของ Code) เพราะทดสอบจริงต้องสร้างแถว Notion และไม่มี creds — รอบแรกที่ user ส่งลิงก์ Shopee ธรรมดา ให้ดู runData ของ `Extract` (`origUrl`/`affNote`) และ log `[afflink]` ใน `docker logs deal-video`
+- วิธีขอ creds: เข้า https://affiliate.shopee.co.th → เมนู **Open API** (บางบัญชีต้องกดสมัคร/รออนุมัติ) → App ID + Secret → วางหน้า Notion Config หัวข้อ "Shopee Affiliate" แล้วใส่ .env · ทดสอบ: `docker exec deal-video python3 -c "import json,urllib.request;print(urllib.request.urlopen(urllib.request.Request('http://localhost:8080/afflink',json.dumps({'url':'https://shopee.co.th/product/<shop>/<item>'}).encode(),{'Content-Type':'application/json'})).read())"`
+- Lazada ยังไม่ทำ (user ขอแค่ Shopee) — Lazada มี Open Platform แยกต่างหาก
+
 ## Token / Credential (28 ส.ค. 2569)
 - **Notion token ไม่ฝังใน workflow แล้ว** — ย้ายเข้า n8n credential **`Notion Deal Poster (Header Auth)`** (id `U5mfqJ7z2OV1c4PT`, type httpHeaderAuth) ครบทั้ง 12 จุดใน 5 workflow
   - Landing Page: โหนด `Query Posted Deals` แปลงจาก Code (fetch วนหน้า) → httpRequest ใช้ credential ดึงหน้าเดียว `page_size: 100` เรียงใหม่สุดก่อน — เทียบ HTML ก่อน/หลังแล้ว **byte-identical** (หน้า live แสดง 100 รายการล่าสุดเท่าเดิม)

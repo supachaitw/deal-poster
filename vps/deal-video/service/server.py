@@ -6,7 +6,7 @@
 # (ใส่ "upload": {"url": rupload uri, "token": …} = อัปโหลดขึ้น IG ให้เลย ตอบ JSON แทนไฟล์)
 # ตอบ 200 video/mp4 (header X-Voice: 1 = มีเสียงพากย์, 0 = TTS ล้มเลยได้แค่เพลง) · ผิดพลาด = 4xx/5xx JSON
 # เรนเดอร์ทีละคลิป (HTTPServer ไม่ใช่ threaded) เพราะ VPS มี 1 core
-import asyncio, hashlib, json, math, os, re, shutil, subprocess, tempfile, time, traceback, urllib.error, urllib.request
+import asyncio, hashlib, json, math, os, re, shutil, subprocess, tempfile, time, traceback, urllib.error, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 FONTS = '/app/fonts'
@@ -287,6 +287,93 @@ def dur(p):
                                           '-of', 'default=nw=1:nk=1', p]))
 
 AZ_KEY = os.environ.get('AZURE_SPEECH_KEY', '')
+
+# ---------- Shopee affiliate link (27 ก.ย. 69) ----------
+# user: "ส่งลิงก์ Shopee ไหนก็ได้ แล้วให้แปลงเป็นลิงก์ affiliate ให้" → ใช้ Shopee Affiliate Open API (GraphQL generateShortLink)
+# creds ใน /root/deal-video/service/.env: SHOPEE_AFF_APP_ID / SHOPEE_AFF_SECRET (จากหน้า affiliate.shopee.co.th → Open API) — ไม่มี = ตอบ ok:false เฉย ๆ
+# ลายเซ็น: Authorization: SHA256 Credential=<appId>, Timestamp=<unix s>, Signature=sha256(appId + timestamp + payload + secret)
+# intake (Extract/Prep ใน 3 workflow) POST /afflink {url} → {ok, link, original, final, reason} · แปลงไม่ได้ intake ใช้ลิงก์เดิม
+import hashlib
+SHOPEE_AFF_APP_ID = os.environ.get('SHOPEE_AFF_APP_ID', '').strip()
+SHOPEE_AFF_SECRET = os.environ.get('SHOPEE_AFF_SECRET', '').strip()
+SHOPEE_AFF_ENDPOINT = 'https://open-api.affiliate.shopee.co.th/graphql'
+UA_BROWSER = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+
+def is_shopee_affiliate(u):
+    return bool(re.match(r'https?://(s\.shopee\.co\.th|shope\.ee)/', u or '', re.I))
+
+def is_shopee(u):
+    return bool(re.search(r'https?://([a-z0-9-]+\.)*(shopee\.co\.th|shp\.ee|shopee\.com)/', u or '', re.I))
+
+def resolve_url(u, hops=6):
+    """ตาม redirect ทีละขั้น (ไม่โหลด body) คืน URL ปลายทาง — th.shp.ee / shp.ee เป็นลิงก์แชร์จากแอป"""
+    cur = u
+    for _ in range(hops):
+        req = urllib.request.Request(cur, method='HEAD', headers={'User-Agent': UA_BROWSER})
+        class NoRedir(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *a, **k):
+                return None
+        try:
+            urllib.request.build_opener(NoRedir).open(req, timeout=10)
+            return cur
+        except urllib.error.HTTPError as e:
+            loc = e.headers.get('Location')
+            if e.code in (301, 302, 303, 307, 308) and loc:
+                cur = urllib.parse.urljoin(cur, loc)
+                # shopee universal-link ห่อปลายทางไว้ใน ?redir=
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(cur).query)
+                if 'universal-link' in cur and q.get('redir'):
+                    cur = q['redir'][0]
+                continue
+            return cur
+        except Exception:
+            return cur
+    return cur
+
+def shopee_product_url(u):
+    """ทำ URL สินค้าให้สะอาด: https://shopee.co.th/<slug>-i.<shop>.<item> หรือ /product/<shop>/<item> → คืน None ถ้าไม่ใช่หน้าสินค้า/ร้าน"""
+    p = urllib.parse.urlparse(u)
+    if not re.search(r'(^|\.)shopee\.co\.th$', p.netloc, re.I) or p.netloc.lower().startswith('sv.'):
+        return None
+    m = re.search(r'-i\.(\d+)\.(\d+)', p.path) or re.search(r'/product/(\d+)/(\d+)', p.path)
+    if m:
+        return 'https://shopee.co.th/product/%s/%s' % (m.group(1), m.group(2))
+    if re.match(r'^/[A-Za-z0-9_.]+/?$', p.path):          # หน้าร้าน /shopname
+        return 'https://shopee.co.th' + p.path.rstrip('/')
+    return None
+
+def shopee_short_link(origin_url, sub_id='dealposter'):
+    payload = json.dumps({'query': 'mutation{generateShortLink(input:{originUrl:%s,subIds:[%s]}){shortLink}}'
+                          % (json.dumps(origin_url), json.dumps(sub_id))}, separators=(',', ':'))
+    ts = str(int(time.time()))
+    sig = hashlib.sha256((SHOPEE_AFF_APP_ID + ts + payload + SHOPEE_AFF_SECRET).encode('utf-8')).hexdigest()
+    req = urllib.request.Request(SHOPEE_AFF_ENDPOINT, data=payload.encode('utf-8'), method='POST', headers={
+        'Content-Type': 'application/json',
+        'Authorization': 'SHA256 Credential=%s, Timestamp=%s, Signature=%s' % (SHOPEE_AFF_APP_ID, ts, sig)})
+    body = json.loads(urllib.request.urlopen(req, timeout=15).read().decode('utf-8'))
+    if body.get('errors'):
+        raise RuntimeError(json.dumps(body['errors'], ensure_ascii=False)[:300])
+    return body['data']['generateShortLink']['shortLink']
+
+def afflink(u):
+    u = (u or '').strip()
+    out = {'ok': False, 'link': None, 'original': u, 'final': None, 'reason': ''}
+    if not u or not is_shopee(u):
+        out['reason'] = 'not a shopee url'; return out
+    if is_shopee_affiliate(u):
+        out.update(ok=True, link=u, final=u, reason='already affiliate'); return out
+    final = resolve_url(u); out['final'] = final
+    origin = shopee_product_url(final)
+    if not origin:
+        out['reason'] = 'no product in link (video/other share?)'; return out
+    if not (SHOPEE_AFF_APP_ID and SHOPEE_AFF_SECRET):
+        out['reason'] = 'no credentials'; out['origin'] = origin; return out
+    try:
+        out.update(ok=True, link=shopee_short_link(origin), origin=origin, reason='generated')
+    except Exception as e:
+        out['reason'] = 'api: ' + str(e)[:200]
+    return out
+
 AZ_REGION = os.environ.get('AZURE_SPEECH_REGION', 'eastus')
 
 def azure_tts(text, rate, pitch, out, voice=VOICE):
@@ -501,6 +588,14 @@ class H(BaseHTTPRequestHandler):
         self._json(404, {'error': 'not found'})
 
     def do_POST(self):
+        if self.path == '/afflink':
+            try:
+                d = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)).decode('utf-8'))
+                r = afflink(d.get('url'))
+                print('[afflink] %s -> %s (%s)' % ((d.get('url') or '')[:60], r.get('link'), r.get('reason')), flush=True)
+                return self._json(200, r)
+            except Exception as e:
+                return self._json(500, {'ok': False, 'error': str(e)[:200]})
         if self.path != '/render':
             return self._json(404, {'error': 'not found'})
         try:
