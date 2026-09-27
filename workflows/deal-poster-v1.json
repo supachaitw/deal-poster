@@ -765,6 +765,81 @@
         },
         "options": {}
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// รวม alert ของทุกดีลในรอบเป็น 1 ข้อความ LINE (โควตา LINE OA ฟรี 300 ข้อความ/เดือน — ส่งรายดีลหมดใน ~1 สัปดาห์\n// 24 ก.ย. 69 ชน 429 แล้วทำสาย IG ไม่รัน) · นับเป็น 1 ข้อความต่อ push ไม่ว่าจะยาวแค่ไหน · 7 รอบ/วัน ≈ 217/เดือน\n// เช็คโควตาก่อนทุกครั้ง: ถ้าใช้ครบแล้ว send=false → node ถัดไปไม่ยิง (TG ยังได้ครบทุกดีลเหมือนเดิม)\nconst alerts = $('Build Posted Alert').all().map(i => i.json.alert).filter(Boolean);\nif (!alerts.length) return [];\nconst now = new Date(Date.now() + 7 * 3600 * 1000);\nconst hh = String(now.getUTCHours()).padStart(2, '0'), mm = String(now.getUTCMinutes()).padStart(2, '0');\nlet text = '📣 โพสต์รอบ ' + hh + ':' + mm + ' น. — ' + alerts.length + ' ดีล\\n\\n' + alerts.join('\\n\\n');\nif (text.length > 4900) text = text.slice(0, 4890) + '\\n…';\nconst headers = { Authorization: 'Bearer REPLACE_LINE_CHANNEL_TOKEN' };\nlet quota = null, used = null, err = '';\ntry {\n  const q = await this.helpers.httpRequest({ method: 'GET', url: 'https://api.line.me/v2/bot/message/quota', headers, json: true });\n  const c = await this.helpers.httpRequest({ method: 'GET', url: 'https://api.line.me/v2/bot/message/quota/consumption', headers, json: true });\n  quota = (q && q.type === 'none') ? 999999 : Number(q && q.value);\n  used = Number(c && c.totalUsage);\n} catch (e) { err = String((e && e.message) || e).slice(0, 120); }\nconst send = Number.isFinite(quota) && Number.isFinite(used) && used < quota;\nreturn [{ json: { text, quota, used, send, err, deals: alerts.length } }];"
+      },
+      "name": "Build LINE Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        616
+      ],
+      "alwaysOutputData": false,
+      "id": "c3f36c08-4d0e-44a7-92ca-e578373751b3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "line-quota-ok",
+              "leftValue": "={{ $json.send }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "LINE Quota OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4032,
+        616
+      ],
+      "id": "dd785b65-583d-47fc-85b6-f4bc6891c350"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_LINE_CHANNEL_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: 'U72a09a140c06dd099b438153c3b45dd9', messages: [{ type: 'text', text: $json.text }] }) }}",
+        "options": {}
+      },
+      "name": "LINE Posted Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4256,
+        616
+      ],
+      "onError": "continueRegularOutput",
+      "id": "0c9ba1a2-a5fe-4964-81fd-18683e472d91"
     }
   ],
   "connections": {
@@ -1089,6 +1164,40 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "TG Posted Alert": {
+      "main": [
+        [
+          {
+            "node": "Build LINE Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LINE Summary": {
+      "main": [
+        [
+          {
+            "node": "LINE Quota OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LINE Quota OK?": {
+      "main": [
+        [
+          {
+            "node": "LINE Posted Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },

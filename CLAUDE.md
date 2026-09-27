@@ -55,7 +55,11 @@ memory ของผู้ช่วยเป็นของแยกรายเ�
   · **บทเรียน: เพิ่ม path ใหม่ใน Landing Page ทีไร ต้องเพิ่ม location ใน deals-proxy ด้วยเสมอ** (`/webhook/deals-stats` ยังเข้าได้ทาง n8n ตรงเท่านั้น ตั้งใจไม่เปิดผ่าน `deals.`)
 
 **Deal Poster v1 เปลี่ยน 24 ก.ย. 69 (session อื่น)**: `LINE Posted Alert` → **`TG Posted Alert`** (`api.telegram.org/bot…/sendMessage` chat_id `8336016992`) — แจ้งเตือน "โพสต์เสร็จ" ย้ายจาก LINE ไป Telegram
-→ **LINE ไม่มีการแจ้งเตือนอะไรจากสายโพสต์เลยแล้ว** (LINE Preview ปิดตั้งแต่ 21 ก.ย.) · LINE channel token ยังฝังอยู่แค่ใน Intake LINE
+→ ~~LINE ไม่มีการแจ้งเตือนอะไรจากสายโพสต์เลยแล้ว~~ **27 ก.ย. 69 กลับมาส่ง LINE แบบสรุปต่อรอบ** (user: "โพสต์ทุกโพสต์ ส่ง LINE ได้ก็ส่ง ถ้ามีโควตา"):
+  `TG Posted Alert` → **`Build LINE Summary`** (Code runOnceForAllItems: รวม `alert` ของทุกดีลในรอบเป็นข้อความเดียว + เรียก `GET /v2/bot/message/quota` และ `/quota/consumption` ด้วย `this.helpers.httpRequest` → `send = used < quota`) → **`LINE Quota OK?`** (IF) → **`LINE Posted Alert`** (push ไป user `U72a09a14…` เดิม, `onError: continueRegularOutput`)
+  · **ทำไมต้องสรุปต่อรอบ**: LINE OA แพลนฟรี **300 ข้อความ/เดือน** (นับต่อ push ต่อผู้รับ ไม่นับความยาว) — ส่งรายดีล 14–42 ดีล/วัน หมดใน ~1 สัปดาห์ · สรุปต่อรอบ ≤ 7/วัน ≈ 217/เดือน พอดีโควตา · **ก.ย. 69 ใช้ครบ 300/300 แล้ว** (= สาเหตุ 429 "too many requests" 24 ก.ย.) → จนถึง 1 ต.ค. node จะเห็น `send:false` และไม่ยิง (ดูได้ใน runData ของ `Build LINE Summary`: `quota/used/send/err`)
+  · วางไว้**ท้ายสุดของสาย** หลัง Mark Posted + TG → ต่อให้ LINE ล้มก็ไม่กระทบการโพสต์/มาร์ค (บทเรียน 24 ก.ย. ที่ LINE 429 ทำสาย IG ไม่รัน) · เช็คโควตาสด: `curl -H 'Authorization: Bearer <LINE token>' https://api.line.me/v2/bot/message/quota/consumption`
+  · LINE channel token ตอนนี้ฝังใน Deal Poster v1 ด้วย (jsCode ของ Build LINE Summary + header ของ LINE Posted Alert) นอกจาก Intake LINE — rotate ต้องแก้ 2 workflow
 · settings ทุก workflow มี `availableInMCP: false` เพิ่มมาเอง (n8n อัปเดตเวอร์ชัน) ไม่ใช่การแก้ของใคร
 
 **รูปสินค้าบนหน้ารวมดีล (27 ส.ค. 69)** — เพิ่ม property **`รูป` (url)** ใน Notion เก็บ `og:image` ของดีล
