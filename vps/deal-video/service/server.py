@@ -12,7 +12,16 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 FONTS = '/app/fonts'
 MUSIC = '/app/music/Carefree.mp3'
 FPS = 30
-VOICE = 'th-TH-NiwatNeural'   # 27 ก.ย. 69: user ฟัง 8 เสียงเทียบแล้วเลือก Niwat (ชาย) — Premwadee "ฟังแล้วรู้ว่าเป็น AI" · บทเปลี่ยนคำลงท้ายเป็น ครับ/นะ ทั้งชุด
+VOICE = 'th-TH-NiwatNeural'   # ค่าหลัก + ตัวสำรอง edge-tts (edge-tts ไม่มี Krit)
+# 27 ก.ย. 69 #16 user: "ใช้ Niwat สลับกับ K1" — สลับต่อดีลตาม hash ชื่อ (คงที่ ทำตัวอย่างซ้ำได้) · K1 = Krit MAI-Voice-2 ไม่ใส่สไตล์
+# ⚠️ MAI-Voice-2 ไม่ตอบสนอง <prosody rate/pitch> (วัด 27 ก.ย.: rate -6% กับ 0% ยาวเท่ากัน) ใช้จังหวะธรรมชาติของมันเอง
+# payload ใส่ "tts": "niwat"|"krit" เพื่อบังคับเสียง (ไว้ทำตัวอย่าง) · log: tts seg N ok (azure <key>)
+VOICES = {'niwat': 'th-TH-NiwatNeural', 'krit': 'th-TH-Krit:MAI-Voice-2'}
+VOICE_ORDER = ['niwat', 'krit']
+
+def voice_for(seed, d=None):
+    k = str((d or {}).get('tts') or '').strip().lower()
+    return k if k in VOICES else VOICE_ORDER[(seed // 53) % len(VOICE_ORDER)]   # 27 ก.ย. 69: user ฟัง 8 เสียงเทียบแล้วเลือก Niwat (ชาย) — Premwadee "ฟังแล้วรู้ว่าเป็น AI" · บทเปลี่ยนคำลงท้ายเป็น ครับ/นะ ทั้งชุด
 
 # ---------- ตัวเลขเป็นคำอ่านไทย (อ่านตัวเลขตรง ๆ ฟังเป็นหุ่นยนต์ที่สุด) ----------
 DIG = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า']
@@ -280,11 +289,11 @@ def dur(p):
 AZ_KEY = os.environ.get('AZURE_SPEECH_KEY', '')
 AZ_REGION = os.environ.get('AZURE_SPEECH_REGION', 'eastus')
 
-def azure_tts(text, rate, pitch, out):
+def azure_tts(text, rate, pitch, out, voice=VOICE):
     """Azure Speech (ทางการ) — key มาจาก .env ของ container · เสียงเดียวกับ edge-tts แต่เสถียร"""
-    ssml = ('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="th-TH">'
+    ssml = ('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="th-TH">'
             '<voice name="%s"><prosody rate="%s" pitch="%s">%s</prosody></voice></speak>'
-            % (VOICE, rate, pitch, text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            % (voice, rate, pitch, text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                .replace(' | ', PAUSE_MARK)))
     r = urllib.request.Request('https://%s.tts.speech.microsoft.com/cognitiveservices/v1' % AZ_REGION,
                                data=ssml.encode('utf-8'), method='POST', headers={
@@ -295,14 +304,14 @@ def azure_tts(text, rate, pitch, out):
         raise ValueError('azure: empty audio')
     open(out, 'wb').write(data)
 
-async def _tts(segs, W, seed):
+async def _tts(segs, W, seed, vkey='niwat'):
     if AZ_KEY:
         last = None
         for i, (role, text) in enumerate(segs):
             rate, pitch = prosody_for(role, seed)
             for k in range(3):
                 try:
-                    azure_tts(text, rate, pitch, '%s/vo_%d.mp3' % (W, i))
+                    azure_tts(text, rate, pitch, '%s/vo_%d.mp3' % (W, i), VOICES[vkey])
                     last = None
                     break
                 except Exception as e:
@@ -311,7 +320,7 @@ async def _tts(segs, W, seed):
             if last:
                 print('azure tts failed seg %d: %s -> fallback edge-tts' % (i, last), flush=True)
                 break
-            print('tts seg %d ok (azure)' % i, flush=True)
+            print('tts seg %d ok (azure %s)' % (i, vkey), flush=True)
         if last is None:
             return
     # ทางสำรอง: edge-tts (ไม่เป็นทางการ) — ใช้เมื่อไม่มี key หรือ Azure ล้ม
@@ -330,8 +339,8 @@ async def _tts(segs, W, seed):
                 await asyncio.sleep(1.5 * (k + 1))
         print('tts seg %d ok after %d tries' % (i, k + 1), flush=True)
 
-def make_voice(segs, W, seed):
-    asyncio.run(asyncio.wait_for(_tts(segs, W, seed), timeout=150))
+def make_voice(segs, W, seed, vkey='niwat'):
+    asyncio.run(asyncio.wait_for(_tts(segs, W, seed, vkey), timeout=150))
     wavs = []
     for i in range(len(segs)):
         wav = '%s/vo_%d.wav' % (W, i)
@@ -380,7 +389,9 @@ def render(d):
         voiced, wavs = False, []
         if want:
             try:
-                wavs = make_voice(segs, W, seed)
+                vkey = voice_for(seed, d)
+                print('[render] tts voice=%s' % vkey, flush=True)
+                wavs = make_voice(segs, W, seed, vkey)
                 durs = [dur(w) for w in wavs]
                 voiced = True
             except Exception:
