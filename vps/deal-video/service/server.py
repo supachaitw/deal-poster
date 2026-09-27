@@ -19,9 +19,50 @@ VOICE = 'th-TH-NiwatNeural'   # ค่าหลัก + ตัวสำรอง
 VOICES = {'niwat': 'th-TH-NiwatNeural', 'krit': 'th-TH-Krit:MAI-Voice-2'}
 VOICE_ORDER = ['niwat', 'krit']
 
+# 27 ก.ย. 69 #17 — Gemini TTS (Google AI Studio) เป็นเสียงหลัก: user ฟัง 6 เสียงแล้ว "ok ทุกตัว" → สลับทั้ง 6 ตาม hash ชื่อ
+# คำลงท้ายในบทเป็นชาย (ครับ/นะ) → เสียงหญิงแปลง ครับ→ค่ะ นะครับ→นะคะ ตอนสังเคราะห์ · ไม่มี SSML คุมสไตล์ด้วยประโยคสั่ง GEMINI_STYLE
+# ล้ม/ชนโควตา (429) → ถอยทั้งคลิปไป Azure Niwat และตั้ง cooldown 90 วิ (ดีลถัดไปในรอบใช้ Azure เลย ไม่เสียเวลารอ retry)
+# ⚠️ free tier ชน 429 ที่ ~5 คำขอ/นาที (5 ท่อน = 1 ดีล) → ใช้จริงต้องเปิด billing ของโปรเจกต์ที่ออก key · payload "tts": "gemini" | ชื่อเสียง (Puck…) | "niwat" | "krit"
+GOOGLE_AI_KEY = os.environ.get('GOOGLE_AI_KEY', '').strip()
+GEMINI_MODEL = 'gemini-3.8-flash-tts'
+GEMINI_VOICES = [('Puck', 'm'), ('Achird', 'm'), ('Zubenelgenubi', 'm'), ('Leda', 'f'), ('Laomedeia', 'f'), ('Sulafat', 'f')]
+GEMINI_STYLE = 'อ่านเป็นภาษาไทยแบบคนเล่าดีลให้เพื่อนฟังในคลิปสั้น เป็นกันเอง กระตือรือร้นนิดหน่อย พูดชัด จังหวะปานกลาง อ่านเฉพาะข้อความต่อไปนี้ ไม่ต้องเพิ่มคำอื่น:\n\n'
+GEMINI_COOLDOWN_UNTIL = 0.0
+
 def voice_for(seed, d=None):
-    k = str((d or {}).get('tts') or '').strip().lower()
-    return k if k in VOICES else VOICE_ORDER[(seed // 53) % len(VOICE_ORDER)]   # 27 ก.ย. 69: user ฟัง 8 เสียงเทียบแล้วเลือก Niwat (ชาย) — Premwadee "ฟังแล้วรู้ว่าเป็น AI" · บทเปลี่ยนคำลงท้ายเป็น ครับ/นะ ทั้งชุด
+    k = str((d or {}).get('tts') or '').strip()
+    names = [v for v, _ in GEMINI_VOICES]
+    if k in names and GOOGLE_AI_KEY:
+        return 'gemini:' + k
+    k = k.lower()
+    if k in VOICES:
+        return k
+    if GOOGLE_AI_KEY and (k == 'gemini' or not k) and time.time() >= GEMINI_COOLDOWN_UNTIL:
+        return 'gemini:' + names[(seed // 59) % len(names)]
+    return VOICE_ORDER[(seed // 53) % len(VOICE_ORDER)]
+
+def feminize(t):
+    return t.replace('นะครับ', 'นะคะ').replace('ครับ', 'ค่ะ')
+
+def gemini_tts(text, voice, out):
+    """Gemini TTS: คืน wav (mime audio/wav) → แปลงเป็น mp3 ที่ out ด้วย ffmpeg · โยน exception เมื่อล้ม (429 รวมอยู่ด้วย)"""
+    import base64
+    body = {'contents': [{'parts': [{'text': GEMINI_STYLE + text}]}],
+            'generationConfig': {'responseModalities': ['AUDIO'], 'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice}}}}}
+    req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % GEMINI_MODEL,
+                                 json.dumps(body).encode('utf-8'), {'Content-Type': 'application/json', 'x-goog-api-key': GOOGLE_AI_KEY})
+    r = json.loads(urllib.request.urlopen(req, timeout=60).read().decode('utf-8'))
+    part = r['candidates'][0]['content']['parts'][0]['inlineData']
+    raw = base64.b64decode(part['data']); mime = part.get('mimeType', '')
+    src = out + '.src'
+    open(src, 'wb').write(raw)
+    if 'wav' in mime or raw[:4] == b'RIFF':
+        cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', src, '-b:a', '96k', out]
+    else:   # raw L16 (เอกสารเก่า): audio/L16;codec=pcm;rate=24000
+        m = re.search(r'rate=(\d+)', mime)
+        cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 's16le', '-ar', m.group(1) if m else '24000', '-ac', '1', '-i', src, '-b:a', '96k', out]
+    subprocess.run(cmd, check=True)
+    os.remove(src)   # 27 ก.ย. 69: user ฟัง 8 เสียงเทียบแล้วเลือก Niwat (ชาย) — Premwadee "ฟังแล้วรู้ว่าเป็น AI" · บทเปลี่ยนคำลงท้ายเป็น ครับ/นะ ทั้งชุด
 
 # ---------- ตัวเลขเป็นคำอ่านไทย (อ่านตัวเลขตรง ๆ ฟังเป็นหุ่นยนต์ที่สุด) ----------
 DIG = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า']
@@ -392,6 +433,44 @@ def azure_tts(text, rate, pitch, out, voice=VOICE):
     open(out, 'wb').write(data)
 
 async def _tts(segs, W, seed, vkey='niwat'):
+    global GEMINI_COOLDOWN_UNTIL
+    if vkey.startswith('gemini:'):
+        voice = vkey.split(':', 1)[1]
+        gender = dict(GEMINI_VOICES).get(voice, 'm')
+        failed = None
+        for i, (role, text) in enumerate(segs):
+            t = text.replace(' | ', ', ').replace('…', ',').replace(',,', ',')
+            if gender == 'f':
+                t = feminize(t)
+            for k in range(3):
+                try:
+                    gemini_tts(t, voice, '%s/vo_%d.mp3' % (W, i))
+                    failed = None
+                    break
+                except urllib.error.HTTPError as e:
+                    body = ''
+                    try:
+                        body = e.read().decode('utf-8', 'replace')
+                    except Exception:
+                        pass
+                    failed = 'HTTP %d' % e.code
+                    if e.code == 429:
+                        # free tier = 10 คำขอ/วัน/โมเดล (วัด 27 ก.ย. 69: quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier) → พัก 6 ชม. · โควตาต่อนาที → พัก 90 วิ
+                        daily = 'PerDay' in body
+                        GEMINI_COOLDOWN_UNTIL = time.time() + (6 * 3600 if daily else 90)
+                        failed = 'HTTP 429 (%s quota)' % ('daily' if daily else 'per-minute')
+                        break            # ชนโควตา: ไม่รอ retry ถอยไป Azure ทั้งคลิปทันที
+                    await asyncio.sleep(2 * (k + 1))
+                except Exception as e:
+                    failed = str(e)[:80]
+                    await asyncio.sleep(2 * (k + 1))
+            if failed:
+                print('gemini tts failed seg %d (%s): %s -> fallback azure niwat' % (i, voice, failed), flush=True)
+                break
+            print('tts seg %d ok (gemini %s)' % (i, voice), flush=True)
+        if failed is None:
+            return
+        vkey = 'niwat'
     if AZ_KEY:
         last = None
         for i, (role, text) in enumerate(segs):
