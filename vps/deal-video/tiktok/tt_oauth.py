@@ -55,7 +55,7 @@ def main():
         r = post_form(TOKEN_URL, {'client_key': ck, 'client_secret': cs, 'grant_type': 'refresh_token',
                                   'refresh_token': env[P + 'REFRESH_TOKEN']})
     elif cmd == 'whoami':
-        req = urllib.request.Request('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,username',
+        req = urllib.request.Request('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name',   # username needs user.info.profile (not requested)
                                      headers={'Authorization': 'Bearer ' + env[P + 'ACCESS_TOKEN']})
         try:
             r = json.load(urllib.request.urlopen(req, timeout=30))
