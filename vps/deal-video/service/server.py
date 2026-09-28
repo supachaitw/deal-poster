@@ -399,6 +399,25 @@ def shopee_short_link(origin_url, sub_id='dealposter'):
         raise RuntimeError(json.dumps(body['errors'], ensure_ascii=False)[:300])
     return body['data']['generateShortLink']['shortLink']
 
+def tg_send_video(tg, mp4, caption):
+    """28 ก.ย. 69: ส่งคลิปเข้า Telegram (ให้ user เอาไปอัปโหลด TikTok เอง — IG พักอยู่) · tg = {url: https://api.telegram.org/bot…/sendVideo, chat_id, caption}
+    token มากับ request ภายใน network n8n_default เท่านั้น ไม่เก็บ/ไม่ log"""
+    import uuid
+    url = str(tg.get('url', ''))
+    if not url.startswith('https://api.telegram.org/'):
+        raise ValueError('telegram url must be api.telegram.org')
+    b = uuid.uuid4().hex
+    def part(name, val, fname=None, ct=None):
+        h = '--%s\r\nContent-Disposition: form-data; name="%s"' % (b, name)
+        if fname:
+            h += '; filename="%s"\r\nContent-Type: %s' % (fname, ct)
+        return h.encode() + b'\r\n\r\n' + (val if isinstance(val, bytes) else str(val).encode('utf-8')) + b'\r\n'
+    body = (part('chat_id', tg.get('chat_id', '')) + part('caption', (caption or '')[:1000]) + part('supports_streaming', 'true')
+            + part('video', mp4, 'deal.mp4', 'video/mp4') + ('--%s--\r\n' % b).encode())
+    req = urllib.request.Request(url, body, {'Content-Type': 'multipart/form-data; boundary=' + b}, method='POST')
+    r = json.loads(urllib.request.urlopen(req, timeout=120).read().decode('utf-8', 'replace'))
+    return bool(r.get('ok')), (r.get('result') or {}).get('message_id')
+
 def afflink(u):
     u = (u or '').strip()
     out = {'ok': False, 'link': None, 'original': u, 'final': None, 'reason': ''}
@@ -712,6 +731,16 @@ class H(BaseHTTPRequestHandler):
             mp4, voiced, D, lines = render(d)
             render_s = round(time.time() - t_r, 1)
             print('[timing] render=%.1fs dur=%s voice=%s' % (render_s, D, voiced), flush=True)
+            tg = d.get('telegram')
+            if tg:
+                t_u = time.time()
+                try:
+                    sent, mid = tg_send_video(tg, mp4, tg.get('caption') or '')
+                except Exception as e:
+                    sent, mid = False, str(e)[:200]
+                print('[timing] telegram=%.1fs sent=%s bytes=%d' % (time.time() - t_u, sent, len(mp4)), flush=True)
+                return self._json(200 if sent else 502, {'sent': sent, 'message_id': mid, 'bytes': len(mp4), 'voice': voiced,
+                                                          'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s})
             up = d.get('upload')
             if up:
                 # อัปโหลดให้เลย (resumable ของ IG) — ส่ง binary ออกจาก Code node ของ n8n ไม่ได้
