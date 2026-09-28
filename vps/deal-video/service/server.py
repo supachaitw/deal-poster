@@ -418,6 +418,108 @@ def tg_send_video(tg, mp4, caption):
     r = json.loads(urllib.request.urlopen(req, timeout=120).read().decode('utf-8', 'replace'))
     return bool(r.get('ok')), (r.get('result') or {}).get('message_id')
 
+# ---------- TikTok Content Posting API (28 ก.ย. 69) ----------
+# โพสต์คลิปเข้า TikTok ตรงจาก service · client key/secret จาก env (TIKTOK_[SB_]CLIENT_KEY/SECRET) ·
+# access/refresh token อยู่ในไฟล์ที่ mount มา (/tiktok/tokens.json — env ตรึงตอนสร้าง container จึงเก็บ token ที่ refresh ได้ในไฟล์)
+# ยังไม่ผ่าน audit: privacy ต้อง SELF_ONLY และบัญชีต้อง private ตอนโพสต์ (TikTok ตอบ unaudited_client_can_only_post_to_private_accounts)
+TIKTOK_TOKENS = os.environ.get('TIKTOK_TOKENS', '/tiktok/tokens.json')
+TT_API = 'https://open.tiktokapis.com/v2/'
+
+def tt_load():
+    try:
+        with open(TIKTOK_TOKENS) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def tt_save(t):
+    tmp = TIKTOK_TOKENS + '.new'
+    with open(tmp, 'w') as f:
+        json.dump(t, f)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, TIKTOK_TOKENS)
+
+def tt_http(url, token, body=None, method='POST', raw=None, headers=None):
+    h = {'Authorization': 'Bearer ' + token}
+    if headers:
+        h.update(headers)
+    data = raw
+    if raw is None and body is not None:
+        data = json.dumps(body).encode('utf-8'); h['Content-Type'] = 'application/json; charset=UTF-8'
+    req = urllib.request.Request(url, data=data, headers=h, method=method)
+    try:
+        r = urllib.request.urlopen(req, timeout=120)
+        txt = r.read().decode('utf-8', 'replace'); code = r.status
+    except urllib.error.HTTPError as e:
+        txt = e.read().decode('utf-8', 'replace')[:600]; code = e.code
+    try:
+        return code, json.loads(txt)
+    except Exception:
+        return code, {'raw': txt[:300]}
+
+def tt_token(mode):
+    """คืน access token ของโหมด (sandbox|prod) · เหลืออายุ < 30 นาที → refresh แล้วเขียนไฟล์"""
+    P = 'TIKTOK_SB_' if mode == 'sandbox' else 'TIKTOK_'
+    ck, cs = os.environ.get(P + 'CLIENT_KEY', ''), os.environ.get(P + 'CLIENT_SECRET', '')
+    t = tt_load(); m = t.get(mode) or {}
+    if not m.get('access_token'):
+        raise RuntimeError('no tiktok token for ' + mode)
+    if m.get('expires', 0) - time.time() < 1800:
+        if not (ck and cs and m.get('refresh_token')):
+            raise RuntimeError('tiktok token expired and cannot refresh')
+        data = urllib.parse.urlencode({'client_key': ck, 'client_secret': cs, 'grant_type': 'refresh_token', 'refresh_token': m['refresh_token']}).encode()
+        req = urllib.request.Request(TT_API + 'oauth/token/', data=data, headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        r = json.loads(urllib.request.urlopen(req, timeout=30).read().decode('utf-8'))
+        if 'access_token' not in r:
+            raise RuntimeError('tiktok refresh failed: ' + str(r.get('error_description') or r.get('error'))[:200])
+        m = {'access_token': r['access_token'], 'refresh_token': r.get('refresh_token') or m['refresh_token'], 'open_id': r.get('open_id') or m.get('open_id', ''),
+             'expires': int(time.time()) + int(r.get('expires_in', 86400))}
+        t[mode] = m; tt_save(t)
+        print('[tiktok] token refreshed (%s)' % mode, flush=True)
+    return m['access_token']
+
+def tt_post(tt, mp4):
+    """tt = {mode: sandbox|prod, privacy: SELF_ONLY|PUBLIC_TO_EVERYONE|…, title} → dict สรุป (ไม่มี token)"""
+    mode = tt.get('mode') or 'sandbox'; privacy = tt.get('privacy') or 'SELF_ONLY'
+    out = {'ok': False, 'mode': mode, 'privacy': privacy}
+    try:
+        token = tt_token(mode)
+        code, ci = tt_http(TT_API + 'post/publish/creator_info/query/', token, body={})
+        cd = ci.get('data') or {}
+        out['creator'] = cd.get('creator_nickname'); out['privacy_options'] = cd.get('privacy_level_options')
+        if code != 200 or (ci.get('error') or {}).get('code') not in (None, 'ok'):
+            out['error'] = 'creator_info: ' + str((ci.get('error') or {}).get('code') or code); return out
+        if privacy not in (cd.get('privacy_level_options') or []):
+            out['error'] = 'privacy_not_allowed'; return out
+        body = {'post_info': {'title': (tt.get('title') or '')[:2200], 'privacy_level': privacy,
+                              'disable_duet': False, 'disable_comment': False, 'disable_stitch': False, 'video_cover_timestamp_ms': 1000},
+                'source_info': {'source': 'FILE_UPLOAD', 'video_size': len(mp4), 'chunk_size': len(mp4), 'total_chunk_count': 1}}
+        code, init = tt_http(TT_API + 'post/publish/video/init/', token, body=body)
+        ie = (init.get('error') or {})
+        if code != 200 or ie.get('code') not in (None, 'ok'):
+            out['error'] = 'init: ' + str(ie.get('code') or code); return out
+        pid = init['data']['publish_id']; out['publish_id'] = pid
+        t0 = time.time()
+        code, up = tt_http(init['data']['upload_url'], token, method='PUT', raw=mp4,
+                           headers={'Content-Type': 'video/mp4', 'Content-Length': str(len(mp4)), 'Content-Range': 'bytes 0-%d/%d' % (len(mp4) - 1, len(mp4))})
+        out['upload_s'] = round(time.time() - t0, 1); out['upload_status'] = code
+        if code not in (200, 201):
+            out['error'] = 'upload: %s %s' % (code, str(up)[:200]); return out
+        st = {}
+        for i in range(20):
+            time.sleep(3)
+            code, s = tt_http(TT_API + 'post/publish/status/fetch/', token, body={'publish_id': pid})
+            st = s.get('data') or {}
+            if st.get('status') in ('PUBLISH_COMPLETE', 'FAILED'):
+                break
+        out['status'] = st.get('status'); out['post_ids'] = st.get('publicaly_available_post_id'); out['fail_reason'] = st.get('fail_reason')
+        out['ok'] = st.get('status') == 'PUBLISH_COMPLETE'
+        if not out['ok'] and not out.get('error'):
+            out['error'] = 'status: ' + str(st.get('status')) + (' ' + str(st.get('fail_reason')) if st.get('fail_reason') else '')
+    except Exception as e:
+        out['error'] = str(e)[:300]
+    return out
+
 def afflink(u):
     u = (u or '').strip()
     out = {'ok': False, 'link': None, 'original': u, 'final': None, 'reason': ''}
@@ -731,16 +833,24 @@ class H(BaseHTTPRequestHandler):
             mp4, voiced, D, lines = render(d)
             render_s = round(time.time() - t_r, 1)
             print('[timing] render=%.1fs dur=%s voice=%s' % (render_s, D, voiced), flush=True)
-            tg = d.get('telegram')
-            if tg:
-                t_u = time.time()
-                try:
-                    sent, mid = tg_send_video(tg, mp4, tg.get('caption') or '')
-                except Exception as e:
-                    sent, mid = False, str(e)[:200]
-                print('[timing] telegram=%.1fs sent=%s bytes=%d' % (time.time() - t_u, sent, len(mp4)), flush=True)
-                return self._json(200 if sent else 502, {'sent': sent, 'message_id': mid, 'bytes': len(mp4), 'voice': voiced,
-                                                          'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s})
+            tg = d.get('telegram'); tt = d.get('tiktok')
+            if tg or tt:
+                out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s}
+                ok = True
+                if tg:
+                    t_u = time.time()
+                    try:
+                        sent, mid = tg_send_video(tg, mp4, tg.get('caption') or '')
+                    except Exception as e:
+                        sent, mid = False, str(e)[:200]
+                    print('[timing] telegram=%.1fs sent=%s bytes=%d' % (time.time() - t_u, sent, len(mp4)), flush=True)
+                    out.update(sent=sent, message_id=mid); ok = ok and sent
+                if tt:
+                    t_u = time.time()
+                    r = tt_post(tt, mp4)
+                    print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s err=%s' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), r.get('error')), flush=True)
+                    out['tiktok'] = r; ok = ok and bool(r.get('ok'))
+                return self._json(200 if ok else 502, out)
             up = d.get('upload')
             if up:
                 # อัปโหลดให้เลย (resumable ของ IG) — ส่ง binary ออกจาก Code node ของ n8n ไม่ได้
