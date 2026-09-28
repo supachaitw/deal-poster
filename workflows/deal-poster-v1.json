@@ -584,7 +584,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\n// IG กดลิงก์ในแคปชันไม่ได้ -> ตัดบรรทัดที่มีลิงก์ทิ้ง\nlet lines=text.split('\\n').filter(l=>l.indexOf('http')===-1);\n// ดึงแฮชแท็กออกจากเนื้อความไปรวมไว้ท้ายโพสต์ที่เดียว + ตัดหมายเหตุ (ลิงก์ affiliate) ที่ไม่มีความหมายบน IG\nconst found=[];\nlines=lines.map(function(l){\n  l=l.replace(/\\(\\s*ลิงก์\\s*affiliate\\s*\\)/g,'');\n  const m=l.match(/#[^\\s#]+/g);\n  if(m)m.forEach(function(t){found.push(t);});\n  return l.replace(/#[^\\s#]+/g,'').replace(/[ \\t]+/g,' ').trim();\n});\nlet body=lines.join('\\n').replace(/\\n{3,}/g,'\\n\\n').trim();\nconst cat=(d.cat||'').trim();\nconst base=['#ป้ายยา','#ดีลเด็ด','#ของถูก','#รีวิวของดี','#ช้อปปิ้งออนไลน์'];\nif(cat)base.push('#'+cat.replace(/\\s/g,''));\nconst tags=[];\nfound.concat(base).forEach(function(t){if(tags.indexOf(t)===-1)tags.push(t);});\nlet caption=body+'\\n\\n🔗 กดลิงก์ในไบโอเพื่อไปที่ร้าน\\n\\n'+tags.join(' ');\nif(caption.length>2100)caption=caption.slice(0,2099);\nlet pid = null; try { pid = $('Split Approved').item.json.page_id || null; } catch (e) {}\nreturn { json: { igImage:img, igCaption:caption, hasImage:!!img, page_id: pid } };"
+        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\n// IG กดลิงก์ในแคปชันไม่ได้ -> ตัดบรรทัดที่มีลิงก์ทิ้ง\nlet lines=text.split('\\n').filter(l=>l.indexOf('http')===-1);\n// ดึงแฮชแท็กออกจากเนื้อความไปรวมไว้ท้ายโพสต์ที่เดียว + ตัดหมายเหตุ (ลิงก์ affiliate) ที่ไม่มีความหมายบน IG\nconst found=[];\nlines=lines.map(function(l){\n  l=l.replace(/\\(\\s*ลิงก์\\s*affiliate\\s*\\)/g,'');\n  const m=l.match(/#[^\\s#]+/g);\n  if(m)m.forEach(function(t){found.push(t);});\n  return l.replace(/#[^\\s#]+/g,'').replace(/[ \\t]+/g,' ').trim();\n});\nlet body=lines.join('\\n').replace(/\\n{3,}/g,'\\n\\n').trim();\nconst cat=(d.cat||'').trim();\nconst base=['#ป้ายยา','#ดีลเด็ด','#ของถูก','#รีวิวของดี','#ช้อปปิ้งออนไลน์'];\nif(cat)base.push('#'+cat.replace(/\\s/g,''));\nconst tags=[];\nfound.concat(base).forEach(function(t){if(tags.indexOf(t)===-1)tags.push(t);});\n// 28 ก.ย. 69: IG จำกัดบัญชี 30 วัน ฐาน \"prohibited commercial practices\" — เลิก 'กดลิงก์ในไบโอ' ซ้ำทุกโพสต์ · สลับสำนวน บอกชื่อเว็บเป็นข้อความ · เปิดเผยลิงก์พันธมิตร\nconst ctas=['ดูรายละเอียดดีลนี้ได้ที่ paiyaadeals.com','รวมดีลทั้งหมดอยู่ที่ paiyaadeals.com','เข้าไปดูราคาล่าสุดที่ paiyaadeals.com ได้เลย','ดีลนี้และดีลอื่น ๆ รวมไว้ที่ paiyaadeals.com'];\nlet hsh=0; for (const ch of (d.name||'')) hsh=(hsh*31+ch.charCodeAt(0))>>>0;\nlet caption=body+'\\n\\n'+ctas[hsh%ctas.length]+'\\nลิงก์พันธมิตร มีค่าคอมมิชชั่น #ad\\n\\n'+tags.join(' ');\nif(caption.length>2100)caption=caption.slice(0,2099);\nlet pid = null; try { pid = $('Split Approved').item.json.page_id || null; } catch (e) {}\nreturn { json: { igImage:img, igCaption:caption, hasImage:!!img, page_id: pid } };"
       },
       "id": "igcap",
       "name": "Build IG Caption",
@@ -667,7 +667,8 @@
         2912,
         996
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "disabled": true
     },
     {
       "parameters": {
@@ -702,7 +703,8 @@
       "onError": "continueRegularOutput",
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 15000
+      "waitBetweenTries": 15000,
+      "disabled": true
     },
     {
       "parameters": {
@@ -854,6 +856,19 @@
         636
       ],
       "id": "90831c9a-d19f-4eaf-a7e2-2b724ebcc0c3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 28 ก.ย. 69: IG ถูกจำกัด (โพสต์วันละ 27–31 ชิ้น ผู้ติดตาม 3) → จำกัด 1 Reels ต่อรอบ (≤7/วัน) ช่องอื่นโพสต์ทุกดีลเหมือนเดิม\nconst items = $input.all();\nreturn items.slice(0, 1);"
+      },
+      "name": "IG Cap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2248,
+        636
+      ],
+      "id": "9f5f75a8-ee05-4a73-907f-94fd87766877"
     }
   ],
   "connections": {
@@ -1127,7 +1142,7 @@
       "main": [
         [
           {
-            "node": "Loop Reels",
+            "node": "IG Cap",
             "type": "main",
             "index": 0
           }
@@ -1171,13 +1186,7 @@
     "IG Reel OK?": {
       "main": [
         [],
-        [
-          {
-            "node": "IG Create Media",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "TG Posted Alert": {
@@ -1226,6 +1235,17 @@
         [
           {
             "node": "IG Reel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Cap": {
+      "main": [
+        [
+          {
+            "node": "Loop Reels",
             "type": "main",
             "index": 0
           }

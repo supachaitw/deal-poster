@@ -236,6 +236,15 @@ user กด gen ลิงก์เองจากแอป TikTok (Affiliate cen
 - **X** ⏸ node "Post to X" `disabled:true` — X เป็น pay-per-use credits แล้ว บัญชี $0 user ยังไม่ซื้อ; node เป็น httpRequest + predefinedCredentialType `twitterOAuth1Api` (twitter node v2 ใช้ OAuth1 ไม่ได้), credential n8n `TsrgrCQlMXmi03F9`
 - **บทเรียน Meta:** งานสร้างบัญชี/portfolio/appeal ต้องให้ user คลิกเอง (automation โดนแฟล็กมาแล้ว); งาน Graph API ปกติไม่โดน
 
+## ⛔ IG จำกัดบัญชี 30 วัน (26 ก.ย. – 26 ต.ค. 2569) — "You can't share links" ฐาน prohibited commercial practices
+user เห็นแจ้งเตือนในแอป 28 ก.ย. 69 · โพสต์ยังลงได้ แต่ลิงก์ (ไบโอ/สตอรี่/DM) ใช้ไม่ได้ · สาเหตุที่เข้าเกณฑ์สแปม: **ผู้ติดตาม 3 คน แต่โพสต์ 438 ชิ้น · 26–27 ก.ย. วันละ 27–31 โพสต์** ทั้งหมดเป็นโฆษณา · ทุกโพสต์ปิดด้วย "กดลิงก์ในไบโอ" · ไบโอมีแต่ URL · ดีลบางตัวลง 2 ครั้ง (Reels+ภาพ จากบั๊กเดิม)
+**แก้แล้ว 28 ก.ย. 69 (รอบ #20)** — ฝั่งระบบ:
+- **IG จำกัด 1 Reels/รอบ (≤7/วัน)**: node `IG Cap` (Code, `$input.all().slice(0,1)`) คั่น `IG Has Image?` → `Loop Reels` · TG/FB/Threads ยังโพสต์ทุกดีล
+- **เลิกถอยไปโพสต์ภาพ**: ตัดสาย `IG Reel OK?` (false) → `IG Create Media` และ `disabled: true` ทั้ง `IG Create Media`/`IG Publish` (เก็บไว้เผื่อกลับมาใช้) — Reels ล้ม = IG ข้ามดีลนั้น
+- **แคปชัน IG** (`Build IG Caption`): CTA หมุน 4 สำนวนตาม hash ชื่อ บอกชื่อเว็บเป็นข้อความ (`paiyaadeals.com`) + บรรทัด "ลิงก์พันธมิตร มีค่าคอมมิชชั่น #ad" · **บทพากย์** (`CTAS` ใน server.py 8 สำนวน) และ **CTA บนจอ** เลิกพูด/เขียน "ลิ้งค์ในไบโอ" → "ดูดีลนี้ที่ paiyaadeals.com"
+- Threads ยังโพสต์ลิงก์ตรงทุกดีล **ไม่ได้ลด** — Mark Posted/Build Posted Alert ต่อจากสาย Threads ถ้าตัดจำนวนจะทำดีลที่เหลือไม่ถูกมาร์ค ต้องรื้อโครงก่อน (ยังไม่ทำ)
+ฝั่ง user (ทำในแอป): กด Disagree/Request review · แก้ไบโอเป็นคำอธิบาย + เปิดเผยพันธมิตร · **ห้ามเลี่ยง** (ลิงก์ในคอมเมนต์/สตอรี่) จะโดนปิดบัญชี · หลัง 26 ต.ค. ค่อยพิจารณาเพิ่มจำนวน IG ทีละน้อย (เช่น 2/รอบ) และดูว่าโดนซ้ำไหม · ตรวจสถานะได้จาก API: `GET /{ig}?fields=followers_count,media_count,biography,website` + นับโพสต์/วันจาก `/{ig}/media`
+
 ## Reels จากรูปสินค้า — ทดลอง (19 ก.ย. 2569)
 เหตุผล: IG มีผู้ติดตามแค่ 1 คน โพสต์ภาพนิ่งแทบไม่มีคนเห็น ส่วน Reels ถูกส่งไปหาคนที่ยังไม่ติดตามด้วย
 - **ดึงคลิปจากร้านไม่ได้** — ลิงก์ Shopee 5/5 มีแต่ `og:image` ไม่มี `og:video` → **สร้างคลิปเองจากรูป**
