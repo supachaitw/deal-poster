@@ -122,6 +122,9 @@ user: "ส่งลิงก์ Shopee ไหนก็ได้ แล้วใ�
 - วิธีขอ creds: เข้า https://affiliate.shopee.co.th → เมนู **Open API** (บางบัญชีต้องกดสมัคร/รออนุมัติ) → App ID + Secret → วางหน้า Notion Config หัวข้อ "Shopee Affiliate" แล้วใส่ .env · ทดสอบ: `docker exec deal-video python3 -c "import json,urllib.request;print(urllib.request.urlopen(urllib.request.Request('http://localhost:8080/afflink',json.dumps({'url':'https://shopee.co.th/product/<shop>/<item>'}).encode(),{'Content-Type':'application/json'})).read())"`
 - Lazada ยังไม่ทำ (user ขอแค่ Shopee) — Lazada มี Open Platform แยกต่างหาก
 
+**รอบ 15:00 น. 28 ก.ย. 69 ล้มทั้งรอบเพราะ Telegram ล่มชั่วคราว (exec 39651)** — `Post to Telegram` timeout 30 วิ ทั้ง 6 ดีล (onError continue → TG Verify sent=false ทุกตัว) → `TG Send Text` (fallback ข้อความ) ล้ม "connection closed unexpectedly" และ node นี้**ไม่มี onError** → execution error ตั้งแต่ขั้น TG → FB/Threads/Mark Posted ไม่รัน · ไม่มีอะไรโพสต์เลย (ดีล 6 ตัวยัง อนุมัติแล้ว ไปรอบ 18:00 ไม่ซ้ำ) · 08:24 UTC เช็คแล้ว n8n→api.telegram.org ปกติ = ล่มชั่วคราว ~10 นาที
+→ แก้: `TG Send Text` ใส่ `onError: continueRegularOutput` (เหมือน Post to Telegram/FB/Threads/IG Reel) — Telegram ล่ม = ช่องอื่นยังโพสต์และมาร์คได้ · **บทเรียน: node httpRequest ทุกตัวในสายโพสต์ต้องมี onError continue** (ตัวที่ยังไม่มี: `Fetch Deal Image`/`Fetch Photo Bin`/`Query Approved Deals`/`Mark Posted` — ถ้า Notion ล่มก็ล้มทั้งรอบ ซึ่งถูกต้องอยู่แล้ว)
+
 ## Token / Credential (28 ส.ค. 2569)
 - **Notion token ไม่ฝังใน workflow แล้ว** — ย้ายเข้า n8n credential **`Notion Deal Poster (Header Auth)`** (id `U5mfqJ7z2OV1c4PT`, type httpHeaderAuth) ครบทั้ง 12 จุดใน 5 workflow
   - Landing Page: โหนด `Query Posted Deals` แปลงจาก Code (fetch วนหน้า) → httpRequest ใช้ credential ดึงหน้าเดียว `page_size: 100` เรียงใหม่สุดก่อน — เทียบ HTML ก่อน/หลังแล้ว **byte-identical** (หน้า live แสดง 100 รายการล่าสุดเท่าเดิม)

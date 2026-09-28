@@ -432,7 +432,8 @@
       "position": [
         2016,
         280
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
