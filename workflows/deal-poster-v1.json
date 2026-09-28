@@ -269,7 +269,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\nif(text.length>480)text=text.slice(0,479)+'…';\nconst base='https://graph.threads.net/v1.0/28104225519212652/threads?access_token=REPLACE_THREADS_TOKEN';\nconst createUrl=base+'&media_type='+(img?'IMAGE':'TEXT')+'&text='+encodeURIComponent(text)+(img?'&image_url='+encodeURIComponent(img):'');\nreturn { json: { createUrl, mode:(img?'IMAGE(fb-cdn)':'TEXT') } };"
+        "jsCode": "const d=$('Split Approved').item.json;\nlet img=null;\ntry{\n  const imgs=$json.images;\n  if(Array.isArray(imgs)&&imgs.length){\n    const big=imgs.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0];\n    if(big&&big.source)img=big.source;\n  }\n}catch(e){}\nlet text=(d.caption||'').trim();\nif(text.length>480)text=text.slice(0,479)+'…';\nconst base='https://graph.threads.net/v1.0/28104225519212652/threads?access_token=REPLACE_THREADS_TOKEN';\nconst createUrl=base+'&media_type='+(img?'IMAGE':'TEXT')+'&text='+encodeURIComponent(text)+(img?'&image_url='+encodeURIComponent(img):'');\n// 28 ก.ย. 69 #20: จำกัด Threads 2 ดีล/รอบ (≤14/วัน) กันโดนจำกัดแบบ IG — ดีลลำดับถัดไป skip=true ไปสาย Threads Skip? → Threads Merge ตรง (ไม่โพสต์)\nconst THREADS_CAP = 2;\nconst skip = $itemIndex >= THREADS_CAP;\nreturn { json: { createUrl, mode:(img?'IMAGE(fb-cdn)':'TEXT'), skip, page_id: d.page_id } };"
       },
       "id": "btp",
       "name": "Build Threads Post",
@@ -570,7 +570,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const deal = $('Split Approved').item.json;\nconst all = $('Split Approved').all().map(x => x.json);\nconst idx = all.findIndex(a => a.page_id === deal.page_id);\nfunction pick(node, i){ try { const arr = $(node).all(); return (i >= 0 && arr[i]) ? arr[i].json : null; } catch (e) { return null; } }\nfunction errOf(j){ try { const m = (j && j.error && (j.error.message || j.error.error_user_msg)) || (j && j.message) || ''; return String(m).replace(/\\s+/g, ' ').slice(0, 70); } catch (e) { return ''; } }\n\nlet tg = '❌ ไม่สำเร็จ';\nconst tv = pick('TG Verify', idx);\nif (tv && tv.sent === true) tg = '✅ รูป+แคปชัน';\nelse if (tv && tv.sent === false) tg = '⚠️ ข้อความล้วน (รูปไม่ผ่าน)';\n\nlet fb = '❌ ไม่สำเร็จ';\nconst fv = pick('FB Verify', idx);\nif (fv && fv.sent === true) fb = '✅ รูป+แคปชัน';\nelse if (fv && fv.sent === false) fb = '⚠️ ข้อความ+ลิงก์ (รูปไม่ผ่าน)';\n\nlet thj = null;\ntry { thj = $('Threads Publish').item.json; } catch (e) { thj = pick('Threads Publish', idx); }\nlet th;\nif (thj && thj.id) {\n  let mode = '';\n  try { mode = $('Build Threads Post').item.json.mode || ''; } catch (e) {}\n  th = (mode === 'TEXT') ? '✅ ข้อความล้วน' : '✅ รูป+แคปชัน';\n} else {\n  const m = errOf(thj);\n  th = '❌ ไม่สำเร็จ' + (m ? ' — ' + m : '');\n}\n\nconst text = '✅ โพสต์แล้ว: ' + (deal.name || '-') + '\\n' +\n  '• Telegram: ' + tg + '\\n' +\n  '• Facebook: ' + fb + '\\n' +\n  '• Threads: ' + th +\n  (deal.link ? '\\n' + deal.link : '');\nreturn { json: { alert: text, name: deal.name } };"
+        "jsCode": "const deal = $('Split Approved').item.json;\nconst all = $('Split Approved').all().map(x => x.json);\nconst idx = all.findIndex(a => a.page_id === deal.page_id);\nfunction pick(node, i){ try { const arr = $(node).all(); return (i >= 0 && arr[i]) ? arr[i].json : null; } catch (e) { return null; } }\nfunction errOf(j){ try { const m = (j && j.error && (j.error.message || j.error.error_user_msg)) || (j && j.message) || ''; return String(m).replace(/\\s+/g, ' ').slice(0, 70); } catch (e) { return ''; } }\n\nlet tg = '❌ ไม่สำเร็จ';\nconst tv = pick('TG Verify', idx);\nif (tv && tv.sent === true) tg = '✅ รูป+แคปชัน';\nelse if (tv && tv.sent === false) tg = '⚠️ ข้อความล้วน (รูปไม่ผ่าน)';\n\nlet fb = '❌ ไม่สำเร็จ';\nconst fv = pick('FB Verify', idx);\nif (fv && fv.sent === true) fb = '✅ รูป+แคปชัน';\nelse if (fv && fv.sent === false) fb = '⚠️ ข้อความ+ลิงก์ (รูปไม่ผ่าน)';\n\n// #20: ดีลที่ถูกจำกัดโควตา Threads (skip) ไม่มีผลใน Threads Publish — จับคู่ตามลำดับเฉพาะดีลที่ไม่ข้าม\nlet btpAll = []; try { btpAll = $('Build Threads Post').all().map(x => x.json); } catch (e) {}\nconst btp = btpAll.find(x => x.page_id === deal.page_id) || btpAll[idx] || null;\nconst thSkipped = !!(btp && btp.skip);\nlet thj = null;\nif (!thSkipped) { try { thj = $('Threads Publish').item.json; } catch (e) { const nz = btpAll.slice(0, idx).filter(x => !x.skip).length; thj = pick('Threads Publish', nz); } }\nlet th;\nif (thSkipped) {\n  th = '⏭ ข้าม (จำกัด 2 ดีล/รอบ)';\n} else if (thj && thj.id) {\n  let mode = '';\n  try { mode = $('Build Threads Post').item.json.mode || ''; } catch (e) {}\n  th = (mode === 'TEXT') ? '✅ ข้อความล้วน' : '✅ รูป+แคปชัน';\n} else {\n  const m = errOf(thj);\n  th = '❌ ไม่สำเร็จ' + (m ? ' — ' + m : '');\n}\n\nconst text = '✅ โพสต์แล้ว: ' + (deal.name || '-') + '\\n' +\n  '• Telegram: ' + tg + '\\n' +\n  '• Facebook: ' + fb + '\\n' +\n  '• Threads: ' + th +\n  (deal.link ? '\\n' + deal.link : '');\nreturn { json: { alert: text, name: deal.name } };"
       },
       "id": "a0c0f17c-2991-4064-925b-329aa44eb2d7",
       "name": "Build Posted Alert",
@@ -869,6 +869,50 @@
         636
       ],
       "id": "9f5f75a8-ee05-4a73-907f-94fd87766877"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "threads-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Threads Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2264,
+        456
+      ],
+      "id": "a82ce470-e57a-4dfc-8762-73375f7c5395"
+    },
+    {
+      "parameters": {},
+      "name": "Threads Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3132,
+        456
+      ],
+      "id": "3238af1b-97b6-41f4-92af-a71e089e8a79"
     }
   ],
   "connections": {
@@ -964,7 +1008,7 @@
       "main": [
         [
           {
-            "node": "Threads Create",
+            "node": "Threads Skip?",
             "type": "main",
             "index": 0
           }
@@ -986,7 +1030,7 @@
       "main": [
         [
           {
-            "node": "Mark Posted",
+            "node": "Threads Merge",
             "type": "main",
             "index": 0
           }
@@ -1246,6 +1290,35 @@
         [
           {
             "node": "Loop Reels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Skip?": {
+      "main": [
+        [
+          {
+            "node": "Threads Merge",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Threads Create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Merge": {
+      "main": [
+        [
+          {
+            "node": "Mark Posted",
             "type": "main",
             "index": 0
           }
