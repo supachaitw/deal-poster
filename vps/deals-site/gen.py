@@ -230,7 +230,7 @@ def trust():
 
 
 def footer():
-    return ('<footer class="ft"><nav><a href="/about">เกี่ยวกับเรา</a><a href="/policy">นโยบายลิงก์ affiliate</a><a href="%s" rel="noopener">ติดต่อ</a></nav>'
+    return ('<footer class="ft"><nav><a href="/about">เกี่ยวกับเรา</a><a href="/policy">นโยบายลิงก์ affiliate</a><a href="/privacy">ความเป็นส่วนตัว</a><a href="/terms">ข้อกำหนด</a><a href="%s" rel="noopener">ติดต่อ</a></nav>'
             '<p>%s ไม่ใช่ร้านค้า ไม่รับชำระเงิน การสั่งซื้อและการรับประกันเป็นของร้านบน Shopee / Lazada</p>'
             '<p>© %d %s</p></footer>') % (FB, BRAND, datetime.date.today().year + 543, BRAND)
 
@@ -370,13 +370,29 @@ def build(deals, now):
               '<p>ราคาและส่วนลดที่แสดงคือค่าที่บันทึกไว้ตอนโพสต์ แฟลชเซลอาจหมดหรือเปลี่ยนราคาได้ทุกเมื่อ กรุณาตรวจสอบราคาล่าสุดที่หน้าร้านก่อนสั่งซื้อ</p>'
               '<p>เว็บนี้นับจำนวนคลิกออกไปยังร้านเพื่อดูว่าดีลไหนคนสนใจ ไม่เก็บชื่อ อีเมล หรือข้อมูลส่วนตัวใด ๆ และไม่ใช้คุกกี้ติดตาม</p></section>')
     write('policy.html', page('นโยบายลิงก์ affiliate — ' + BRAND, header() + '<main class="wrap">' + policy + '</main>' + footer(), 'ลิงก์บนเว็บเป็น affiliate ราคาที่คุณจ่ายเท่าเดิม', '/policy'))
+    # 28 ก.ย. 69: หน้า Privacy/Terms แยกจาก /policy — TikTok for Developers บังคับต้องมี URL ทั้งสองตอนสร้างแอป (Content Posting API)
+    privacy = ('<section class="hero"><h1>นโยบายความเป็นส่วนตัว</h1><p>ปรับปรุงล่าสุด 28 กันยายน 2569</p></section>'
+               '<section class="why"><h2>ข้อมูลที่เราเก็บ</h2><p>เว็บ %s ไม่มีระบบสมัครสมาชิก ไม่เก็บชื่อ อีเมล เบอร์โทร หรือข้อมูลส่วนตัวใด ๆ ของผู้เข้าชม และไม่ใช้คุกกี้ติดตาม</p>'
+               '<p>เซิร์ฟเวอร์บันทึกเฉพาะจำนวนคลิกปุ่ม "ไปที่ร้าน" รายดีล (ไม่ผูกกับตัวบุคคล) เพื่อดูว่าดีลไหนได้รับความสนใจ</p>'
+               '<h2>บัญชีโซเชียลที่เชื่อมต่อ</h2><p>ระบบหลังบ้านของเราเชื่อมต่อกับบัญชีโซเชียลของเราเอง (Facebook, Instagram, Threads, Telegram, TikTok) เพื่อโพสต์ดีลอัตโนมัติ '
+               'สิทธิ์ที่ขอใช้เพื่อโพสต์เนื้อหาลงบัญชีของเราเท่านั้น ไม่มีการเก็บหรือประมวลผลข้อมูลของผู้ใช้แพลตฟอร์มคนอื่น</p>'
+               '<h2>บริการภายนอก</h2><p>ลิงก์สินค้าพาไปยัง Shopee หรือ Lazada ซึ่งมีนโยบายความเป็นส่วนตัวของตนเอง รูปสินค้าถูกดึงผ่านเซิร์ฟเวอร์ของเราจาก CDN ของแพลตฟอร์มนั้น</p>'
+               '<h2>ติดต่อ</h2><p>คำถามเรื่องข้อมูลส่วนตัว ทักได้ที่ <a href="%s" rel="noopener">Facebook ป้ายยาดีลเด็ด</a></p></section>') % (SITE.replace('https://', ''), FB)
+    write('privacy.html', page('นโยบายความเป็นส่วนตัว — ' + BRAND, header() + '<main class="wrap">' + privacy + '</main>' + footer(), 'เว็บนี้ไม่เก็บข้อมูลส่วนตัวและไม่ใช้คุกกี้ติดตาม', '/privacy'))
+    terms = ('<section class="hero"><h1>ข้อกำหนดการใช้งาน</h1><p>ปรับปรุงล่าสุด 28 กันยายน 2569</p></section>'
+             '<section class="why"><h2>เว็บนี้คืออะไร</h2><p>%s เป็นสื่อรวมดีลลดราคา ไม่ใช่ร้านค้า ไม่รับชำระเงิน ไม่จัดส่ง และไม่รับประกันสินค้า การซื้อขายทั้งหมดเกิดขึ้นบน Shopee หรือ Lazada ตามเงื่อนไขของแพลตฟอร์มนั้น</p>'
+             '<h2>ความถูกต้องของข้อมูล</h2><p>ราคา ส่วนลด และรายละเอียดสินค้าเป็นค่าที่บันทึกไว้ตอนโพสต์ อาจเปลี่ยนหรือหมดได้ทุกเมื่อ กรุณาตรวจสอบที่หน้าร้านก่อนสั่งซื้อ เราไม่รับผิดชอบความเสียหายจากการอ้างอิงข้อมูลบนเว็บนี้</p>'
+             '<h2>ลิงก์ affiliate</h2><p>ลิงก์ไปร้านเป็นลิงก์พันธมิตร เรามีรายได้จากค่าคอมมิชชันเมื่อมีการซื้อผ่านลิงก์ ราคาที่คุณจ่ายไม่เปลี่ยน อ่านเพิ่มที่ <a href="/policy">นโยบายลิงก์ affiliate</a></p>'
+             '<h2>เนื้อหาและลิขสิทธิ์</h2><p>รูปและชื่อสินค้าเป็นของร้านค้า/แบรนด์นั้น ๆ นำมาแสดงเพื่อประกอบการแนะนำดีล เจ้าของสิทธิ์ที่ต้องการให้ถอดเนื้อหาติดต่อได้ที่ <a href="%s" rel="noopener">Facebook ป้ายยาดีลเด็ด</a></p>'
+             '<h2>การเปลี่ยนแปลง</h2><p>เราอาจปรับข้อกำหนดนี้ได้โดยประกาศบนหน้านี้ การใช้เว็บต่อถือว่ายอมรับข้อกำหนดฉบับล่าสุด</p></section>') % (BRAND, FB)
+    write('terms.html', page('ข้อกำหนดการใช้งาน — ' + BRAND, header() + '<main class="wrap">' + terms + '</main>' + footer(), 'ข้อกำหนดการใช้งานเว็บรวมดีล', '/terms'))
     write('404.html', page('ไม่พบหน้านี้ — ' + BRAND, header() + '<main class="wrap"><section class="hero"><h1>ไม่พบดีลนี้</h1><p>ดีลอาจหมดอายุหรือถูกถอดออกแล้ว</p><a class="btn p" href="/">ดูดีลล่าสุด</a></section></main>' + footer(), '', '/404', noindex=True))
 
     # ----- data files -----
     write('deals.json', json.dumps([{'id': d['id'], 'n': d['name'], 'c': d['cat'], 's': d['sale'], 'f': d['full'], 'o': d['off'],
                                      'i': img_url(d['img'], thumb=True), 'st': d['store'], 't': d['when']} for d in deals], ensure_ascii=False, separators=(',', ':')))
     urls = [('/', now.date().isoformat(), 'hourly', '1.0')] + [('/c/' + s, now.date().isoformat(), 'hourly', '0.8') for n, s, _ in CATS if counts.get(n)]
-    urls += [('/d/' + d['id'], (d['when'] or '')[:10] or now.date().isoformat(), 'weekly', '0.6') for d in deals] + [('/about', '', 'monthly', '0.3'), ('/policy', '', 'monthly', '0.3')]
+    urls += [('/d/' + d['id'], (d['when'] or '')[:10] or now.date().isoformat(), 'weekly', '0.6') for d in deals] + [('/about', '', 'monthly', '0.3'), ('/policy', '', 'monthly', '0.3'), ('/privacy', '', 'monthly', '0.3'), ('/terms', '', 'monthly', '0.3')]
     write('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + ''.join(
         '<url><loc>%s%s</loc>%s<changefreq>%s</changefreq><priority>%s</priority></url>' % (SITE, u, '<lastmod>%s</lastmod>' % lm if lm else '', cf, pr)
         for u, lm, cf, pr in urls) + '</urlset>')
