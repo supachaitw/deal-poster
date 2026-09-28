@@ -859,7 +859,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 28 ก.ย. 69: IG ถูกจำกัด (โพสต์วันละ 27–31 ชิ้น ผู้ติดตาม 3) → จำกัด 1 Reels ต่อรอบ (≤7/วัน) ช่องอื่นโพสต์ทุกดีลเหมือนเดิม\nconst items = $input.all();\nreturn items.slice(0, 1);"
+        "jsCode": "// 28 ก.ย. 69: IG ถูกจำกัด 30 วัน (ถึง 26 ต.ค. 69) ฐาน prohibited commercial practices — user ตัดสินใจ **พัก IG ทั้งหมด** ระหว่างนี้ (ผู้ติดตาม 3 ไม่มีอะไรเสีย กันโดนซ้ำแล้วปิดบัญชี)\n// เปิดกลับหลัง 26 ต.ค. (ตรวจ Account status ในแอปก่อน): เปลี่ยนเป็น  return $input.all().slice(0, 1);  = 1 Reels/รอบ\nconst IG_PAUSED = true;\nconst items = $input.all();\nreturn IG_PAUSED ? [] : items.slice(0, 1);"
       },
       "name": "IG Cap",
       "type": "n8n-nodes-base.code",
