@@ -732,10 +732,15 @@ def pending_load(pid):
     except Exception:
         return None, None
 
-def pending_drop(pid):
+def pending_drop(pid, state=None):
     for ext in ('.mp4', '.json'):
         try:
             os.remove(pending_path(pid, ext))
+        except Exception:
+            pass
+    if state:   # 2 ต.ค. 69: จำผลไว้ 48 ชม. ให้ตอบ user ได้ว่า "ลงไปแล้ว/ทิ้งไปแล้ว เมื่อ …" แทน "ไม่มีคลิปค้าง" (user ตอบซ้ำแล้วงง)
+        try:
+            json.dump({'state': state, 'at': time.strftime('%H:%M', time.gmtime(time.time() + 7 * 3600))}, open(pending_path(pid, '.done'), 'w'))
         except Exception:
             pass
 VEO_PROMPT = ('Realistic e-commerce product video of the exact item shown in the reference image. '
@@ -973,9 +978,14 @@ class H(BaseHTTPRequestHandler):
                 pid = safe_id(d.get('id'))
                 meta, mp4 = pending_load(pid)
                 if not meta:
-                    return self._json(404, {'ok': False, 'id': pid, 'error': 'ไม่มีคลิปค้างรหัสนี้ (หมดอายุ 48 ชม. หรือโพสต์/ทิ้งไปแล้ว)'})
+                    try:
+                        dn = json.load(open(pending_path(pid, '.done')))
+                        msg = ('คลิปนี้ลง TikTok ไปแล้วเมื่อ %s น.' if dn.get('state') == 'published' else 'คลิปนี้ถูกทิ้งไปแล้วเมื่อ %s น.') % dn.get('at')
+                    except Exception:
+                        msg = 'ไม่มีคลิปค้างรหัสนี้ (หมดอายุ 48 ชม.)'
+                    return self._json(404, {'ok': False, 'id': pid, 'error': msg})
                 if self.path == '/discard':
-                    pending_drop(pid)
+                    pending_drop(pid, 'discarded')
                     print('[review] discard %s %s' % (pid, (meta.get('name') or '')[:40]), flush=True)
                     return self._json(200, {'ok': True, 'id': pid, 'name': meta.get('name'), 'discarded': True})
                 tt = d.get('tiktok') or meta.get('tiktok') or {}
@@ -983,7 +993,7 @@ class H(BaseHTTPRequestHandler):
                 r = tt_post(tt, mp4)
                 print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s err=%s (review publish %s)' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), r.get('error'), pid), flush=True)
                 if r.get('ok'):
-                    pending_drop(pid)
+                    pending_drop(pid, 'published')
                 return self._json(200 if r.get('ok') else 502, {'ok': bool(r.get('ok')), 'id': pid, 'name': meta.get('name'), 'tiktok': r, 'error': r.get('error')})
             except Exception as e:
                 traceback.print_exc()
