@@ -753,8 +753,30 @@ def _boomerang(W, mp4, gen_s, model):
     # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
     t1 = time.time()
     # 2 ต.ค. 69: Veo (ทั้ง API image-to-video และ Flow frames-to-video) เริ่มจากรูปต้นทางเป๊ะ ~1 วิแรก (มีขอบดำ/ตัวหนังสือบนรูป) และ boomerang พากลับมาอีกตอนท้าย → ตัดหัว VEO_TRIM วิ
+    # 2 ต.ค. 69: Veo Fast (image-to-video จากรูปจัตุรัส) คืนคลิป 9:16 ที่มี**แถบดำบน/ล่างตลอดคลิป** → วัดแถบดำเองจากเฟรมเดียว (cropdetect ของ ffmpeg
+    # บนฉากสว่างคืนกล่องเล็กกลางเฟรม ใช้ไม่ได้) : อ่านเฟรมเป็น gray → หาแถวบน/ล่างที่ค่าเฉลี่ย < 24 → ครอปเฉพาะแถบเต็มความกว้าง (Lite ซูมเต็มเฟรมเอง = ไม่ครอป)
+    pre = ''
+    try:
+        fw, fh = [int(x) for x in subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', W + '/veo.mp4']).decode().strip().split(',')[:2]]
+        raw = subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-ss', str(VEO_TRIM + 1.0), '-i', W + '/veo.mp4', '-frames:v', '1', '-vf', 'format=gray', '-f', 'rawvideo', '-'],
+                             capture_output=True, timeout=60).stdout
+        if len(raw) >= fw * fh:
+            def rowmean(y):
+                r = raw[y * fw:(y + 1) * fw]
+                return sum(r) / fw
+            top = 0
+            while top < fh // 3 and rowmean(top) < 24:
+                top += 1
+            bot = 0
+            while bot < fh // 3 and rowmean(fh - 1 - bot) < 24:
+                bot += 1
+            if top + bot >= 80 and fh - top - bot >= 300:
+                pre = 'crop=%d:%d:0:%d,' % (fw, fh - top - bot, top)
+    except Exception:
+        traceback.print_exc()
+    print('[render] veo crop=%s' % (pre or 'none'), flush=True)
     run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', str(VEO_TRIM), '-i', W + '/veo.mp4', '-filter_complex',
-         f'[0:v]fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
+         f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
          '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', W + '/boom.mp4'])
     return {'ok': True, 'gen_s': gen_s, 'prep_s': round(time.time() - t1, 1), 'bytes': len(mp4), 'model': model, 'src_dur': round(dur(W + '/veo.mp4'), 1)}
 
