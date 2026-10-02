@@ -683,6 +683,61 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 VEO_MODEL = os.environ.get('VEO_MODEL', 'veo-3.1-lite-generate-preview')
 VEO_TIMEOUT = int(os.environ.get('VEO_TIMEOUT', '240'))
 VEO_TRIM = float(os.environ.get('VEO_TRIM', '1.0'))   # วินาทีที่ตัดทิ้งจากหัวคลิป Veo (เฟรมแรก = รูปนิ่งต้นทาง)
+# 2 ต.ค. 69 user: "ส่งให้ดูก่อนโพสต์ แล้วค่อยเปิดอัตโนมัติ" → /render {review:{url,chat_id,caption}} + veo:true
+# Veo สำเร็จ = เก็บคลิปไว้ PENDING_DIR (mount /tiktok = /root/deal-video/tiktok บน host) + ส่งเข้า Telegram พร้อม '#veo <id>' บรรทัดแรก
+# ไม่โพสต์ TikTok · user ตอบกลับ (reply) ข้อความนั้นว่า "โพสต์" → Intake TG เรียก POST /publish {id} → tt_post ด้วย tiktok opts ที่เก็บไว้ · "ไม่" → /discard
+# Veo ล้ม/ข้าม/เกินโควตา → ทำแบบเดิม (telegram + tiktok ตรง) · คลิปค้าง > 48 ชม. ลบทิ้ง · โควตา Veo/วัน VEO_DAILY_MAX (นับใน /tiktok/veo_count.json เวลาไทย)
+PENDING_DIR = os.environ.get('VEO_PENDING_DIR', '/tiktok/pending')
+VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '8'))
+VEO_COUNT_FILE = os.environ.get('VEO_COUNT_FILE', '/tiktok/veo_count.json')
+
+def safe_id(x):
+    return re.sub(r'[^A-Za-z0-9_-]', '', str(x or ''))[:64]
+
+def veo_quota_take():
+    day = time.strftime('%Y-%m-%d', time.gmtime(time.time() + 7 * 3600))
+    try:
+        c = json.load(open(VEO_COUNT_FILE))
+    except Exception:
+        c = {}
+    n = int(c.get(day, 0))
+    if n >= VEO_DAILY_MAX:
+        return False
+    try:
+        os.makedirs(os.path.dirname(VEO_COUNT_FILE), exist_ok=True)
+        json.dump({day: n + 1}, open(VEO_COUNT_FILE, 'w'))
+    except Exception:
+        traceback.print_exc()
+    return True
+
+def pending_path(pid, ext):
+    return os.path.join(PENDING_DIR, pid + ext)
+
+def pending_save(pid, mp4, meta):
+    os.makedirs(PENDING_DIR, exist_ok=True)
+    now = time.time()
+    for f in os.listdir(PENDING_DIR):
+        fp = os.path.join(PENDING_DIR, f)
+        try:
+            if now - os.path.getmtime(fp) > 48 * 3600:
+                os.remove(fp)
+        except Exception:
+            pass
+    open(pending_path(pid, '.mp4'), 'wb').write(mp4)
+    json.dump(meta, open(pending_path(pid, '.json'), 'w'), ensure_ascii=False)
+
+def pending_load(pid):
+    try:
+        return json.load(open(pending_path(pid, '.json'))), open(pending_path(pid, '.mp4'), 'rb').read()
+    except Exception:
+        return None, None
+
+def pending_drop(pid):
+    for ext in ('.mp4', '.json'):
+        try:
+            os.remove(pending_path(pid, ext))
+        except Exception:
+            pass
 VEO_PROMPT = ('Realistic e-commerce product video of the exact item shown in the reference image. '
               'The product sits on a clean neutral surface and slowly rotates, soft natural daylight, gentle camera push-in, '
               'shallow depth of field, vertical 9:16 framing with the product centered in the upper half of the frame '
@@ -712,6 +767,8 @@ def veo_clip(W, d):
             return {'ok': False, 'error': 'bg_video: ' + str(e)[:160]}
     if not key:
         return {'ok': False, 'error': 'no GOOGLE_AI_KEY'}
+    if not veo_quota_take():
+        return {'ok': False, 'error': 'daily cap %d' % VEO_DAILY_MAX}
     try:
         img = open(W + '/product.jpg', 'rb').read()
         mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
@@ -910,6 +967,27 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200, r)
             except Exception as e:
                 return self._json(500, {'ok': False, 'error': str(e)[:200]})
+        if self.path in ('/publish', '/discard'):
+            try:
+                d = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)).decode('utf-8'))
+                pid = safe_id(d.get('id'))
+                meta, mp4 = pending_load(pid)
+                if not meta:
+                    return self._json(404, {'ok': False, 'id': pid, 'error': 'ไม่มีคลิปค้างรหัสนี้ (หมดอายุ 48 ชม. หรือโพสต์/ทิ้งไปแล้ว)'})
+                if self.path == '/discard':
+                    pending_drop(pid)
+                    print('[review] discard %s %s' % (pid, (meta.get('name') or '')[:40]), flush=True)
+                    return self._json(200, {'ok': True, 'id': pid, 'name': meta.get('name'), 'discarded': True})
+                tt = d.get('tiktok') or meta.get('tiktok') or {}
+                t_u = time.time()
+                r = tt_post(tt, mp4)
+                print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s err=%s (review publish %s)' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), r.get('error'), pid), flush=True)
+                if r.get('ok'):
+                    pending_drop(pid)
+                return self._json(200 if r.get('ok') else 502, {'ok': bool(r.get('ok')), 'id': pid, 'name': meta.get('name'), 'tiktok': r, 'error': r.get('error')})
+            except Exception as e:
+                traceback.print_exc()
+                return self._json(500, {'ok': False, 'error': str(e)[:200]})
         if self.path != '/render':
             return self._json(404, {'error': 'not found'})
         try:
@@ -927,6 +1005,19 @@ class H(BaseHTTPRequestHandler):
             render_s = round(time.time() - t_r, 1)
             print('[timing] render=%.1fs dur=%s voice=%s veo=%s' % (render_s, D, voiced, (veo or {}).get('ok')), flush=True)
             tg = d.get('telegram'); tt = d.get('tiktok')
+            rv = d.get('review')
+            if rv and (veo or {}).get('ok'):
+                pid = safe_id(d.get('page_id')) or hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest()[:16]
+                pending_save(pid, mp4, {'name': d.get('name'), 'tiktok': tt, 'created': time.time(), 'caption': rv.get('caption'), 'veo': veo})
+                cap = '#veo ' + pid + '\n' + (rv.get('caption') or '') + '\n\n✅ ตอบกลับ (reply) ข้อความนี้ว่า "โพสต์" เพื่อลง TikTok · "ไม่" เพื่อทิ้ง'
+                t_u = time.time()
+                try:
+                    sent, mid = tg_send_video(rv, mp4, cap)
+                except Exception as e:
+                    sent, mid = False, str(e)[:200]
+                print('[timing] review-telegram=%.1fs sent=%s pending=%s bytes=%d' % (time.time() - t_u, sent, pid, len(mp4)), flush=True)
+                return self._json(200 if sent else 502, {'review': True, 'pending_id': pid, 'sent': sent, 'message_id': mid, 'bytes': len(mp4), 'voice': voiced,
+                                                          'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo})
             if tg or tt:
                 out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo}
                 ok = True
