@@ -419,6 +419,23 @@ def tg_send_video(tg, mp4, caption):
     r = json.loads(urllib.request.urlopen(req, timeout=120).read().decode('utf-8', 'replace'))
     return bool(r.get('ok')), (r.get('result') or {}).get('message_id')
 
+def tg_send_photo(tg, jpg, caption):
+    """2 ต.ค. 69: ส่งรูปสินค้า (binary — Telegram ดึงจาก Shopee/Lazada CDN เองไม่ได้) ให้ user เอาไปทำคลิป Veo เองใน aipass/Flow"""
+    import uuid
+    url = str(tg.get('url', '')).replace('/sendVideo', '/sendPhoto')
+    if not url.startswith('https://api.telegram.org/'):
+        raise ValueError('telegram url must be api.telegram.org')
+    b = uuid.uuid4().hex
+    def part(name, val, fname=None, ct=None):
+        h = '--%s\r\nContent-Disposition: form-data; name="%s"' % (b, name)
+        if fname:
+            h += '; filename="%s"\r\nContent-Type: %s' % (fname, ct)
+        return h.encode() + b'\r\n\r\n' + (val if isinstance(val, bytes) else str(val).encode('utf-8')) + b'\r\n'
+    body = (part('chat_id', tg.get('chat_id', '')) + part('caption', (caption or '')[:1000]) + part('photo', jpg, 'product.jpg', 'image/jpeg') + ('--%s--\r\n' % b).encode())
+    req = urllib.request.Request(url, body, {'Content-Type': 'multipart/form-data; boundary=' + b}, method='POST')
+    r = json.loads(urllib.request.urlopen(req, timeout=60).read().decode('utf-8', 'replace'))
+    return bool(r.get('ok')), (r.get('result') or {}).get('message_id')
+
 # ---------- TikTok Content Posting API (28 ก.ย. 69) ----------
 # โพสต์คลิปเข้า TikTok ตรงจาก service · client key/secret จาก env (TIKTOK_[SB_]CLIENT_KEY/SECRET) ·
 # access/refresh token อยู่ในไฟล์ที่ mount มา (/tiktok/tokens.json — env ตรึงตอนสร้าง container จึงเก็บ token ที่ refresh ได้ในไฟล์)
@@ -1090,6 +1107,17 @@ class H(BaseHTTPRequestHandler):
             if tg or tt:
                 out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo}
                 ok = True
+                # 2 ต.ค. 69: ขอ Veo แต่ไม่ได้ (เกินโควตา 4/วัน, ล้ม, รูปแบนเนอร์) และมี review → ส่ง "รูปสินค้า + prompt" ให้ user ทำคลิป Veo เองใน aipass/Flow แล้ว Reply คลิปกลับที่ข้อความรูป (caption มี #d)
+                if tg and rv and d.get('veo') and not (veo or {}).get('ok') and pid_d and 'lazada-creative-center' not in str(d.get('img', '')):
+                    try:
+                        jpg = urllib.request.urlopen(urllib.request.Request(d['img'], headers={'User-Agent': 'Mozilla/5.0'}), timeout=30).read()
+                        capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt ด้านล่าง 3) Reply คลิปที่ได้กลับมาที่ข้อความนี้\n\n'
+                                + VEO_PROMPT + '\n\n#d ' + pid_d)
+                        ps, pm = tg_send_photo(tg, jpg, capP)
+                        out['photo_sent'] = ps; out['photo_message_id'] = pm
+                        print('[review] veo unavailable (%s) -> photo for manual Veo sent=%s' % ((veo or {}).get('error'), ps), flush=True)
+                    except Exception as e:
+                        out['photo_sent'] = False; out['photo_error'] = str(e)[:120]
                 if tg:
                     t_u = time.time()
                     try:
