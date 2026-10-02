@@ -688,7 +688,29 @@ VEO_TRIM = float(os.environ.get('VEO_TRIM', '1.0'))   # วินาทีที
 # ไม่โพสต์ TikTok · user ตอบกลับ (reply) ข้อความนั้นว่า "โพสต์" → Intake TG เรียก POST /publish {id} → tt_post ด้วย tiktok opts ที่เก็บไว้ · "ไม่" → /discard
 # Veo ล้ม/ข้าม/เกินโควตา → ทำแบบเดิม (telegram + tiktok ตรง) · คลิปค้าง > 48 ชม. ลบทิ้ง · โควตา Veo/วัน VEO_DAILY_MAX (นับใน /tiktok/veo_count.json เวลาไทย)
 PENDING_DIR = os.environ.get('VEO_PENDING_DIR', '/tiktok/pending')
-VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '5'))   # 2 ต.ค. 69 user: 'ลดเหลือ 5 คลิป/วัน' → 5 รอบแรกของวัน (00/06/09/12/15 น.) ได้ Veo รอบ 18/21 เป็นคลิปแบบเดิม
+VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '4'))   # 2 ต.ค. 69 user: 'ใช้ Fast 4 คลิป/วัน สลับกับผม gen ใน Flow เองแล้วส่งคลิปให้' → รอบ 00/06/09/12 ได้ Veo API, รอบ 15/18/21 user ส่งคลิปเอง
+# คลิปที่ user สร้างเอง (Flow): ทุก /render ที่มี page_id จะเก็บข้อมูลดีลไว้ DEALS_DIR/<page_id>.json (7 วัน) และต่อท้าย caption ใน Telegram ด้วย '#d <page_id>'
+# → user Reply ข้อความคลิปนั้นด้วยวิดีโอ → Intake TG (Extract) เห็น message.video + '#d <id>' → POST /render {deal_id, bg_video:<tg file url>, tiktok, telegram} → service เติมฟิลด์ดีลจากไฟล์ → ประกอบ+ลง TikTok ตรง (user ทำเองถือว่าอนุมัติแล้ว)
+DEALS_DIR = os.environ.get('DEALS_DIR', '/tiktok/deals')
+
+def deal_save(pid, d, title):
+    try:
+        os.makedirs(DEALS_DIR, exist_ok=True)
+        now = time.time()
+        for f in os.listdir(DEALS_DIR):
+            fp = os.path.join(DEALS_DIR, f)
+            if now - os.path.getmtime(fp) > 7 * 86400:
+                os.remove(fp)
+        json.dump({k: d.get(k) for k in ('name', 'sale', 'full', 'desc', 'cat', 'img')} | {'title': title, 'saved': now},
+                  open(os.path.join(DEALS_DIR, pid + '.json'), 'w'), ensure_ascii=False)
+    except Exception:
+        traceback.print_exc()
+
+def deal_load(pid):
+    try:
+        return json.load(open(os.path.join(DEALS_DIR, pid + '.json')))
+    except Exception:
+        return None
 VEO_COUNT_FILE = os.environ.get('VEO_COUNT_FILE', '/tiktok/veo_count.json')
 
 def safe_id(x):
@@ -1024,6 +1046,16 @@ class H(BaseHTTPRequestHandler):
             return self._json(404, {'error': 'not found'})
         try:
             d = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)).decode('utf-8'))
+            if d.get('deal_id'):
+                sd = deal_load(safe_id(d['deal_id']))
+                if not sd:
+                    return self._json(404, {'error': 'ไม่พบข้อมูลดีลรหัสนี้ (เก็บไว้ 7 วัน)', 'deal_id': d['deal_id']})
+                for k in ('name', 'sale', 'full', 'desc', 'cat', 'img'):
+                    d.setdefault(k, sd.get(k))
+                d.setdefault('page_id', safe_id(d['deal_id']))
+                if isinstance(d.get('tiktok'), dict) and not d['tiktok'].get('title'):
+                    d['tiktok']['title'] = sd.get('title') or ''
+                d['_saved_title'] = sd.get('title')
             if not d.get('img'):
                 return self._json(400, {'error': 'img required'})
             for k in ('sale', 'full'):
@@ -1038,6 +1070,11 @@ class H(BaseHTTPRequestHandler):
             print('[timing] render=%.1fs dur=%s voice=%s veo=%s' % (render_s, D, voiced, (veo or {}).get('ok')), flush=True)
             tg = d.get('telegram'); tt = d.get('tiktok')
             rv = d.get('review')
+            pid_d = safe_id(d.get('page_id'))
+            if pid_d and not d.get('deal_id'):
+                deal_save(pid_d, d, ((tg or {}).get('caption') or (rv or {}).get('caption') or '').split('\n\n', 1)[-1])
+                if tg and tg.get('caption') is not None:
+                    tg['caption'] = str(tg['caption'])[:960] + '\n#d ' + pid_d
             if rv and (veo or {}).get('ok'):
                 pid = safe_id(d.get('page_id')) or hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest()[:16]
                 pending_save(pid, mp4, {'name': d.get('name'), 'tiktok': tt, 'created': time.time(), 'caption': rv.get('caption'), 'veo': veo})
