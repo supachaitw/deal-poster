@@ -687,12 +687,28 @@ VEO_PROMPT = ('Realistic e-commerce product video of the exact item shown in the
               'and empty space in the lower third. Keep the product colors, shape, proportions and printed details exactly as in the image. '
               'No people, no hands, no text, no captions, no logos, no watermarks, no extra products.')
 
+def _boomerang(W, mp4, gen_s, model):
+    # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
+    t1 = time.time()
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/veo.mp4', '-filter_complex',
+         f'[0:v]fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
+         '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', W + '/boom.mp4'])
+    return {'ok': True, 'gen_s': gen_s, 'prep_s': round(time.time() - t1, 1), 'bytes': len(mp4), 'model': model, 'src_dur': round(dur(W + '/veo.mp4'), 1)}
+
 def veo_clip(W, d):
     """สร้างคลิป Veo จาก W/product.jpg → W/boom.mp4 (720x1280 ไป-กลับ 16 วิ) · คืน dict {ok, gen_s, error, ...} ไม่ throw"""
     key = os.environ.get('GOOGLE_AI_KEY')
+    t0 = time.time()
+    if d.get('bg_video'):
+        # 2 ต.ค. 69: คลิปที่ user สร้างเองใน Flow (Veo 3.1 Fast) แล้วส่งมาทาง Telegram → n8n/สคริปต์ส่ง URL ไฟล์มา ไม่ต้องเรียก Veo
+        try:
+            mp4 = urllib.request.urlopen(urllib.request.Request(str(d['bg_video']), headers={'User-Agent': 'Mozilla/5.0'}), timeout=120).read()
+            open(W + '/veo.mp4', 'wb').write(mp4)
+            return _boomerang(W, mp4, round(time.time() - t0, 1), 'bg_video')
+        except Exception as e:
+            return {'ok': False, 'error': 'bg_video: ' + str(e)[:160]}
     if not key:
         return {'ok': False, 'error': 'no GOOGLE_AI_KEY'}
-    t0 = time.time()
     try:
         img = open(W + '/product.jpg', 'rb').read()
         mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
@@ -716,12 +732,7 @@ def veo_clip(W, d):
                     'gen_s': round(time.time() - t0, 1)}
         mp4 = urllib.request.urlopen(urllib.request.Request(samples[0]['video']['uri'], headers={'x-goog-api-key': key}), timeout=120).read()
         open(W + '/veo.mp4', 'wb').write(mp4)
-        gen_s = round(time.time() - t0, 1)
-        # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
-        run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/veo.mp4', '-filter_complex',
-             f'[0:v]fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
-             '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', W + '/boom.mp4'])
-        return {'ok': True, 'gen_s': gen_s, 'prep_s': round(time.time() - t0 - gen_s, 1), 'bytes': len(mp4), 'model': VEO_MODEL, 'src_dur': round(dur(W + '/veo.mp4'), 1)}
+        return _boomerang(W, mp4, round(time.time() - t0, 1), VEO_MODEL)
     except urllib.error.HTTPError as e:
         return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:200]), 'gen_s': round(time.time() - t0, 1)}
     except Exception as e:
@@ -741,7 +752,7 @@ def render(d):
             # og:image ของ Lazada เป็นแบนเนอร์การตลาด (การ์ดชมพูมีช่องดำ) ไม่ใช่รูปสินค้า → Veo ทำออกมาเป็นแท็บเล็ต/กล่องโชว์แบนเนอร์ (เทส 2 ต.ค. 69 3/3) ข้ามไปใช้แบบเดิม
             veo = {'ok': False, 'error': 'skip: lazada banner image'}
             print('[render] veo skipped (lazada banner image)', flush=True)
-        elif d.get('veo'):
+        elif d.get('veo') or d.get('bg_video'):
             veo = veo_clip(W, d)
             print('[render] veo ok=%s gen=%ss err=%s' % (veo.get('ok'), veo.get('gen_s'), veo.get('error')), flush=True)
         use_veo = bool(veo and veo.get('ok'))
