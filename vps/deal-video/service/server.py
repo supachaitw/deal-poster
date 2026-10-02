@@ -815,7 +815,9 @@ def _boomerang(W, mp4, gen_s, model):
         traceback.print_exc()
     print('[render] veo crop=%s' % (pre or 'none'), flush=True)
     run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', str(VEO_TRIM), '-i', W + '/veo.mp4', '-filter_complex',
-         f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
+         # 2 ต.ค. 69: boom.mp4 = 'ช่องบน' 720x790 โดยตรง — แนวนอน (aipass 16:9) ย่อให้สูง 790 พอดี (ตัดแค่ข้าง สินค้าเห็นเต็มตัว) · แนวตั้ง 9:16 (API) ย่อกว้าง 720 แล้วตัดเอาส่วนบน y 40 (สินค้าอยู่ครึ่งบนตาม prompt)
+         # เดิมย่อเป็น 720x1280 แล้วค่อยตัด 790 → คลิปแนวนอนของ user ถูกซูม 1.78x สินค้าโดนตัดครึ่งใต้แถบมืด (user: 'แถบสีดำบังสินค้าหมดเลย')
+         f'[0:v]{pre}fps={FPS},scale=720:790:force_original_aspect_ratio=increase,crop=720:790:(iw-720)/2:min(40\\,ih-790),setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
          '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', W + '/boom.mp4'])
     return {'ok': True, 'gen_s': gen_s, 'prep_s': round(time.time() - t1, 1), 'bytes': len(mp4), 'model': model, 'src_dur': round(dur(W + '/veo.mp4'), 1)}
 
@@ -973,7 +975,7 @@ def render(d):
             # 2 ต.ค. 69 user: "ตัวหนังสือบังสินค้า และภาพเคลื่อนนิดเดียว" → (1) ฉาก Veo คมเฉพาะช่องบน y 0–860 (crop กลางเฟรม) ส่วนล่างเป็น bg.png เบลอของรูปสินค้า = ที่วางตัวหนังสือไม่ทับสินค้า
             # (2) ซูมช้าต่อเนื่องทั้งคลิป (crop ตาม t แล้ว scale กลับ 720x1280) ให้มีการเคลื่อนไหวแม้คลิป Veo สั้น/นิ่ง · input 1 = bg.png (ไม่ใช่ fg.png)
             g = f"""[1:v]setsar=1[bg];
-[0:v]setsar=1,zoompan=z='1+0.16*in/{frames}':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=720x1280:fps={FPS},crop=720:790:0:40[fg];
+[0:v]setsar=1,zoompan=z='1+0.16*in/{frames}':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=720x790:fps={FPS}[fg];
 [bg][fg]overlay=0:0:shortest=1,
 drawbox=x=0:y=0:w=720:h=230:color=black@0.25:t=fill,
 drawbox=x=0:y=790:w=720:h=490:color=black@0.35:t=fill,
