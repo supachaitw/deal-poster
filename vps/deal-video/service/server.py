@@ -817,7 +817,8 @@ def _boomerang(W, mp4, gen_s, model):
     run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', str(VEO_TRIM), '-i', W + '/veo.mp4', '-filter_complex',
          # 2 ต.ค. 69: boom.mp4 = 'ช่องบน' 720x790 โดยตรง — แนวนอน (aipass 16:9) ย่อให้สูง 790 พอดี (ตัดแค่ข้าง สินค้าเห็นเต็มตัว) · แนวตั้ง 9:16 (API) ย่อกว้าง 720 แล้วตัดเอาส่วนบน y 40 (สินค้าอยู่ครึ่งบนตาม prompt)
          # เดิมย่อเป็น 720x1280 แล้วค่อยตัด 790 → คลิปแนวนอนของ user ถูกซูม 1.78x สินค้าโดนตัดครึ่งใต้แถบมืด (user: 'แถบสีดำบังสินค้าหมดเลย')
-         f'[0:v]{pre}fps={FPS},scale=720:790:force_original_aspect_ratio=increase,crop=720:790:(iw-720)/2:min(40\\,ih-790),setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
+         # 2 ต.ค. 69 (รอบ 3) user: 'เอาตัวหนังสือลง เอาสีดำออก ไม่ลดขนาดภาพ' → กลับเป็นเต็มเฟรม 720x1280 (scale increase + crop กลาง = เห็นสินค้าเต็มความสูงเสมอ) ตัวหนังสือย้ายลงล่าง+ขอบดำ ไม่มีแถบ
+         f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
          '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', W + '/boom.mp4'])
     return {'ok': True, 'gen_s': gen_s, 'prep_s': round(time.time() - t1, 1), 'bytes': len(mp4), 'model': model, 'src_dur': round(dur(W + '/veo.mp4'), 1)}
 
@@ -915,20 +916,23 @@ def render(d):
 
         sale, full = d.get('sale'), d.get('full')
         name_lines = wrap_name(d.get('name') or '')
+        # โหมด Veo: ไม่มีแถบมืด → ตัวหนังสือใส่ขอบดำ (\bord) ให้อ่านออกบนฉากสว่าง และเลื่อนบล็อกชื่อ/ราคาลง DY px (วิดีโอเต็มเฟรม สินค้ามักอยู่กลาง)
+        OUT = r'\bord3\3c&H000000&' if use_veo else ''
+        DY = 150 if use_veo else 0
         def ev(start, style, tags, text):
-            return 'Dialogue: 0,%s,%s,%s,,0,0,0,,{%s}%s\n' % (ts(start), ts(D), style, tags, ass_escape(text))
+            return 'Dialogue: 0,%s,%s,%s,,0,0,0,,{%s}%s\n' % (ts(start), ts(D), style, tags + OUT, ass_escape(text))
         def ev2(start, end, style, tags, text):
-            return 'Dialogue: 0,%s,%s,%s,,0,0,0,,{%s}%s\n' % (ts(start), ts(end), style, tags, ass_escape(text))
+            return 'Dialogue: 0,%s,%s,%s,,0,0,0,,{%s}%s\n' % (ts(start), ts(end), style, tags + OUT, ass_escape(text))
         body = ev(0, 'B', r'\an5\pos(360,118)\fs74\c' + WHITE, 'ป้ายยาดีลเด็ด')
         if pct:
             body += ev(0.8, 'B', r'\an5\pos(586,198)\fs100\shad0\c' + WHITE, '-%d%%' % pct)
         if len(name_lines) == 2:
-            body += ev(0, 'B', r'\an5\pos(360,836)\fs54\c' + WHITE, name_lines[0])
-            body += ev(0, 'B', r'\an5\pos(360,896)\fs54\c' + WHITE, name_lines[1])
-            y_old, y_new = 958, 1036
+            body += ev(0, 'B', r'\an5\pos(360,%d)\fs54\c' % (836 + DY) + WHITE, name_lines[0])
+            body += ev(0, 'B', r'\an5\pos(360,%d)\fs54\c' % (896 + DY) + WHITE, name_lines[1])
+            y_old, y_new = 958 + DY, 1036 + DY
         else:
-            body += ev(0, 'B', r'\an5\pos(360,846)\fs64\c' + WHITE, name_lines[0] if name_lines else '')
-            y_old, y_new = 912, 1010
+            body += ev(0, 'B', r'\an5\pos(360,%d)\fs64\c' % (846 + DY) + WHITE, name_lines[0] if name_lines else '')
+            y_old, y_new = 912 + DY, 1010 + DY
         # คำบรรยายใช้พื้นที่เดียวกับบล็อกราคา แล้วหายไปตอนราคาขึ้น
         # (y 800-1100 มีที่พอสำหรับชื่อ+ราคาเท่านั้น ใส่พร้อมกันทั้งสามไม่ได้)
         if 'desc' in at:
@@ -942,7 +946,7 @@ def render(d):
             else:
                 desc_end = D          # ไม่มีราคาให้ขึ้นจอ — ปล่อยคำบรรยายค้างไว้ไม่ให้จอโล่ง
             desc_lines = wrap_name(desc_text, per_line=30, lines=2)
-            y_desc = 966 if len(desc_lines) == 2 else 992
+            y_desc = (966 if len(desc_lines) == 2 else 992) + DY
             for i, ln in enumerate(desc_lines):
                 body += ev2(at['desc'], desc_end, 'R',
                             r'\an5\pos(360,%d)\fs46\fad(250,250)\c%s' % (y_desc + i * 54, WHITE), ln)
@@ -955,8 +959,11 @@ def render(d):
             if len(name_lines) == 2:
                 fs = int(fs * 0.9)
             body += ev(at['new'], 'B', r'\an5\pos(360,%d)\fs%d\fad(300,0)\c%s' % (y_new, fs, YELLOW), txt)
-        body += ev(at['cta'], 'B', r'\an5\pos(360,1160)\fs64\shad0\c' + WHITE, 'ดูดีลนี้ที่ paiyaadeals.com')
-        body += ev(0, 'R', r'\an5\pos(360,1244)\fs46\alpha&H30&\c' + WHITE, '@paiyaa_deals')
+        if use_veo:
+            body += ev(at['cta'], 'B', r'\an5\pos(360,1251)\fs46\shad0\bord0\c' + WHITE, 'ดูดีลนี้ที่ paiyaadeals.com')   # แถบ CTA ชิดขอบล่าง (y 1222–1280) ไม่มีบรรทัด @ ในโหมดนี้
+        else:
+            body += ev(at['cta'], 'B', r'\an5\pos(360,1160)\fs64\shad0\c' + WHITE, 'ดูดีลนี้ที่ paiyaadeals.com')
+            body += ev(0, 'R', r'\an5\pos(360,1244)\fs46\alpha&H30&\c' + WHITE, '@paiyaa_deals')
         open(W + '/subs.ass', 'w', encoding='utf-8').write(HEAD + body)
 
         frames = int(round(D * FPS))
@@ -974,11 +981,8 @@ def render(d):
             # แถบมืดบน/ล่างแบบไล่ 3 ขั้นให้ตัวหนังสืออ่านออกบนฉากสว่าง
             # 2 ต.ค. 69 user: "ตัวหนังสือบังสินค้า และภาพเคลื่อนนิดเดียว" → (1) ฉาก Veo คมเฉพาะช่องบน y 0–860 (crop กลางเฟรม) ส่วนล่างเป็น bg.png เบลอของรูปสินค้า = ที่วางตัวหนังสือไม่ทับสินค้า
             # (2) ซูมช้าต่อเนื่องทั้งคลิป (crop ตาม t แล้ว scale กลับ 720x1280) ให้มีการเคลื่อนไหวแม้คลิป Veo สั้น/นิ่ง · input 1 = bg.png (ไม่ใช่ fg.png)
-            g = f"""[1:v]setsar=1[bg];
-[0:v]setsar=1,zoompan=z='1+0.16*in/{frames}':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=720x790:fps={FPS}[fg];
-[bg][fg]overlay=0:0:shortest=1,
-drawbox=x=0:y=0:w=720:h=230:color=black@0.25:t=fill,
-drawbox=x=0:y=790:w=720:h=490:color=black@0.35:t=fill,
+            g = f"""[1:v]nullsink;
+[0:v]setsar=1,zoompan=z='1+0.16*in/{frames}':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=720x1280:fps={FPS},
 {badge}"""
         else:
             g = f"""[0:v]setsar=1[bg];
@@ -986,7 +990,8 @@ drawbox=x=0:y=790:w=720:h=490:color=black@0.35:t=fill,
 [bg][fg]overlay=60:190:shortest=1,
 drawbox=x=56:y=186:w=608:h=608:color=white@0.92:t=5,
 {badge}"""
-        g += f"""drawbox=x=0:y=1108:w=720:h=104:color=0x8B5E3C@0.95:t=fill:enable='gte(t,{at['cta']:.2f})',
+        cta_box = 'x=0:y=1222:w=720:h=58:color=0x8B5E3C@0.85' if use_veo else 'x=0:y=1108:w=720:h=104:color=0x8B5E3C@0.95'
+        g += f"""drawbox={cta_box}:t=fill:enable='gte(t,{at['cta']:.2f})',
 ass=filename={W}/subs.ass:fontsdir={FONTS},
 fade=t=in:st=0:d=0.4,fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
 [{n + 2}:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:{D},asetpts=N/SR/TB,volume={0.14 if voiced else 0.5},afade=t=in:st=0:d=0.6,afade=t=out:st={D - 1.2:.2f}:d=1.2[mu];
