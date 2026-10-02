@@ -6,7 +6,7 @@
 # (ใส่ "upload": {"url": rupload uri, "token": …} = อัปโหลดขึ้น IG ให้เลย ตอบ JSON แทนไฟล์)
 # ตอบ 200 video/mp4 (header X-Voice: 1 = มีเสียงพากย์, 0 = TTS ล้มเลยได้แค่เพลง) · ผิดพลาด = 4xx/5xx JSON
 # เรนเดอร์ทีละคลิป (HTTPServer ไม่ใช่ threaded) เพราะ VPS มี 1 core
-import asyncio, hashlib, json, math, os, re, shutil, subprocess, tempfile, time, traceback, urllib.error, urllib.parse, urllib.request
+import asyncio, base64, hashlib, json, math, os, re, shutil, subprocess, tempfile, time, traceback, urllib.error, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 FONTS = '/app/fonts'
@@ -673,6 +673,60 @@ Style: R,Kanit,38,&H00FFFFFF,&H00FFFFFF,&H00000000,&H8C000000,0,0,0,0,100,100,0,
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
+# ---------- Veo (Google) ฉากสินค้าเคลื่อนไหวแทนรูปนิ่ง — ทดลอง 2 ต.ค. 69 (user: "ทำผ่าน API เลย ลอง 3 ดีลก่อน") ----------
+# /render {"veo": true} → ส่งรูปสินค้าให้ Veo 3.1 Lite สร้างคลิป 8 วิ 9:16 720p (image-to-video) แล้วใช้เป็นพื้นหลังทั้งเฟรม
+# แทน bg เบลอ+รูปซูม · ป้ายราคา/บทพากย์/เพลง เหมือนเดิม · ล้ม/ถูกกรอง/ช้าเกิน → ถอยไปเรนเดอร์แบบเดิม ไม่ถือว่าล้ม (ดู JSON `veo` / log [render] veo)
+# ราคา Gemini API (ต.ค. 69): Lite $0.05/วินาที ≈ $0.40/คลิป · Fast $0.10/วิ · Standard $0.40/วิ · ใช้ key เดียวกับ Gemini TTS (GOOGLE_AI_KEY) billing เปิดแล้ว
+# คลิป Veo 8 วิ สั้นกว่าคลิปเรา (~20 วิ) → ทำ boomerang (ไป-กลับ 16 วิ) แล้ว loop ตอนเรนเดอร์หลัก ไม่มีรอยต่อกระตุก
+# ⚠️ ใช้เวลา ~1–3 นาที/คลิป (service เรนเดอร์ทีละคลิป → บล็อกคำขอถัดไป) ใส่ veo เฉพาะดีลเด่น 1 ตัว/รอบเท่านั้น
+VEO_MODEL = os.environ.get('VEO_MODEL', 'veo-3.1-lite-generate-preview')
+VEO_TIMEOUT = int(os.environ.get('VEO_TIMEOUT', '240'))
+VEO_PROMPT = ('Realistic e-commerce product video of the exact item shown in the reference image. '
+              'The product sits on a clean neutral surface and slowly rotates, soft natural daylight, gentle camera push-in, '
+              'shallow depth of field, vertical 9:16 framing with the product centered in the upper half of the frame '
+              'and empty space in the lower third. Keep the product colors, shape, proportions and printed details exactly as in the image. '
+              'No people, no hands, no text, no captions, no logos, no watermarks, no extra products.')
+
+def veo_clip(W, d):
+    """สร้างคลิป Veo จาก W/product.jpg → W/boom.mp4 (720x1280 ไป-กลับ 16 วิ) · คืน dict {ok, gen_s, error, ...} ไม่ throw"""
+    key = os.environ.get('GOOGLE_AI_KEY')
+    if not key:
+        return {'ok': False, 'error': 'no GOOGLE_AI_KEY'}
+    t0 = time.time()
+    try:
+        img = open(W + '/product.jpg', 'rb').read()
+        mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
+        body = {'instances': [{'prompt': VEO_PROMPT, 'image': {'bytesBase64Encoded': base64.b64encode(img).decode(), 'mimeType': mime}}],
+                'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}
+        base = 'https://generativelanguage.googleapis.com/v1beta/'
+        op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % VEO_MODEL, json.dumps(body).encode(),
+                                                                     {'x-goog-api-key': key, 'Content-Type': 'application/json'}), timeout=60))
+        name = op['name']
+        while not op.get('done'):
+            if time.time() - t0 > VEO_TIMEOUT:
+                return {'ok': False, 'error': 'timeout %ds' % VEO_TIMEOUT, 'gen_s': round(time.time() - t0, 1)}
+            time.sleep(8)
+            op = json.load(urllib.request.urlopen(urllib.request.Request(base + name, headers={'x-goog-api-key': key}), timeout=30))
+        if op.get('error'):
+            return {'ok': False, 'error': str(op['error'])[:200], 'gen_s': round(time.time() - t0, 1)}
+        gv = (op.get('response') or {}).get('generateVideoResponse') or {}
+        samples = gv.get('generatedSamples') or []
+        if not samples:
+            return {'ok': False, 'error': 'no sample (filtered=%s %s)' % (gv.get('raiMediaFilteredCount'), [str(x)[:100] for x in (gv.get('raiMediaFilteredReasons') or [])]),
+                    'gen_s': round(time.time() - t0, 1)}
+        mp4 = urllib.request.urlopen(urllib.request.Request(samples[0]['video']['uri'], headers={'x-goog-api-key': key}), timeout=120).read()
+        open(W + '/veo.mp4', 'wb').write(mp4)
+        gen_s = round(time.time() - t0, 1)
+        # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
+        run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/veo.mp4', '-filter_complex',
+             f'[0:v]fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
+             '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', W + '/boom.mp4'])
+        return {'ok': True, 'gen_s': gen_s, 'prep_s': round(time.time() - t0 - gen_s, 1), 'bytes': len(mp4), 'model': VEO_MODEL, 'src_dur': round(dur(W + '/veo.mp4'), 1)}
+    except urllib.error.HTTPError as e:
+        return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:200]), 'gen_s': round(time.time() - t0, 1)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)[:200], 'gen_s': round(time.time() - t0, 1)}
+
 def render(d):
     W = tempfile.mkdtemp(prefix='reel_')
     try:
@@ -681,6 +735,16 @@ def render(d):
         if len(data) < 2000:
             raise ValueError('image too small')
         open(W + '/product.jpg', 'wb').write(data)
+
+        veo = None
+        if d.get('veo') and 'lazada-creative-center' in str(d.get('img', '')):
+            # og:image ของ Lazada เป็นแบนเนอร์การตลาด (การ์ดชมพูมีช่องดำ) ไม่ใช่รูปสินค้า → Veo ทำออกมาเป็นแท็บเล็ต/กล่องโชว์แบนเนอร์ (เทส 2 ต.ค. 69 3/3) ข้ามไปใช้แบบเดิม
+            veo = {'ok': False, 'error': 'skip: lazada banner image'}
+            print('[render] veo skipped (lazada banner image)', flush=True)
+        elif d.get('veo'):
+            veo = veo_clip(W, d)
+            print('[render] veo ok=%s gen=%ss err=%s' % (veo.get('ok'), veo.get('gen_s'), veo.get('error')), flush=True)
+        use_veo = bool(veo and veo.get('ok'))
 
         segs, pct, seed = script_for(d)
         roles = [r for r, _ in segs]
@@ -764,11 +828,21 @@ def render(d):
              'scale=720:720:force_original_aspect_ratio=increase,crop=720:720', W + '/fg.png'])
         print('[render] pre-scale %.1fs' % (time.time() - t_pre), flush=True)
         badge = ("drawbox=x=486:y=146:w=200:h=100:color=0xE53935@1:t=fill:enable='gte(t,0.8)',\n" if pct else '')
-        g = f"""[0:v]setsar=1[bg];
+        if use_veo:
+            # คลิป Veo เต็มเฟรม (input 0 = boom.mp4 loop) · fg.png (input 1) ไม่ใช้แต่คงไว้ให้เลข input ของเสียงเท่าเดิม
+            # แถบมืดบน/ล่างแบบไล่ 3 ขั้นให้ตัวหนังสืออ่านออกบนฉากสว่าง
+            g = f"""[1:v]nullsink;
+[0:v]setsar=1,
+drawbox=x=0:y=0:w=720:h=230:color=black@0.30:t=fill,drawbox=x=0:y=230:w=720:h=30:color=black@0.12:t=fill,
+drawbox=x=0:y=720:w=720:h=40:color=black@0.15:t=fill,drawbox=x=0:y=760:w=720:h=40:color=black@0.30:t=fill,drawbox=x=0:y=800:w=720:h=480:color=black@0.45:t=fill,
+{badge}"""
+        else:
+            g = f"""[0:v]setsar=1[bg];
 [1:v]zoompan=z='min(zoom+0.0005,1.14)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=600x600:fps={FPS},setsar=1[fg];
 [bg][fg]overlay=60:190:shortest=1,
 drawbox=x=56:y=186:w=608:h=608:color=white@0.92:t=5,
-{badge}drawbox=x=0:y=1108:w=720:h=104:color=0x8B5E3C@0.95:t=fill:enable='gte(t,{at['cta']:.2f})',
+{badge}"""
+        g += f"""drawbox=x=0:y=1108:w=720:h=104:color=0x8B5E3C@0.95:t=fill:enable='gte(t,{at['cta']:.2f})',
 ass=filename={W}/subs.ass:fontsdir={FONTS},
 fade=t=in:st=0:d=0.4,fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
 [{n + 2}:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:{D},asetpts=N/SR/TB,volume={0.14 if voiced else 0.5},afade=t=in:st=0:d=0.6,afade=t=out:st={D - 1.2:.2f}:d=1.2[mu];
@@ -782,15 +856,18 @@ fade=t=in:st=0:d=0.4,fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
             g += '[mu]apad,atrim=0:%s,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=44100[aout]\n' % D
         open(W + '/graph.txt', 'w', encoding='utf-8').write(g)
 
-        cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
-               '-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', W + '/bg.png', '-i', W + '/fg.png']
+        cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y']
+        if use_veo:
+            cmd += ['-stream_loop', '-1', '-t', str(D), '-i', W + '/boom.mp4', '-i', W + '/fg.png']
+        else:
+            cmd += ['-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', W + '/bg.png', '-i', W + '/fg.png']
         for w in wavs:
             cmd += ['-i', w]
         cmd += ['-i', MUSIC, '-filter_complex_script', W + '/graph.txt', '-map', '[v]', '-map', '[aout]',
                 '-c:v', 'libx264', '-preset', X264_PRESET, '-crf', str(X264_CRF), '-r', str(FPS),
                 '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', W + '/out.mp4']
         run(cmd)
-        return open(W + '/out.mp4', 'rb').read(), voiced, D, [t for _, t in segs]
+        return open(W + '/out.mp4', 'rb').read(), voiced, D, [t for _, t in segs], veo
     finally:
         shutil.rmtree(W, ignore_errors=True)
 
@@ -830,12 +907,12 @@ class H(BaseHTTPRequestHandler):
                     d[k] = None
             forced = d.get('voice') is not None   # โหมดบังคับ/auto ใช้ตอบ header+JSON ด้านล่าง (เดิมนิยามแค่ใน render() → NameError ทำทุก request ตอบ 500 ตั้งแต่ 22 ก.ย. 69)
             t_r = time.time()
-            mp4, voiced, D, lines = render(d)
+            mp4, voiced, D, lines, veo = render(d)
             render_s = round(time.time() - t_r, 1)
-            print('[timing] render=%.1fs dur=%s voice=%s' % (render_s, D, voiced), flush=True)
+            print('[timing] render=%.1fs dur=%s voice=%s veo=%s' % (render_s, D, voiced, (veo or {}).get('ok')), flush=True)
             tg = d.get('telegram'); tt = d.get('tiktok')
             if tg or tt:
-                out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s}
+                out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo}
                 ok = True
                 if tg:
                     t_u = time.time()
@@ -872,7 +949,7 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200 if code == 200 else 502, {
                     'uploaded': code == 200, 'status': code, 'response': body[:800],
                     'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto',
-                    'duration': D, 'lines': lines, 'render_s': render_s, 'upload_s': upload_s})
+                    'duration': D, 'lines': lines, 'render_s': render_s, 'upload_s': upload_s, 'veo': veo})
         except subprocess.CalledProcessError as e:
             return self._json(500, {'error': 'ffmpeg failed', 'detail': (e.stderr or b'')[-800:].decode('utf-8', 'replace')})
         except Exception as e:
@@ -884,6 +961,7 @@ class H(BaseHTTPRequestHandler):
         self.send_header('X-Voice', '1' if voiced else '0')
         self.send_header('X-Voice-Mode', 'req' if forced else 'auto')
         self.send_header('X-Duration', str(D))
+        self.send_header('X-Veo', '1' if (veo or {}).get('ok') else '0')
         self.end_headers()
         self.wfile.write(mp4)
 
