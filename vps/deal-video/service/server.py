@@ -680,7 +680,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 # ราคา Gemini API (ต.ค. 69): Lite $0.05/วินาที ≈ $0.40/คลิป · Fast $0.10/วิ · Standard $0.40/วิ · ใช้ key เดียวกับ Gemini TTS (GOOGLE_AI_KEY) billing เปิดแล้ว
 # คลิป Veo 8 วิ สั้นกว่าคลิปเรา (~20 วิ) → ทำ boomerang (ไป-กลับ 16 วิ) แล้ว loop ตอนเรนเดอร์หลัก ไม่มีรอยต่อกระตุก
 # ⚠️ ใช้เวลา ~1–3 นาที/คลิป (service เรนเดอร์ทีละคลิป → บล็อกคำขอถัดไป) ใส่ veo เฉพาะดีลเด่น 1 ตัว/รอบเท่านั้น
-VEO_MODEL = os.environ.get('VEO_MODEL', 'veo-3.1-lite-generate-preview')
+VEO_MODEL = os.environ.get('VEO_MODEL', 'veo-3.1-fast-generate-preview')   # 2 ต.ค. 69 user: 'ใช้ Fast' (Lite วาดของทรงเฉพาะผิดรุ่น) ≈ $0.80/คลิป
 VEO_TIMEOUT = int(os.environ.get('VEO_TIMEOUT', '240'))
 VEO_TRIM = float(os.environ.get('VEO_TRIM', '1.0'))   # วินาทีที่ตัดทิ้งจากหัวคลิป Veo (เฟรมแรก = รูปนิ่งต้นทาง)
 # 2 ต.ค. 69 user: "ส่งให้ดูก่อนโพสต์ แล้วค่อยเปิดอัตโนมัติ" → /render {review:{url,chat_id,caption}} + veo:true
@@ -688,7 +688,7 @@ VEO_TRIM = float(os.environ.get('VEO_TRIM', '1.0'))   # วินาทีที
 # ไม่โพสต์ TikTok · user ตอบกลับ (reply) ข้อความนั้นว่า "โพสต์" → Intake TG เรียก POST /publish {id} → tt_post ด้วย tiktok opts ที่เก็บไว้ · "ไม่" → /discard
 # Veo ล้ม/ข้าม/เกินโควตา → ทำแบบเดิม (telegram + tiktok ตรง) · คลิปค้าง > 48 ชม. ลบทิ้ง · โควตา Veo/วัน VEO_DAILY_MAX (นับใน /tiktok/veo_count.json เวลาไทย)
 PENDING_DIR = os.environ.get('VEO_PENDING_DIR', '/tiktok/pending')
-VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '8'))
+VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '5'))   # 2 ต.ค. 69 user: 'ลดเหลือ 5 คลิป/วัน' → 5 รอบแรกของวัน (00/06/09/12/15 น.) ได้ Veo รอบ 18/21 เป็นคลิปแบบเดิม
 VEO_COUNT_FILE = os.environ.get('VEO_COUNT_FILE', '/tiktok/veo_count.json')
 
 def safe_id(x):
