@@ -783,7 +783,7 @@ def pending_drop(pid, state=None):
         except Exception:
             pass
 VEO_PROMPT = ('Realistic e-commerce product video of the exact item shown in the reference image. '
-              'The product sits on a clean neutral surface and slowly rotates, soft natural daylight, gentle camera push-in, '
+              'The product sits on a clean neutral surface and slowly rotates while the camera slowly orbits around it, soft natural daylight, '
               'shallow depth of field, vertical 9:16 framing with the product centered in the upper half of the frame '
               'and empty space in the lower third. Keep the product colors, shape, proportions and printed details exactly as in the image. '
               'No people, no hands, no text, no captions, no logos, no watermarks, no extra products.')
@@ -970,10 +970,13 @@ def render(d):
         if use_veo:
             # คลิป Veo เต็มเฟรม (input 0 = boom.mp4 loop) · fg.png (input 1) ไม่ใช้แต่คงไว้ให้เลข input ของเสียงเท่าเดิม
             # แถบมืดบน/ล่างแบบไล่ 3 ขั้นให้ตัวหนังสืออ่านออกบนฉากสว่าง
-            g = f"""[1:v]nullsink;
-[0:v]setsar=1,
-drawbox=x=0:y=0:w=720:h=230:color=black@0.30:t=fill,drawbox=x=0:y=230:w=720:h=30:color=black@0.12:t=fill,
-drawbox=x=0:y=720:w=720:h=40:color=black@0.15:t=fill,drawbox=x=0:y=760:w=720:h=40:color=black@0.30:t=fill,drawbox=x=0:y=800:w=720:h=480:color=black@0.45:t=fill,
+            # 2 ต.ค. 69 user: "ตัวหนังสือบังสินค้า และภาพเคลื่อนนิดเดียว" → (1) ฉาก Veo คมเฉพาะช่องบน y 0–860 (crop กลางเฟรม) ส่วนล่างเป็น bg.png เบลอของรูปสินค้า = ที่วางตัวหนังสือไม่ทับสินค้า
+            # (2) ซูมช้าต่อเนื่องทั้งคลิป (crop ตาม t แล้ว scale กลับ 720x1280) ให้มีการเคลื่อนไหวแม้คลิป Veo สั้น/นิ่ง · input 1 = bg.png (ไม่ใช่ fg.png)
+            g = f"""[1:v]setsar=1[bg];
+[0:v]setsar=1,zoompan=z='1+0.16*in/{frames}':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=720x1280:fps={FPS},crop=720:790:0:40[fg];
+[bg][fg]overlay=0:0:shortest=1,
+drawbox=x=0:y=0:w=720:h=230:color=black@0.25:t=fill,
+drawbox=x=0:y=790:w=720:h=490:color=black@0.35:t=fill,
 {badge}"""
         else:
             g = f"""[0:v]setsar=1[bg];
@@ -997,7 +1000,7 @@ fade=t=in:st=0:d=0.4,fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
 
         cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y']
         if use_veo:
-            cmd += ['-stream_loop', '-1', '-t', str(D), '-i', W + '/boom.mp4', '-i', W + '/fg.png']
+            cmd += ['-stream_loop', '-1', '-t', str(D), '-i', W + '/boom.mp4', '-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', W + '/bg.png']
         else:
             cmd += ['-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', W + '/bg.png', '-i', W + '/fg.png']
         for w in wavs:
