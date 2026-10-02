@@ -185,10 +185,11 @@ CAT_HOOKS = {
     'กาแฟ': ['สายกาแฟ | อันนี้ต้องดูครับ', 'ใครติดกาแฟ | มาทางนี้เลย'],
 }
 # 28 ก.ย. 69 #20: IG จำกัดบัญชี 30 วัน (prohibited commercial practices) — CTA เลิกพูด 'ลิ้งค์ในไบโอ' ทุกคลิป → บอกชื่อเว็บ paiyaadeals.com เป็นคำพูด
+# 2 ต.ค. 69: user ฟังแล้ว 'paiyaadeals.com' เพี้ยน (Gemini อ่านสะกด) → ส่งเทียบ 4 แบบ เลือก A/B → บทพูดใช้ 'ป้ายยาดีล ดอทคอม' (บนจอยังเขียน paiyaadeals.com)
 # (Gemini อ่านโดเมนอังกฤษได้ · ถ้าถอยไป Azure Niwat อาจสะกดแปลก ยอมรับได้ช่วงนี้)
-CTAS = ['ดูดีลนี้ได้ที่ paiyaadeals.com ครับ', 'รายละเอียดอยู่ที่ paiyaadeals.com นะ', 'สนใจ | เข้าไปดูที่ paiyaadeals.com ได้เลย',
-        'เก็บไว้ก่อนได้ | ดีลนี้อยู่ที่ paiyaadeals.com', 'อยากได้ | ไปที่ paiyaadeals.com เลยครับ', 'ใครสนใจ | ดูได้ที่ paiyaadeals.com นะ',
-        'ไปดูที่ paiyaadeals.com กันครับ | แล้วมาบอกกันว่าเป็นไง', 'ดีลเต็ม ๆ อยู่ที่ paiyaadeals.com | ฝากติดตามด้วยนะ']
+CTAS = ['ดูดีลนี้ได้ที่ ป้ายยาดีล ดอทคอม ครับ', 'รายละเอียดอยู่ที่ ป้ายยาดีล ดอทคอม นะ', 'สนใจ | เข้าไปดูที่ ป้ายยาดีล ดอทคอม ได้เลย',
+        'เก็บไว้ก่อนได้ | ดีลนี้อยู่ที่ ป้ายยาดีล ดอทคอม', 'อยากได้ | ไปที่ ป้ายยาดีล ดอทคอม เลยครับ', 'ใครสนใจ | ดูได้ที่ ป้ายยาดีล ดอทคอม นะ',
+        'ไปดูที่ ป้ายยาดีล ดอทคอม กันครับ | แล้วมาบอกกันว่าเป็นไง', 'ดีลเต็ม ๆ อยู่ที่ ป้ายยาดีล ดอทคอม | ฝากติดตามด้วยนะ']
 # ท่อนนำก่อนคำบรรยาย / ราคา — เติมคำเชื่อมแบบพูดคุยแทนการยิงข้อมูลตรง ๆ (%s = เนื้อความเดิม)
 #    ถ่วงน้ำหนักด้วยการใส่ '%s' เปล่าซ้ำหลายช่อง — คนพูดจริงไม่ได้ขึ้นต้นด้วยคำเชื่อมทุกประโยค
 #    (รอบแรกให้น้ำหนักเท่ากัน 4 ช่อง แล้วลองรันกับดีลจริง 12 ตัว คำเชื่อมโผล่ 11/12 ฟังแล้วจะจำเจกว่าเดิม)
@@ -681,6 +682,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 # ⚠️ ใช้เวลา ~1–3 นาที/คลิป (service เรนเดอร์ทีละคลิป → บล็อกคำขอถัดไป) ใส่ veo เฉพาะดีลเด่น 1 ตัว/รอบเท่านั้น
 VEO_MODEL = os.environ.get('VEO_MODEL', 'veo-3.1-lite-generate-preview')
 VEO_TIMEOUT = int(os.environ.get('VEO_TIMEOUT', '240'))
+VEO_TRIM = float(os.environ.get('VEO_TRIM', '1.0'))   # วินาทีที่ตัดทิ้งจากหัวคลิป Veo (เฟรมแรก = รูปนิ่งต้นทาง)
 VEO_PROMPT = ('Realistic e-commerce product video of the exact item shown in the reference image. '
               'The product sits on a clean neutral surface and slowly rotates, soft natural daylight, gentle camera push-in, '
               'shallow depth of field, vertical 9:16 framing with the product centered in the upper half of the frame '
@@ -690,7 +692,8 @@ VEO_PROMPT = ('Realistic e-commerce product video of the exact item shown in the
 def _boomerang(W, mp4, gen_s, model):
     # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
     t1 = time.time()
-    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/veo.mp4', '-filter_complex',
+    # 2 ต.ค. 69: Veo (ทั้ง API image-to-video และ Flow frames-to-video) เริ่มจากรูปต้นทางเป๊ะ ~1 วิแรก (มีขอบดำ/ตัวหนังสือบนรูป) และ boomerang พากลับมาอีกตอนท้าย → ตัดหัว VEO_TRIM วิ
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', str(VEO_TRIM), '-i', W + '/veo.mp4', '-filter_complex',
          f'[0:v]fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
          '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', W + '/boom.mp4'])
     return {'ok': True, 'gen_s': gen_s, 'prep_s': round(time.time() - t1, 1), 'bytes': len(mp4), 'model': model, 'src_dur': round(dur(W + '/veo.mp4'), 1)}
