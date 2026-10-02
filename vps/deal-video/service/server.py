@@ -715,10 +715,12 @@ def veo_clip(W, d):
     try:
         img = open(W + '/product.jpg', 'rb').read()
         mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
-        body = {'instances': [{'prompt': VEO_PROMPT, 'image': {'bytesBase64Encoded': base64.b64encode(img).decode(), 'mimeType': mime}}],
+        model = d.get('veo_model') or VEO_MODEL      # 2 ต.ค. 69: ทดสอบรุ่น/prompt ต่อคำขอได้ (Lite วาดพาวเวอร์แบงค์เป็นคนละรุ่น)
+        prompt = (d.get('veo_prompt') or VEO_PROMPT) + ((' The product is: ' + str(d.get('veo_desc'))) if d.get('veo_desc') else '')
+        body = {'instances': [{'prompt': prompt, 'image': {'bytesBase64Encoded': base64.b64encode(img).decode(), 'mimeType': mime}}],
                 'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}
         base = 'https://generativelanguage.googleapis.com/v1beta/'
-        op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % VEO_MODEL, json.dumps(body).encode(),
+        op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % model, json.dumps(body).encode(),
                                                                      {'x-goog-api-key': key, 'Content-Type': 'application/json'}), timeout=60))
         name = op['name']
         while not op.get('done'):
@@ -735,7 +737,7 @@ def veo_clip(W, d):
                     'gen_s': round(time.time() - t0, 1)}
         mp4 = urllib.request.urlopen(urllib.request.Request(samples[0]['video']['uri'], headers={'x-goog-api-key': key}), timeout=120).read()
         open(W + '/veo.mp4', 'wb').write(mp4)
-        return _boomerang(W, mp4, round(time.time() - t0, 1), VEO_MODEL)
+        return _boomerang(W, mp4, round(time.time() - t0, 1), model)
     except urllib.error.HTTPError as e:
         return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:200]), 'gen_s': round(time.time() - t0, 1)}
     except Exception as e:

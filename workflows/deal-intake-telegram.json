@@ -27,7 +27,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const b=$input.first().json.body||$input.first().json;\nconst msg=b.message||{};\nconst text=msg.text||msg.caption||'';\nconst chatId=msg.chat?msg.chat.id:null;\nlet url=(text.match(/https?:\\/\\/\\S+/)||[null])[0];\nconst source=!url?null:(/tiktok\\.com/i.test(url)?'tiktok':(/lazada\\.|lzd\\.co/i.test(url)?'lazada':(/shopee\\.|shp\\.ee/i.test(url)?'shopee':null)));\n\n// 27 ก.ย. 69: ลิงก์ Shopee ธรรมดา (shopee.co.th / th.shp.ee) → ขอลิงก์ affiliate จาก deal-video /afflink (Shopee Affiliate Open API)\n// แปลงไม่ได้/บริการล่ม = ใช้ลิงก์เดิมต่อ (affNote บอกเหตุผล) — ห้ามให้ขั้นนี้ทำ intake ล้ม\nlet affNote = null, origUrl = null;\nif (url && source === 'shopee') {\n  try {\n    const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/afflink', body: { url }, json: true, timeout: 20000 });\n    if (r && r.ok && r.link) { if (r.link !== url) { origUrl = url; url = r.link; } }\n    else affNote = (r && r.reason) || 'afflink failed';\n  } catch (e) { affNote = 'afflink error: ' + String((e && e.message) || e).slice(0, 80); }\n}\n\nreturn [{json:{text,chatId,url,source,origUrl,affNote,hasUrl:!!(url&&chatId)}}];"
+        "jsCode": "const b=$input.first().json.body||$input.first().json;\nconst msg=b.message||{};\nconst text=msg.text||msg.caption||'';\nconst chatId=msg.chat?msg.chat.id:null;\n// 2 ต.ค. 69: คำตอบรีวิวคลิป Veo — user ตอบกลับ (reply) ข้อความคลิปที่มี '#veo <id>' บรรทัดแรก ว่า โพสต์/ไม่ → deal-video /publish หรือ /discard (คลิปเก็บอยู่ /tiktok/pending)\nconst rep = msg.reply_to_message || {};\nconst vm = String(rep.caption || '').match(/#veo\\s+([A-Za-z0-9_-]+)/);\nif (vm && chatId) {\n  const t = String(msg.text || '').trim();\n  const yes = /^(โพสต์|ลง|post|ok|โอเค|ตกลง|ใช่|y)/i.test(t), no = /^(ไม่|ทิ้ง|no|skip|ยกเลิก|n)/i.test(t);\n  let reply;\n  if (!yes && !no) reply = 'ตอบว่า \"โพสต์\" เพื่อลง TikTok หรือ \"ไม่\" เพื่อทิ้งคลิปนี้';\n  else {\n    try {\n      const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/' + (yes ? 'publish' : 'discard'), body: { id: vm[1] }, json: true, timeout: 180000, ignoreHttpStatusErrors: true });\n      const tk = (r && r.tiktok) || {};\n      reply = yes ? ((r && r.ok) ? '✅ ลง TikTok แล้ว (' + (tk.mode || '') + '/' + (tk.privacy || '') + ') — ' + (r.name || '') : '❌ ลงไม่สำเร็จ: ' + ((r && (r.error || tk.error)) || 'unknown'))\n                  : ((r && r.ok) ? '🗑 ทิ้งคลิปแล้ว — ' + (r.name || '') : '❌ ' + ((r && r.error) || 'unknown'));\n    } catch (e) { reply = '❌ ' + String((e && e.message) || e).slice(0, 120); }\n  }\n  return [{ json: { text, chatId, url: null, source: null, origUrl: null, affNote: null, hasUrl: false, veoReply: reply } }];\n}\nlet url=(text.match(/https?:\\/\\/\\S+/)||[null])[0];\nconst source=!url?null:(/tiktok\\.com/i.test(url)?'tiktok':(/lazada\\.|lzd\\.co/i.test(url)?'lazada':(/shopee\\.|shp\\.ee/i.test(url)?'shopee':null)));\n\n// 27 ก.ย. 69: ลิงก์ Shopee ธรรมดา (shopee.co.th / th.shp.ee) → ขอลิงก์ affiliate จาก deal-video /afflink (Shopee Affiliate Open API)\n// แปลงไม่ได้/บริการล่ม = ใช้ลิงก์เดิมต่อ (affNote บอกเหตุผล) — ห้ามให้ขั้นนี้ทำ intake ล้ม\nlet affNote = null, origUrl = null;\nif (url && source === 'shopee') {\n  try {\n    const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/afflink', body: { url }, json: true, timeout: 20000 });\n    if (r && r.ok && r.link) { if (r.link !== url) { origUrl = url; url = r.link; } }\n    else affNote = (r && r.reason) || 'afflink failed';\n  } catch (e) { affNote = 'afflink error: ' + String((e && e.message) || e).slice(0, 80); }\n}\n\nreturn [{json:{text,chatId,url,source,origUrl,affNote,hasUrl:!!(url&&chatId)}}];"
       }
     },
     {
@@ -453,6 +453,52 @@
       "parameters": {
         "jsCode": "const text='ไม่พบแถวที่รอเติมราคาครับ — วางลิงก์ Shopee ก่อน แล้วค่อยพิมพ์ราคา เช่น \"900 300\"';\nreturn [{json:{chat_id:$('Extract').first().json.chatId,text}}];"
       }
+    },
+    {
+      "id": "veo-reply-if",
+      "name": "Veo Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        300,
+        -220
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.veoReply || \"\" }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "veo-reply-build",
+      "name": "Build Veo Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        -300
+      ],
+      "parameters": {
+        "jsCode": "const i=$input.first().json;\nreturn [{json:{chat_id:i.chatId,text:i.veoReply,disable_web_page_preview:true}}];"
+      }
     }
   ],
   "connections": {
@@ -471,7 +517,7 @@
       "main": [
         [
           {
-            "node": "Has URL?",
+            "node": "Veo Reply?",
             "type": "main",
             "index": 0
           }
@@ -654,6 +700,35 @@
       ]
     },
     "Build NoRow Reply": {
+      "main": [
+        [
+          {
+            "node": "TG Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Veo Reply?": {
+      "main": [
+        [
+          {
+            "node": "Build Veo Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Veo Reply": {
       "main": [
         [
           {

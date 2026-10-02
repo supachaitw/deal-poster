@@ -30,7 +30,7 @@ WORKFLOWS = {
 SANITIZE = [
     (r'EAA[A-Za-z0-9]{40,}', 'REPLACE_FB_PAGE_TOKEN'),
     (r'TH[A-Z][A-Za-z0-9]{40,}', 'REPLACE_THREADS_TOKEN'),
-    (r'(?<=bot)\d{6,}:[A-Za-z0-9_-]{30,}', 'REPLACE_TELEGRAM_BOT_TOKEN'),
+    (r'\d{6,}:[A-Za-z0-9_-]{30,}', 'REPLACE_TELEGRAM_BOT_TOKEN'),   # 2 ต.ค. 69: ไม่บังคับ lookbehind 'bot' — IG Reel เก็บ token ไว้ในตัวแปร TG_BOT แล้วต่อ URL ทีหลัง
     (r'sk-ant-[A-Za-z0-9_-]{40,}', 'REPLACE_ANTHROPIC_API_KEY'),
     (r'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}', 'REPLACE_N8N_API_KEY'),
     (r'(?<=Bearer )[A-Za-z0-9+/=_-]{60,}', 'REPLACE_LINE_CHANNEL_TOKEN'),
