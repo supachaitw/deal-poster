@@ -278,7 +278,7 @@ def clean_desc(s):
 #         ท่อนราคายังเป็นแม่แบบ + thai_words เสมอ (ไม่ให้ LLM พูดตัวเลข) · log ทุกคลิป '[script] src=… hook=…'
 SCRIPT_LOG = os.environ.get('SCRIPT_LOG', '/tiktok/script_log.jsonl')
 STYLE_FILE = os.environ.get('SCRIPT_STYLE_FILE', '/tiktok/script_style.txt')
-LLM_SCRIPT_MODEL = os.environ.get('LLM_SCRIPT_MODEL', 'claude-haiku-4-5-20251001')
+LLM_SCRIPT_MODEL = os.environ.get('LLM_SCRIPT_MODEL', 'claude-sonnet-5')   # 3 ต.ค. 69 เทียบ 3 ดีล: Haiku 4.5 ไทยสะดุด ('เข้าไปยั่วเลย', 'รวด ๆ', แต่งสรรพคุณ) · Sonnet 5 เป็นธรรมชาติกว่า (~฿0.15/คลิป)
 LLM_SCRIPT_KEY = os.environ.get('ANTHROPIC_API_KEY', '').strip()
 LLM_SCRIPT = os.environ.get('LLM_SCRIPT', '1') == '1' and bool(LLM_SCRIPT_KEY)
 LLM_SCRIPT_COOLDOWN_UNTIL = 0.0
@@ -320,11 +320,14 @@ def pick(pool, h, recent_t):
     return min(order, key=lambda c: last.get(c, -1))
 
 def script_ok(v, name):
-    if re.search(r'\d', v) or '?' in v or '#' in v or v.count(' | ') > 2:
+    if '?' in v or '#' in v or v.count(' | ') > 2:
         return False
+    for w in re.findall(r'\S*\d\S*', v):                                 # ตัวเลขใช้ได้เฉพาะที่เป็นส่วนของชื่อรุ่นในชื่อสินค้า (M4, 780ml) — ราคา/เปอร์เซ็นต์ห้าม
+        if w.lower() not in (name or '').lower():
+            return False
     if any(b in v for b in SCRIPT_BANNED):
         return False
-    if re.search(r'[^฀-๿A-Za-z \|,\.!…\-\'"()%/+]', v):   # อิโมจิ/อักษรอื่น
+    if re.search(r'[^฀-๿A-Za-z0-9 \|,\.!…\-\'"()%/+]', v):   # อิโมจิ/อักษรอื่น  # ตัวเลขผ่านด่านนี้ได้ แต่ถูกคุมด้วยกติกา "ต้องอยู่ในชื่อสินค้า" ด้านบน
         return False
     nm = (name or '').lower()
     for w in re.findall(r'[A-Za-z]+', v):
@@ -353,23 +356,35 @@ def llm_script(d, pct, recent):
                  '- cta: 1 ประโยค ต้องมีคำว่า "ป้ายยาดีล ดอทคอม" (ชื่อเว็บแบบอ่าน) ตรงตามนี้ 1 ครั้ง สำนวนไม่ซ้ำกับ avoid\n'
                  'กติกาเสียง: ภาษาไทยล้วน · คำอังกฤษใช้ได้เฉพาะคำที่อยู่ในชื่อสินค้า และต้องสะกดอังกฤษตามเดิม ห้ามถอดเสียงเป็นไทย · '
                  'ห้ามมีตัวเลข ราคา เปอร์เซ็นต์ (ส่วนนั้นระบบพูดเอง) · ห้ามเครื่องหมาย ? อิโมจิ แฮชแท็ก · ใช้ " | " ได้ไม่เกิน 1 จุดต่อประโยคเป็นจังหวะหายใจ · '
-                 'ห้ามอ้างว่าใช้แล้วดี ถูกสุด ใกล้หมด ของแท้ · ห้ามพูดถึงลิงก์หรือไบโอ\n'
+                 'ห้ามอ้างว่าใช้แล้วดี ถูกสุด ใกล้หมด ของแท้ · ห้ามเติมสรรพคุณหรือผลลัพธ์ที่ไม่อยู่ในข้อมูล (เช่น ผ่อนคลายกล้ามเนื้อ อุ่นใจทั้งวัน ช่วยได้จริง) · ห้ามพูดถึงลิงก์หรือไบโอ · ทุกประโยคต้องสมบูรณ์ อ่านออกเสียงแล้วไม่สะดุด\n'
                  'แนวทางสไตล์ปัจจุบัน:\n' + style)
         user = json.dumps({'name': name, 'cat': d.get('cat') or '', 'desc': desc, 'has_discount': bool(pct),
                            'has_price': bool(d.get('sale') or d.get('full')), 'avoid': avoid}, ensure_ascii=False)
-        body = {'model': LLM_SCRIPT_MODEL, 'max_tokens': 300, 'temperature': 1.0, 'system': sys_p,
+        body = {'model': LLM_SCRIPT_MODEL, 'max_tokens': 1500, 'temperature': 1.0, 'system': sys_p, 'thinking': {'type': 'disabled'},   # Sonnet 5 กับ prompt ยาวเคยคิด (thinking) จน max_tokens 300 หมดโดยไม่มี text (stop=max_tokens len=0) → ปิด thinking + เพดานกว้าง
                 'messages': [{'role': 'user', 'content': user}]}
         req = urllib.request.Request('https://api.anthropic.com/v1/messages', json.dumps(body).encode('utf-8'),
                                      {'content-type': 'application/json', 'x-api-key': LLM_SCRIPT_KEY, 'anthropic-version': '2023-06-01'})
-        r = json.load(urllib.request.urlopen(req, timeout=12))
-        txt = ''.join(c.get('text', '') for c in r.get('content', []) if c.get('type') == 'text')
-        j = json.loads(re.search(r'\{.*\}', txt, re.S).group(0))
+        j = None
+        for attempt in range(2):   # ตอบไม่เป็น JSON (เกิดกับ Sonnet 1/3 ตอนเทส) → ยิงซ้ำ 1 ครั้ง
+            r = json.load(urllib.request.urlopen(req, timeout=15))
+            txt = ''.join(c.get('text', '') for c in r.get('content', []) if c.get('type') == 'text')
+            m = re.search(r'\{.*\}', txt, re.S)
+            if m:
+                try:
+                    j = json.loads(m.group(0)); break
+                except Exception:
+                    pass
+            print('[script] llm non-json reply (attempt %d) stop=%s len=%d' % (attempt + 1, r.get('stop_reason'), len(txt)), flush=True)
+        if j is None:
+            return None
         out = {}
         for k_, lo, hi in (('hook', 6, 70), ('cta', 12, 90), ('desc', 8, 120)):
             v = re.sub(r'\s+', ' ', str(j.get(k_) or '')).replace('?', '').strip()
             good = bool(v) and lo <= len(v) <= hi and script_ok(v, name)
             if k_ == 'desc':
                 out[k_] = v if good else None
+                if v and not good:
+                    print('[script] llm desc dropped (len %d)' % len(v), flush=True)
             elif good:
                 out[k_] = v
             else:
@@ -381,8 +396,9 @@ def llm_script(d, pct, recent):
         print('[script] llm ok %.1fs' % (time.time() - t0), flush=True)
         return out
     except Exception as e:
-        LLM_SCRIPT_COOLDOWN_UNTIL = time.time() + 600
-        print('[script] llm failed %s -> pool (cooldown 10m)' % str(e)[:100], flush=True)
+        if isinstance(e, (urllib.error.URLError, TimeoutError, OSError)):   # API ล่ม/ช้า/429 → พัก 10 นาที · บั๊ก parse ไม่ต้องพัก
+            LLM_SCRIPT_COOLDOWN_UNTIL = time.time() + 600
+        print('[script] llm failed %s -> pool%s' % (str(e)[:100], ' (cooldown 10m)' if LLM_SCRIPT_COOLDOWN_UNTIL > time.time() else ''), flush=True)
         return None
 
 def script_for(d):
