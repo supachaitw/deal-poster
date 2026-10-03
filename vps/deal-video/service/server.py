@@ -271,6 +271,120 @@ def clean_desc(s):
         s = s[:safe_cut(s, DESC_MAX)].rstrip() + '…'
     return s
 
+# ---------- บทพูดไม่ซ้ำ (3 ต.ค. 69 #20 — user: "บทพูดเริ่มซ้ำ ๆ เดิม ให้คิดบทพูดให้ทันสมัยอยู่เรื่อย ๆ") ----------
+# 2 ชั้น: (1) pool เดิมเลือกแบบ "ใช้ล่าสุดน้อยสุด" (LRU) จาก SCRIPT_LOG แทน hash ล้วน → ไม่ได้ยินสำนวนเดิมซ้ำในวันเดียวกัน
+#         (2) ถ้ามี ANTHROPIC_API_KEY ในไฟล์ env ของ service → ให้ Haiku เขียน hook/desc/cta ใหม่รายดีลตาม STYLE_FILE (แนวเทรนด์ แก้ไฟล์ได้ไม่ต้อง deploy)
+#             ผ่านด่านตรวจ (ไม่มีตัวเลข/คำทับศัพท์/'?'/อักษรอังกฤษนอกชื่อสินค้า, CTA ต้องมี 'ป้ายยาดีล ดอทคอม') ไม่ผ่าน/ล้ม/ช้า → ใช้ pool
+#         ท่อนราคายังเป็นแม่แบบ + thai_words เสมอ (ไม่ให้ LLM พูดตัวเลข) · log ทุกคลิป '[script] src=… hook=…'
+SCRIPT_LOG = os.environ.get('SCRIPT_LOG', '/tiktok/script_log.jsonl')
+STYLE_FILE = os.environ.get('SCRIPT_STYLE_FILE', '/tiktok/script_style.txt')
+LLM_SCRIPT_MODEL = os.environ.get('LLM_SCRIPT_MODEL', 'claude-haiku-4-5-20251001')
+LLM_SCRIPT_KEY = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+LLM_SCRIPT = os.environ.get('LLM_SCRIPT', '1') == '1' and bool(LLM_SCRIPT_KEY)
+LLM_SCRIPT_COOLDOWN_UNTIL = 0.0
+SCRIPT_RECENT_N = 40
+SCRIPT_BANNED = ('เทส', 'ชีเสิร์ฟ', 'แก็ดเจ็ต', 'ไบโอ', 'ลิงก์', 'ลิ้งค์', 'ใช้แล้ว', 'ถูกสุด', 'ใกล้หมด', 'โอเค')
+STYLE_DEFAULT = """แนวบทพูดคลิปดีล TikTok ไทย (ต.ค. 2569) — แก้ไฟล์ /root/deal-video/tiktok/script_style.txt ได้เลยเมื่อเทรนด์เปลี่ยน
+- 2 วินาทีแรกต้องมีเหตุให้หยุดดู: สถานการณ์ที่คนดูเจอเอง (เวลา…ทีไร / ใครเป็นแบบนี้บ้าง), เรียกกลุ่ม (สายกาแฟ, คนทำงานออฟฟิศ, ทาสแมว), บอกต่อ (เจอแล้วต้องบอก), ถามด้วยคำลงท้าย (…มั้ยครับ / …รึเปล่า)
+- ภาษาพูดจริง สั้น เป็นกันเอง เหมือนเพื่อนเล่าให้ฟัง ไม่ใช่โฆษณาอ่านสคริปต์ · ห้ามเปิดด้วย "โอเค" "สวัสดีครับ" "วันนี้"
+- ศัพท์ที่ยังใช้ได้ปี 2569: ทำถึง เริ่ด ฉ่ำ ปัง คุ้ม ของมันต้องมี สายประหยัด — ใช้ไม่เกิน 1 คำต่อบท ไม่ฝืน
+- ท้ายคลิปชวนทำอะไรสักอย่างสลับกันไป: เซฟไว้ก่อน / ส่งให้เพื่อน / กดติดตาม / ไปดูที่เว็บ"""
+
+def script_recent(n=SCRIPT_RECENT_N):
+    try:
+        lines = open(SCRIPT_LOG, encoding='utf-8').read().splitlines()[-n:]
+        return [json.loads(l) for l in lines if l.strip()]
+    except Exception:
+        return []
+
+def script_log(rec):
+    try:
+        rec['ts'] = time.strftime('%Y-%m-%d %H:%M', time.gmtime(time.time() + 7 * 3600))
+        with open(SCRIPT_LOG, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+        lines = open(SCRIPT_LOG, encoding='utf-8').read().splitlines()
+        if len(lines) > 1000:
+            tmp = SCRIPT_LOG + '.new'
+            open(tmp, 'w', encoding='utf-8').write('\n'.join(lines[-600:]) + '\n')
+            os.replace(tmp, SCRIPT_LOG)
+    except Exception:
+        pass
+
+def pick(pool, h, recent_t):
+    """เลือกจาก pool: ตัวที่ไม่ได้ใช้ในคลิปล่าสุดนานสุดก่อน (recent_t = แม่แบบที่ใช้ไป เรียงเก่า→ใหม่) · เสมอกัน = ตัวที่ใกล้ตำแหน่ง hash"""
+    last = {}
+    for i, t in enumerate(recent_t):
+        last[t] = i
+    n = len(pool)
+    order = [pool[(h + i) % n] for i in range(n)]
+    return min(order, key=lambda c: last.get(c, -1))
+
+def script_ok(v, name):
+    if re.search(r'\d', v) or '?' in v or '#' in v or v.count(' | ') > 2:
+        return False
+    if any(b in v for b in SCRIPT_BANNED):
+        return False
+    if re.search(r'[^฀-๿A-Za-z \|,\.!…\-\'"()%/+]', v):   # อิโมจิ/อักษรอื่น
+        return False
+    nm = (name or '').lower()
+    for w in re.findall(r'[A-Za-z]+', v):
+        if w.lower() not in nm:                                      # คำอังกฤษใช้ได้เฉพาะที่อยู่ในชื่อสินค้า
+            return False
+    return True
+
+def llm_script(d, pct, recent):
+    global LLM_SCRIPT_COOLDOWN_UNTIL
+    if not LLM_SCRIPT or time.time() < LLM_SCRIPT_COOLDOWN_UNTIL:
+        return None
+    t0 = time.time()
+    try:
+        try:
+            style = open(STYLE_FILE, encoding='utf-8').read().strip() or STYLE_DEFAULT
+        except Exception:
+            style = STYLE_DEFAULT
+        name = (d.get('name') or '')[:120]
+        desc = clean_desc(d.get('desc')) or ''
+        avoid = [r.get('hook_t') for r in recent if r.get('hook_t')][-25:] + [r.get('cta_t') for r in recent if r.get('cta_t')][-12:]
+        sys_p = ('คุณเขียนบทพูด (voice-over เสียงผู้ชาย ลงท้าย ครับ/นะครับ แบบธรรมชาติ ไม่ทุกประโยค) สำหรับคลิป TikTok แนะนำดีลสินค้า ยาว ~15 วินาที '
+                 'ผู้พูดคือคนชอบแชร์ดีล ไม่ใช่คนขาย และยังไม่เคยใช้สินค้า\n'
+                 'ตอบเป็น JSON อย่างเดียว: {"hook": "...", "desc": "...", "cta": "..."}\n'
+                 '- hook: 1 ประโยค 4–12 คำ ดึงให้หยุดดูใน 2 วินาที ผูกกับสินค้า/หมวด/สถานการณ์ใช้งาน สลับสไตล์ไม่ซ้ำกับรายการ avoid\n'
+                 '- desc: 1 ประโยคพูด ไม่เกิน 25 คำ เล่าว่าของคืออะไร ใช้ข้อมูลที่ให้เท่านั้น ห้ามเดาสเปก ถ้าข้อมูลไม่พอให้ส่งสตริงว่าง\n'
+                 '- cta: 1 ประโยค ต้องมีคำว่า "ป้ายยาดีล ดอทคอม" (ชื่อเว็บแบบอ่าน) ตรงตามนี้ 1 ครั้ง สำนวนไม่ซ้ำกับ avoid\n'
+                 'กติกาเสียง: ภาษาไทยล้วน · คำอังกฤษใช้ได้เฉพาะคำที่อยู่ในชื่อสินค้า และต้องสะกดอังกฤษตามเดิม ห้ามถอดเสียงเป็นไทย · '
+                 'ห้ามมีตัวเลข ราคา เปอร์เซ็นต์ (ส่วนนั้นระบบพูดเอง) · ห้ามเครื่องหมาย ? อิโมจิ แฮชแท็ก · ใช้ " | " ได้ไม่เกิน 1 จุดต่อประโยคเป็นจังหวะหายใจ · '
+                 'ห้ามอ้างว่าใช้แล้วดี ถูกสุด ใกล้หมด ของแท้ · ห้ามพูดถึงลิงก์หรือไบโอ\n'
+                 'แนวทางสไตล์ปัจจุบัน:\n' + style)
+        user = json.dumps({'name': name, 'cat': d.get('cat') or '', 'desc': desc, 'has_discount': bool(pct),
+                           'has_price': bool(d.get('sale') or d.get('full')), 'avoid': avoid}, ensure_ascii=False)
+        body = {'model': LLM_SCRIPT_MODEL, 'max_tokens': 300, 'temperature': 1.0, 'system': sys_p,
+                'messages': [{'role': 'user', 'content': user}]}
+        req = urllib.request.Request('https://api.anthropic.com/v1/messages', json.dumps(body).encode('utf-8'),
+                                     {'content-type': 'application/json', 'x-api-key': LLM_SCRIPT_KEY, 'anthropic-version': '2023-06-01'})
+        r = json.load(urllib.request.urlopen(req, timeout=12))
+        txt = ''.join(c.get('text', '') for c in r.get('content', []) if c.get('type') == 'text')
+        j = json.loads(re.search(r'\{.*\}', txt, re.S).group(0))
+        out = {}
+        for k_, lo, hi in (('hook', 6, 70), ('cta', 12, 90), ('desc', 8, 120)):
+            v = re.sub(r'\s+', ' ', str(j.get(k_) or '')).replace('?', '').strip()
+            good = bool(v) and lo <= len(v) <= hi and script_ok(v, name)
+            if k_ == 'desc':
+                out[k_] = v if good else None
+            elif good:
+                out[k_] = v
+            else:
+                print('[script] llm reject %s=%r' % (k_, v[:60]), flush=True)
+                return None
+        if out['cta'].count('ป้ายยาดีล ดอทคอม') != 1:
+            print('[script] llm reject cta (no site)', flush=True)
+            return None
+        print('[script] llm ok %.1fs' % (time.time() - t0), flush=True)
+        return out
+    except Exception as e:
+        LLM_SCRIPT_COOLDOWN_UNTIL = time.time() + 600
+        print('[script] llm failed %s -> pool (cooldown 10m)' % str(e)[:100], flush=True)
+        return None
+
 def script_for(d):
     name, sale, full = d.get('name') or '', d.get('sale'), d.get('full')
     h = int(hashlib.md5(name.encode('utf-8')).hexdigest(), 16)
@@ -280,22 +394,33 @@ def script_for(d):
     # เลือกชนิด hook (รอบ #9): เรียกกลุ่มตามหมวด → ชูตัวเลข → urgency ตอนลด → ปกติ · ทุกอย่างคงที่ต่อดีลด้วย hash ชื่อ
     cat = str(d.get('cat') or '').strip()
     pct_hook = False
+    recent = script_recent()
+    R = lambda key: [r.get(key) for r in recent if r.get(key)]
+    rh, rc, ro, rn = R('hook_t'), R('cta_t'), R('old_t'), R('new_t')
     if cat in CAT_HOOKS and (h // 31) % 3 == 0:
         pool = CAT_HOOKS[cat]
-        hook = pool[(h // 37) % len(pool)]
+        hook = hook_t = pick(pool, h // 37, rh)
     elif pct and pct >= PCT_HOOK_MIN and (h // 29) % 2 == 0:
-        hook = PCT_HOOKS[(h // 41) % len(PCT_HOOKS)] % thai_words(pct)
+        hook_t = pick(PCT_HOOKS, h // 41, rh)
+        hook = hook_t % thai_words(pct)
         pct_hook = True
     elif pct and (h // 43) % 5 == 0:
-        hook = DISCOUNT_HOOKS[(h // 47) % len(DISCOUNT_HOOKS)]
+        hook = hook_t = pick(DISCOUNT_HOOKS, h // 47, rh)
     else:
-        hook = HOOKS[h % len(HOOKS)]
+        hook = hook_t = pick(HOOKS, h, rh)
+    L = llm_script(d, pct, recent)
+    if L and not pct_hook:
+        hook = hook_t = L['hook']
     segs = [('hook', hook)]
     desc = clean_desc(d.get('desc'))
-    if desc:
+    if desc and L and L.get('desc'):
+        segs.append(('desc', L['desc']))
+    elif desc:
         segs.append(('desc', DESC_LEADS[(h // 11) % len(DESC_LEADS)] % desc))
+    old_t = new_t = None
     if pct:
-        segs.append(('old', OLD_LINES[(h // 13) % len(OLD_LINES)] % approx_words(full)))
+        old_t = pick(OLD_LINES, h // 13, ro)
+        segs.append(('old', old_t % approx_words(full)))
         tail = ''
         if pct_hook:
             tail = ''                      # hook พูดเปอร์เซ็นต์ไปแล้ว ไม่ซ้ำ
@@ -303,17 +428,24 @@ def script_for(d):
             tail = ' | ลดไปเกินครึ่งเลยนะ'
         elif pct >= 15:
             tail = ' | ลดไปตั้ง%sเปอร์เซ็นต์แน่ะ' % thai_words(pct)
-        line = NEW_LINES[(h // 17) % len(NEW_LINES)] % thai_words(sale)
+        new_t = pick(NEW_LINES, h // 17, rn)
+        line = new_t % thai_words(sale)
         if tail and line.endswith('เอง'):
             tail = ',' + tail[2:]   # 'เอง | ลด…' → 'เอง, ลด…' — วัด 26 ก.ย. 69: 'เอง… ' Azure ถือจบประโยค หยุด 1.34 วิ · ', ' 0.58 · ('เองน้า… ' 0.43 แต่ user ให้ตัด น้า)
         segs.append(('new', line + tail))
     elif sale:
-        segs.append(('new', SALE_LINES[(h // 19) % len(SALE_LINES)] % thai_words(sale)))
+        new_t = pick(SALE_LINES, h // 19, rn)
+        segs.append(('new', new_t % thai_words(sale)))
     elif full:
-        segs.append(('new', FULL_LINES[(h // 23) % len(FULL_LINES)] % thai_words(full)))
+        new_t = pick(FULL_LINES, h // 23, rn)
+        segs.append(('new', new_t % thai_words(full)))
     else:
-        segs.append(('new', NOPRICE[(h // 3) % len(NOPRICE)]))   # ไม่มีราคาเลย = คลิปจะเหลือแค่ hook+CTA (7 วิ) โล่งไป
-    segs.append(('cta', CTAS[(h // 7) % len(CTAS)]))
+        new_t = pick(NOPRICE, h // 3, rn)
+        segs.append(('new', new_t))   # ไม่มีราคาเลย = คลิปจะเหลือแค่ hook+CTA (7 วิ) โล่งไป
+    cta_t = L['cta'] if L else pick(CTAS, h // 7, rc)
+    segs.append(('cta', cta_t))
+    script_log({'name': name[:40], 'src': 'llm' if L else 'pool', 'hook_t': hook_t, 'cta_t': cta_t, 'old_t': old_t, 'new_t': new_t})
+    print('[script] src=%s hook=%s' % ('llm' if L else 'pool', hook[:50]), flush=True)
     segs = [(r, re.sub(' {2,}', ' ', t).strip()) for r, t in segs]   # ช่องว่างซ้ำจาก thai_words/approx_words
     return segs, pct, h
 
