@@ -912,8 +912,13 @@ def deal_save(pid, d, title):
             fp = os.path.join(DEALS_DIR, f)
             if now - os.path.getmtime(fp) > 7 * 86400:
                 os.remove(fp)
-        json.dump({k: d.get(k) for k in ('name', 'sale', 'full', 'desc', 'cat', 'img')} | {'title': title, 'saved': now},
-                  open(os.path.join(DEALS_DIR, pid + '.json'), 'w'), ensure_ascii=False)
+        rec = {k: d.get(k) for k in ('name', 'sale', 'full', 'desc', 'cat', 'img')} | {'title': title, 'saved': now}
+        fr = d.get('fb_reel')
+        if isinstance(fr, dict) and fr.get('token'):   # 3 ต.ค. 69 user: 'คลิปที่ผมส่งเองลง Facebook Reels ด้วย' → จำ page_id/token/description ไว้ให้ path deal_id (ไฟล์ 600 ใน volume /tiktok)
+            rec['fb_reel'] = {'page_id': fr.get('page_id'), 'token': fr.get('token'), 'description': fr.get('description') or title}
+        fp = os.path.join(DEALS_DIR, pid + '.json')
+        json.dump(rec, open(fp, 'w'), ensure_ascii=False)
+        os.chmod(fp, 0o600)
     except Exception:
         traceback.print_exc()
 
@@ -1281,6 +1286,8 @@ class H(BaseHTTPRequestHandler):
                 if isinstance(d.get('tiktok'), dict) and not d['tiktok'].get('title'):
                     d['tiktok']['title'] = sd.get('title') or ''
                 d['_saved_title'] = sd.get('title')
+                if 'fb_reel' not in d and isinstance(sd.get('fb_reel'), dict):
+                    d['fb_reel'] = dict(sd['fb_reel'], post=True)   # คลิปที่ user ส่งเอง → ลง FB Reels ด้วย (เหมือน TikTok)
             if not d.get('img'):
                 return self._json(400, {'error': 'img required'})
             for k in ('sale', 'full'):
@@ -1293,7 +1300,8 @@ class H(BaseHTTPRequestHandler):
             mp4, voiced, D, lines, veo = render(d)
             render_s = round(time.time() - t_r, 1)
             print('[timing] render=%.1fs dur=%s voice=%s veo=%s' % (render_s, D, voiced, (veo or {}).get('ok')), flush=True)
-            tg = d.get('telegram'); tt = d.get('tiktok'); fr = d.get('fb_reel')
+            tg = d.get('telegram'); tt = d.get('tiktok')
+            fr = d.get('fb_reel') if (isinstance(d.get('fb_reel'), dict) and d['fb_reel'].get('post', True) and d['fb_reel'].get('token')) else None
             rv = d.get('review')
             pid_d = safe_id(d.get('page_id'))
             # 3 ต.ค. 69: โหมดไม่รอตรวจ — บอกใน caption TG ว่าคลิปนี้เป็น Veo และลง TikTok ให้แล้ว (ต่อหน้า caption ก่อนตัด 960 ตัว ไม่ให้ '#d' ท้ายหาย)
