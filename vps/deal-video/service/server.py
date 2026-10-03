@@ -29,6 +29,15 @@ VOICE_ORDER = ['niwat', 'krit']
 # ⚠️ free tier ชน 429 ที่ ~5 คำขอ/นาที (5 ท่อน = 1 ดีล) → ใช้จริงต้องเปิด billing ของโปรเจกต์ที่ออก key · payload "tts": "gemini" | ชื่อเสียง (Puck…) | "niwat" | "krit"
 GOOGLE_AI_KEY = os.environ.get('GOOGLE_AI_KEY', '').strip()
 GEMINI_MODEL = 'gemini-3.8-flash-tts'
+# 3 ต.ค. 69 user: 'เสียงบางท่อนยังไม่ธรรมชาติ' = ท่อนที่ถอยไป Azure เพราะโควตา Gemini 100 คำขอ/วัน/โมเดลหมดกลางวัน → หมุนไปโมเดล TTS ตัวถัดไป (โควตาแยกต่อโมเดล) ก่อนจะยอมถอย Azure
+GEMINI_MODELS = [m for m in os.environ.get('GEMINI_TTS_MODELS', 'gemini-3.8-flash-tts,gemini-3.1-flash-tts-preview,gemini-2.5-flash-preview-tts,gemini-2.5-pro-preview-tts').split(',') if m]
+GEMINI_MODEL_COOL = {}   # model -> unix time ที่พ้น cooldown (รายวัน 6 ชม. · รายนาที 60 วิ)
+def gemini_model():
+    now = time.time()
+    for m in GEMINI_MODELS:
+        if GEMINI_MODEL_COOL.get(m, 0) <= now:
+            return m
+    return None
 GEMINI_VOICES = [('Puck', 'm'), ('Achird', 'm'), ('Zubenelgenubi', 'm'), ('Leda', 'f'), ('Laomedeia', 'f'), ('Sulafat', 'f')]
 # ⛔ ห้ามใส่คำสั่งสไตล์นำหน้าบท — วัด 27 ก.ย. 69: Gemini TTS อ่านคำสั่งออกเสียงไปด้วย (ท่อน 2.4 วิ → 4.1–13.5 วิ ตามความยาวคำสั่ง)
 #   และ systemInstruction ใช้กับโมเดล TTS ไม่ได้ (400 'Developer instruction is not enabled') → ส่งข้อความล้วน ใช้โทนธรรมชาติของแต่ละเสียง
@@ -43,19 +52,19 @@ def voice_for(seed, d=None):
     k = k.lower()
     if k in VOICES:
         return k
-    if GOOGLE_AI_KEY and (k == 'gemini' or not k) and time.time() >= GEMINI_COOLDOWN_UNTIL:
+    if GOOGLE_AI_KEY and (k == 'gemini' or not k) and gemini_model():
         return 'gemini:' + names[(seed // 59) % len(names)]
     return VOICE_ORDER[(seed // 53) % len(VOICE_ORDER)]
 
 def feminize(t):
     return t.replace('นะครับ', 'นะคะ').replace('ครับ', 'ค่ะ')
 
-def gemini_tts(text, voice, out):
+def gemini_tts(text, voice, out, model=None):
     """Gemini TTS: คืน wav (mime audio/wav) → แปลงเป็น mp3 ที่ out ด้วย ffmpeg · โยน exception เมื่อล้ม (429 รวมอยู่ด้วย)"""
     import base64
     body = {'contents': [{'parts': [{'text': GEMINI_STYLE + text}]}],
             'generationConfig': {'responseModalities': ['AUDIO'], 'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice}}}}}
-    req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % GEMINI_MODEL,
+    req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % (model or gemini_model() or GEMINI_MODEL),
                                  json.dumps(body).encode('utf-8'), {'Content-Type': 'application/json', 'x-goog-api-key': GOOGLE_AI_KEY})
     r = json.loads(urllib.request.urlopen(req, timeout=60).read().decode('utf-8'))
     part = r['candidates'][0]['content']['parts'][0]['inlineData']
@@ -782,7 +791,6 @@ def azure_tts(text, rate, pitch, out, voice=VOICE):
     open(out, 'wb').write(data)
 
 async def _tts(segs, W, seed, vkey='niwat'):
-    global GEMINI_COOLDOWN_UNTIL
     if vkey.startswith('gemini:'):
         voice = vkey.split(':', 1)[1]
         gender = dict(GEMINI_VOICES).get(voice, 'm')
@@ -791,9 +799,13 @@ async def _tts(segs, W, seed, vkey='niwat'):
             t = text.replace(' | ', ', ').replace('…', ',').replace(',,', ',')
             if gender == 'f':
                 t = feminize(t)
-            for k in range(3):
+            for k in range(6):   # 3 ต.ค. 69: เผื่อหมุนโมเดลได้หลายตัวในท่อนเดียว
+                model = gemini_model()
+                if not model:
+                    failed = 'all gemini models cooling'
+                    break
                 try:
-                    gemini_tts(t, voice, '%s/vo_%d.mp3' % (W, i))
+                    gemini_tts(t, voice, '%s/vo_%d.mp3' % (W, i), model)
                     failed = None
                     break
                 except urllib.error.HTTPError as e:
@@ -808,9 +820,10 @@ async def _tts(segs, W, seed, vkey='niwat'):
                         # paid tier (เปิด billing 27 ก.ย. 69) เหลือเพดานต่อนาที ~10 คำขอ (quotaId GenerateRequestsPerMinutePerProjectPerModel) → รอตาม retryDelay (≤20 วิ) แล้วลองใหม่ 1 ครั้ง ค่อยถอย
                         daily = 'PerDay' in body
                         if daily:
-                            GEMINI_COOLDOWN_UNTIL = time.time() + 6 * 3600
-                            failed = 'HTTP 429 (daily quota)'
-                            break
+                            GEMINI_MODEL_COOL[model] = time.time() + 6 * 3600
+                            failed = 'HTTP 429 (daily quota %s)' % model
+                            print('gemini daily quota hit on %s -> next model %s' % (model, gemini_model()), flush=True)
+                            continue   # ลองโมเดลถัดไปกับท่อนเดิมทันที
                         m = re.search(r'retryDelay\W+(\d+)', body)
                         wait = min(int(m.group(1)) if m else 15, 20)
                         failed = 'HTTP 429 (per-minute quota)'
@@ -818,8 +831,8 @@ async def _tts(segs, W, seed, vkey='niwat'):
                             print('gemini 429 per-minute → wait %ds' % wait, flush=True)
                             await asyncio.sleep(wait)
                             continue
-                        GEMINI_COOLDOWN_UNTIL = time.time() + 60
-                        break
+                        GEMINI_MODEL_COOL[model] = time.time() + 60
+                        continue   # รายนาทีชน → ข้ามไปโมเดลถัดไปก่อน (ถ้ามี)
                     await asyncio.sleep(2 * (k + 1))
                 except Exception as e:
                     failed = str(e)[:80]
@@ -827,7 +840,7 @@ async def _tts(segs, W, seed, vkey='niwat'):
             if failed:
                 print('gemini tts failed seg %d (%s): %s -> fallback azure niwat' % (i, voice, failed), flush=True)
                 break
-            print('tts seg %d ok (gemini %s)' % (i, voice), flush=True)
+            print('tts seg %d ok (gemini %s %s)' % (i, voice, model), flush=True)
         if failed is None:
             return
         vkey = 'niwat'
