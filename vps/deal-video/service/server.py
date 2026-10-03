@@ -292,7 +292,7 @@ LLM_SCRIPT_KEY = os.environ.get('ANTHROPIC_API_KEY', '').strip()
 LLM_SCRIPT = os.environ.get('LLM_SCRIPT', '1') == '1' and bool(LLM_SCRIPT_KEY)
 LLM_SCRIPT_COOLDOWN_UNTIL = 0.0
 SCRIPT_RECENT_N = 40
-SCRIPT_BANNED = ('เทส', 'ชีเสิร์ฟ', 'แก็ดเจ็ต', 'ไบโอ', 'ลิงก์', 'ลิ้งค์', 'ใช้แล้ว', 'ถูกสุด', 'ใกล้หมด', 'โอเค')
+SCRIPT_BANNED = ('เทส', 'ชีเสิร์ฟ', 'แก็ดเจ็ต', 'ไบโอ', 'ลิงก์', 'ลิ้งค์', 'ใช้แล้ว', 'ถูกสุด', 'ของใกล้หมด', 'สินค้าใกล้หมด', 'สต็อก', 'เหลือไม่กี่ชิ้น', 'โอเค')   # 3 ต.ค. 69: 'ใกล้หมด' เฉย ๆ เคยตี hook ดี ๆ ตก ('แบตมือถือใกล้หมดตอนออกจากบ้าน') → ห้ามเฉพาะความหมายสต็อก
 STYLE_DEFAULT = """แนวบทพูดคลิปดีล TikTok ไทย (ต.ค. 2569) — แก้ไฟล์ /root/deal-video/tiktok/script_style.txt ได้เลยเมื่อเทรนด์เปลี่ยน
 - 2 วินาทีแรกต้องมีเหตุให้หยุดดู: สถานการณ์ที่คนดูเจอเอง (เวลา…ทีไร / ใครเป็นแบบนี้บ้าง), เรียกกลุ่ม (สายกาแฟ, คนทำงานออฟฟิศ, ทาสแมว), บอกต่อ (เจอแล้วต้องบอก), ถามด้วยคำลงท้าย (…มั้ยครับ / …รึเปล่า)
 - ภาษาพูดจริง สั้น เป็นกันเอง เหมือนเพื่อนเล่าให้ฟัง ไม่ใช่โฆษณาอ่านสคริปต์ · ห้ามเปิดด้วย "โอเค" "สวัสดีครับ" "วันนี้"
@@ -328,17 +328,18 @@ def pick(pool, h, recent_t):
     order = [pool[(h + i) % n] for i in range(n)]
     return min(order, key=lambda c: last.get(c, -1))
 
-def script_ok(v, name):
+def script_ok(v, name, src=''):
     if '?' in v or '#' in v or v.count(' | ') > 2:
         return False
-    for w in re.findall(r'\S*\d\S*', v):                                 # ตัวเลขใช้ได้เฉพาะที่เป็นส่วนของชื่อรุ่นในชื่อสินค้า (M4, 780ml) — ราคา/เปอร์เซ็นต์ห้าม
-        if w.lower() not in (name or '').lower():
+    allowed = ((name or '') + ' ' + (src or '')).lower()
+    for w in re.findall(r'\S*\d\S*', v):                                 # ตัวเลขใช้ได้เฉพาะที่อยู่ในชื่อสินค้า/คำบรรยายที่ให้ (M4, 780ml, PD 20W) — ราคา/เปอร์เซ็นต์ห้าม
+        if w.lower() not in allowed:
             return False
     if any(b in v for b in SCRIPT_BANNED):
         return False
     if re.search(r'[^฀-๿A-Za-z0-9 \|,\.!…\-\'"()%/+]', v):   # อิโมจิ/อักษรอื่น  # ตัวเลขผ่านด่านนี้ได้ แต่ถูกคุมด้วยกติกา "ต้องอยู่ในชื่อสินค้า" ด้านบน
         return False
-    nm = (name or '').lower()
+    nm = allowed
     for w in re.findall(r'[A-Za-z]+', v):
         if w.lower() not in nm:                                      # คำอังกฤษใช้ได้เฉพาะที่อยู่ในชื่อสินค้า
             return False
@@ -389,7 +390,7 @@ def llm_script(d, pct, recent):
         out = {}
         for k_, lo, hi in (('hook', 6, 70), ('cta', 12, 90), ('desc', 8, 120)):
             v = re.sub(r'\s+', ' ', str(j.get(k_) or '')).replace('?', '').strip()
-            good = bool(v) and lo <= len(v) <= hi and script_ok(v, name)
+            good = bool(v) and lo <= len(v) <= hi and script_ok(v, name, desc)
             if k_ == 'desc':
                 out[k_] = v if good else None
                 if v and not good:
@@ -933,6 +934,28 @@ VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '4'))   # 2 ต.ค. 69 user
 # → user Reply ข้อความคลิปนั้นด้วยวิดีโอ → Intake TG (Extract) เห็น message.video + '#d <id>' → POST /render {deal_id, bg_video:<tg file url>, tiktok, telegram} → service เติมฟิลด์ดีลจากไฟล์ → ประกอบ+ลง TikTok ตรง (user ทำเองถือว่าอนุมัติแล้ว)
 DEALS_DIR = os.environ.get('DEALS_DIR', '/tiktok/deals')
 
+# 3 ต.ค. 69: คลิปที่ user ส่งก่อนรอบโพสต์ของดีลนั้น ไฟล์ดีลยังไม่มี fb_reel → ลง TikTok อย่างเดียว (เกิดจริง MENA/AXON) → service จำ page_id/token ของเพจไว้กลาง ๆ
+#   (FB_PAGE_FILE เขียนทุกครั้งที่ deal_save เห็น fb_reel · ไม่มีไฟล์ → หาจากไฟล์ดีลใดก็ได้ที่มี) แล้ว path deal_id ใช้ค่านี้ + description = title ของดีล
+FB_PAGE_FILE = os.environ.get('FB_PAGE_FILE', '/tiktok/fb_page.json')
+
+def fb_page_defaults():
+    try:
+        j = json.load(open(FB_PAGE_FILE))
+        if j.get('token') and j.get('page_id'):
+            return j
+    except Exception:
+        pass
+    try:
+        for f in sorted(os.listdir(DEALS_DIR), key=lambda f: os.path.getmtime(os.path.join(DEALS_DIR, f)), reverse=True):
+            fr = (json.load(open(os.path.join(DEALS_DIR, f))) or {}).get('fb_reel') or {}
+            if fr.get('token') and fr.get('page_id'):
+                j = {'page_id': fr['page_id'], 'token': fr['token']}
+                json.dump(j, open(FB_PAGE_FILE, 'w')); os.chmod(FB_PAGE_FILE, 0o600)
+                return j
+    except Exception:
+        pass
+    return None
+
 def deal_save(pid, d, title):
     try:
         os.makedirs(DEALS_DIR, exist_ok=True)
@@ -945,6 +968,10 @@ def deal_save(pid, d, title):
         fr = d.get('fb_reel')
         if isinstance(fr, dict) and fr.get('token'):   # 3 ต.ค. 69 user: 'คลิปที่ผมส่งเองลง Facebook Reels ด้วย' → จำ page_id/token/description ไว้ให้ path deal_id (ไฟล์ 600 ใน volume /tiktok)
             rec['fb_reel'] = {'page_id': fr.get('page_id'), 'token': fr.get('token'), 'description': fr.get('description') or title}
+            try:
+                json.dump({'page_id': fr.get('page_id'), 'token': fr.get('token')}, open(FB_PAGE_FILE, 'w')); os.chmod(FB_PAGE_FILE, 0o600)
+            except Exception:
+                pass
         fp = os.path.join(DEALS_DIR, pid + '.json')
         json.dump(rec, open(fp, 'w'), ensure_ascii=False)
         os.chmod(fp, 0o600)
@@ -1016,6 +1043,45 @@ VEO_PROMPT = ('Realistic e-commerce product video of the exact item shown in the
               'and empty space in the lower third. Keep the product colors, shape, proportions and printed details exactly as in the image. '
               'No people, no hands, no text, no captions, no logos, no watermarks, no extra products.')
 
+# 3 ต.ค. 69 user: "คิด prompt ใหม่ให้ได้มุมกล้องที่น่าสนใจขึ้น" — หาข้อมูล: Veo 3.1 ต้องการ **กล้องเคลื่อนแบบเดียวต่อคลิป** + motion cue 2–3 อย่าง + ประโยค invariant (ของเดิมสั่ง "สินค้าหมุน+กล้องโคจร" พร้อมกัน → แข็ง/สุ่ม)
+#   เทรนด์ TikTok 2026: มาโครโชว์พื้นผิวแล้วถอยออกมาเผยทั้งชิ้น · มุมต่ำ hero · ภาพแบบมือถือถือเองแสงธรรมชาติ · ย้อนแสงเงาแล้วค่อยเผยสี · เผยสินค้าใน 2 วิแรก
+#   → 6 สไตล์ หมุนตาม hash ชื่อดีล (`veo_shot`/`veo_prompt` ใน payload บังคับได้) · ฉากตามหมวด (ไม่มีของอื่นในเฟรม) · ใช้ทั้ง Veo API และข้อความรูป+prompt ให้ user
+VEO_SHOTS = [
+    ('macro-reveal', 'Starts as an extreme close-up on the surface texture and printed details of the product, then the camera slowly pulls back (dolly out) in one continuous move to reveal the whole product centered in frame. Sharp focus on the product throughout, soft natural window light from the side.'),
+    ('low-hero', 'Low-angle hero shot. The product stands still; the camera slowly dollies in toward it in one continuous move with a gentle upward tilt, shallow depth of field, soft key light from the front-left and a warm rim light outlining the product edges.'),
+    ('quarter-orbit', 'The product stays perfectly still while the camera makes one slow quarter-circle move around it at eye level, a soft band of light sweeps across the surface as the angle changes, shallow depth of field, clean studio daylight.'),
+    ('crane-down', 'The camera starts almost directly overhead looking down at the product and slowly cranes down in one continuous move to eye level, ending with the product centered and fully visible. Even soft daylight, gentle shadows.'),
+    ('handheld-ugc', 'Filmed like a phone video held by hand: subtle natural micro-shake, the camera slowly moves closer to the product in one continuous move, natural window daylight, realistic everyday setting, authentic TikTok look.'),
+    ('backlit-reveal', 'The product starts backlit as a dark silhouette against a bright soft background, then the light slowly rises from the front to reveal its true colors and printed details while the camera holds a slow gentle push-in. Single continuous shot.'),
+]
+VEO_SETS = {
+    'บ้าน': 'on a light wooden table in a bright, tidy home interior with a softly blurred background',
+    'กาแฟ': 'on a light wooden café table with a softly blurred café background',
+    'อาหาร': 'on a clean kitchen counter with warm natural light and a softly blurred background',
+    'gadget': 'on a matte dark desk with a softly blurred modern background',
+    'ความงาม': 'on a white marble vanity with soft bokeh in the background',
+    'แฟชั่น': 'on a neutral linen backdrop with soft directional light',
+    'รถ': 'on a clean concrete surface with a softly blurred garage background',
+    'สัตว์เลี้ยง': 'on a light wooden floor in a bright living room with a softly blurred background',
+    'Fitness': 'on a rubber gym floor with a softly blurred bright gym background',
+}
+VEO_INVARIANT = ('Vertical 9:16 framing, the product centered and filling about sixty percent of the frame height, with a little empty space at the bottom. '
+                 'The product is the exact item in the reference image: keep its colors, shape, proportions, materials and printed details unchanged, '
+                 'and it is the only object in the scene. No people, no hands, no text, no captions, no logos, no watermarks, no extra products.')
+
+def veo_prompt_for(d, shot=None):
+    """คืน (ชื่อสไตล์, prompt) — สไตล์เลือกตาม hash ชื่อดีล หรือบังคับด้วย d['veo_shot'] / ส่ง prompt เต็มด้วย d['veo_prompt']"""
+    if d.get('veo_prompt'):
+        return 'custom', str(d['veo_prompt'])
+    names = [n for n, _ in VEO_SHOTS]
+    key = shot or d.get('veo_shot')
+    if key not in names:
+        h = int(hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest(), 16)
+        key = names[(h // 61) % len(names)]
+    body = dict(VEO_SHOTS)[key]
+    setting = VEO_SETS.get(str(d.get('cat') or '').strip(), 'on a clean neutral surface with a softly blurred background')
+    return key, ('Realistic e-commerce product video of the exact item shown in the reference image, placed %s. %s %s' % (setting, body, VEO_INVARIANT))
+
 def _boomerang(W, mp4, gen_s, model):
     # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
     t1 = time.time()
@@ -1070,7 +1136,9 @@ def veo_clip(W, d):
         img = open(W + '/product.jpg', 'rb').read()
         mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
         model = d.get('veo_model') or VEO_MODEL      # 2 ต.ค. 69: ทดสอบรุ่น/prompt ต่อคำขอได้ (Lite วาดพาวเวอร์แบงค์เป็นคนละรุ่น)
-        prompt = (d.get('veo_prompt') or VEO_PROMPT) + ((' The product is: ' + str(d.get('veo_desc'))) if d.get('veo_desc') else '')
+        shot, prompt = veo_prompt_for(d)
+        prompt += ((' The product is: ' + str(d.get('veo_desc'))) if d.get('veo_desc') else '')
+        print('[render] veo shot=%s' % shot, flush=True)
         body = {'instances': [{'prompt': prompt, 'image': {'bytesBase64Encoded': base64.b64encode(img).decode(), 'mimeType': mime}}],
                 'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}
         base = 'https://generativelanguage.googleapis.com/v1beta/'
@@ -1317,6 +1385,9 @@ class H(BaseHTTPRequestHandler):
                 d['_saved_title'] = sd.get('title')
                 if 'fb_reel' not in d and isinstance(sd.get('fb_reel'), dict):
                     d['fb_reel'] = dict(sd['fb_reel'], post=True)   # คลิปที่ user ส่งเอง → ลง FB Reels ด้วย (เหมือน TikTok)
+                elif 'fb_reel' not in d and fb_page_defaults():
+                    pg = fb_page_defaults()
+                    d['fb_reel'] = {'page_id': pg['page_id'], 'token': pg['token'], 'description': (sd.get('title') or '') + '\n\n🔗 รวมดีลทั้งหมดที่ paiyaadeals.com', 'post': True}
             if not d.get('img'):
                 return self._json(400, {'error': 'img required'})
             for k in ('sale', 'full'):
@@ -1358,8 +1429,9 @@ class H(BaseHTTPRequestHandler):
                 if tg and rv and d.get('veo') and not (veo or {}).get('ok') and pid_d and 'lazada-creative-center' not in str(d.get('img', '')):
                     try:
                         jpg = urllib.request.urlopen(urllib.request.Request(d['img'], headers={'User-Agent': 'Mozilla/5.0'}), timeout=30).read()
-                        capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt ด้านล่าง 3) Reply คลิปที่ได้กลับมาที่ข้อความนี้\n\n'
-                                + VEO_PROMPT + '\n\n#d ' + pid_d)
+                        shot_u, prompt_u = veo_prompt_for(d)
+                        capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt ด้านล่าง (สไตล์กล้อง: ' + shot_u + ') 3) Reply คลิปที่ได้กลับมาที่ข้อความนี้\n\n'
+                                + prompt_u + '\n\n#d ' + pid_d)
                         ps, pm = tg_send_photo(tg, jpg, capP)
                         out['photo_sent'] = ps; out['photo_message_id'] = pm
                         print('[review] veo unavailable (%s) -> photo for manual Veo sent=%s' % ((veo or {}).get('error'), ps), flush=True)
