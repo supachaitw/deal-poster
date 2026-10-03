@@ -704,6 +704,9 @@ VEO_TRIM = float(os.environ.get('VEO_TRIM', '1.0'))   # วินาทีที
 # Veo สำเร็จ = เก็บคลิปไว้ PENDING_DIR (mount /tiktok = /root/deal-video/tiktok บน host) + ส่งเข้า Telegram พร้อม '#veo <id>' บรรทัดแรก
 # ไม่โพสต์ TikTok · user ตอบกลับ (reply) ข้อความนั้นว่า "โพสต์" → Intake TG เรียก POST /publish {id} → tt_post ด้วย tiktok opts ที่เก็บไว้ · "ไม่" → /discard
 # Veo ล้ม/ข้าม/เกินโควตา → ทำแบบเดิม (telegram + tiktok ตรง) · คลิปค้าง > 48 ชม. ลบทิ้ง · โควตา Veo/วัน VEO_DAILY_MAX (นับใน /tiktok/veo_count.json เวลาไทย)
+# 3 ต.ค. 69 user: 'คลิปที่คุณสร้างให้ โพสต์ได้เลย ผมค่อยไปดูเอง' → VEO_REVIEW=0 (ค่าเริ่มต้น) = Veo สำเร็จแล้วลง TikTok ตรง + ส่ง TG เป็นสำเนา (ไม่รอ reply)
+# ตั้ง env VEO_REVIEW=1 ถ้าจะกลับไปใช้ขั้นรอตรวจ · ฟิลด์ review ยังต้องส่งมาเพราะ path 'รูป+prompt ให้ user ทำเอง' ใช้ url/chat_id จากมัน
+VEO_REVIEW = os.environ.get('VEO_REVIEW', '0') == '1'
 PENDING_DIR = os.environ.get('VEO_PENDING_DIR', '/tiktok/pending')
 VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '4'))   # 2 ต.ค. 69 user: 'ใช้ Fast 4 คลิป/วัน สลับกับผม gen ใน Flow เองแล้วส่งคลิปให้' → รอบ 00/06/09/12 ได้ Veo API, รอบ 15/18/21 user ส่งคลิปเอง
 # คลิปที่ user สร้างเอง (Flow): ทุก /render ที่มี page_id จะเก็บข้อมูลดีลไว้ DEALS_DIR/<page_id>.json (7 วัน) และต่อท้าย caption ใน Telegram ด้วย '#d <page_id>'
@@ -1098,11 +1101,13 @@ class H(BaseHTTPRequestHandler):
             tg = d.get('telegram'); tt = d.get('tiktok')
             rv = d.get('review')
             pid_d = safe_id(d.get('page_id'))
+            # 3 ต.ค. 69: โหมดไม่รอตรวจ — บอกใน caption TG ว่าคลิปนี้เป็น Veo และลง TikTok ให้แล้ว (ต่อหน้า caption ก่อนตัด 960 ตัว ไม่ให้ '#d' ท้ายหาย)
+            pre = ('🎬 คลิป Veo (gen %ss) → ลง TikTok อัตโนมัติ\n' % (veo or {}).get('gen_s', '?')) if (rv and (veo or {}).get('ok') and not VEO_REVIEW and tt) else ''
             if pid_d and not d.get('deal_id'):
                 deal_save(pid_d, d, ((tg or {}).get('caption') or (rv or {}).get('caption') or '').split('\n\n', 1)[-1])
-                if tg and tg.get('caption') is not None:
-                    tg['caption'] = str(tg['caption'])[:960] + '\n#d ' + pid_d
-            if rv and (veo or {}).get('ok'):
+            if tg and tg.get('caption') is not None and (pre or (pid_d and not d.get('deal_id'))):
+                tg['caption'] = pre + str(tg['caption'])[:960 - len(pre)] + (('\n#d ' + pid_d) if (pid_d and not d.get('deal_id')) else '')
+            if rv and VEO_REVIEW and (veo or {}).get('ok'):
                 pid = safe_id(d.get('page_id')) or hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest()[:16]
                 pending_save(pid, mp4, {'name': d.get('name'), 'tiktok': tt, 'created': time.time(), 'caption': rv.get('caption'), 'veo': veo})
                 cap = '#veo ' + pid + '\n' + (rv.get('caption') or '') + '\n\n✅ ตอบกลับ (reply) ข้อความนี้ว่า "โพสต์" เพื่อลง TikTok · "ไม่" เพื่อทิ้ง'
