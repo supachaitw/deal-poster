@@ -1179,6 +1179,32 @@ def storyboard_prompt_for(d):
             'Panel 3 (bottom-left): %s '
             'Panel 4 (bottom-right): the product %s, calm wide closing shot. Consistent lighting and color grading across all panels.' % (name, setting, action, closing))
 
+STORYBOARD_CHECK_MODEL = os.environ.get('STORYBOARD_CHECK_MODEL', 'gemini-2.5-flash')
+
+def storyboard_check(W):
+    """ให้ Gemini เทียบรูปสินค้า (W/product.jpg) กับ storyboard (W/sb.png) ทีละช่อง · คืน (list[bool] ยาว 4 = ช่องนั้นเป็นสินค้าชิ้นเดียวกัน, note) · ล้ม = (None, err)"""
+    try:
+        img = open(W + '/product.jpg', 'rb').read()
+        mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
+        sb = open(W + '/sb.png', 'rb').read()
+        q = ('Image 1 is a reference photo of a product. Image 2 is a 2x2 storyboard grid: panel 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right. '
+             'For each panel decide if it shows THE SAME product as image 1 (same type, shape, structure, number of parts, colors). A close-up of part of the product counts as same. '
+             'Mark false if the panel shows a different kind of object, a different model/design, a miniature, or invented printed text/engraving on the product. '
+             'Reply with JSON only: {"same":[true,false,true,true],"note":"short reason for any false"}')
+        body = {'contents': [{'parts': [{'inline_data': {'mime_type': mime, 'data': base64.b64encode(img).decode()}}, {'inline_data': {'mime_type': 'image/png' if sb[:4] == b'\x89PNG' else 'image/jpeg', 'data': base64.b64encode(sb).decode()}}, {'text': q}]}],
+                'generationConfig': {'responseMimeType': 'application/json', 'temperature': 0}}
+        req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % STORYBOARD_CHECK_MODEL, json.dumps(body).encode(),
+                                     {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'})
+        r = json.load(urllib.request.urlopen(req, timeout=40))
+        txt = ''.join(p.get('text', '') for p in ((r.get('candidates') or [{}])[0].get('content') or {}).get('parts') or [])
+        j = json.loads(txt[txt.find('{'):txt.rfind('}') + 1])
+        same = [bool(x) for x in (j.get('same') or [])][:4]
+        if len(same) != 4:
+            return None, 'bad answer %r' % txt[:80]
+        return same, str(j.get('note') or '')[:120]
+    except Exception as e:
+        return None, str(e)[:120]
+
 def storyboard_panels(W, d):
     """สร้างภาพ storyboard 4 ช่องจาก W/product.jpg → W/sb1..sb4.png (720x1280) · คืน {ok, gen_s, error, model, tokens, size} ไม่ throw"""
     t0 = time.time()
@@ -1208,13 +1234,21 @@ def storyboard_panels(W, d):
         w, h = [int(x) for x in subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', W + '/sb.png']).decode().strip().split(',')[:2]]
         if w < 900 or not (0.5 <= w / h <= 0.62):
             return {'ok': False, 'error': 'bad size %dx%d' % (w, h), 'gen_s': round(time.time() - t0, 1)}
+        # ด่านตรวจ (3 ต.ค. 69): Gemini เทียบทีละช่องว่าเป็นสินค้าชิ้นเดียวกันไหม (เทสราวตากผ้า: ช่อง 4 กลายเป็นราวพาดผ้า, ช่อง 2 แต่งคำสลัก) → ช่องที่ผิดใช้ช่องที่ผ่านแทน · ช่อง 1 (hero) ผิด หรือผ่าน < 2 ช่อง = ไม่ใช้ storyboard
+        same, note = storyboard_check(W)
+        if same is None:
+            print('[render] storyboard check failed (%s) -> trust all' % note, flush=True); same = [True] * 4
+        good = [i for i in range(4) if same[i]]
+        if not same[0] or len(good) < 2:
+            return {'ok': False, 'error': 'check: same=%s %s' % (same, note), 'gen_s': round(time.time() - t0, 1), 'tokens': (r.get('usageMetadata') or {}).get('totalTokenCount')}
         ins = max(8, w // 128)   # กันเส้นขอบขาวระหว่างช่องติดมา (≈12px ที่ 1536)
         pw, ph = w // 2 - 2 * ins, h // 2 - 2 * ins
         for i in range(4):
-            col, row = i % 2, i // 2
+            src = i if same[i] else max(j for j in good if j < i) if any(j < i for j in good) else good[0]
+            col, row = src % 2, src // 2
             run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/sb.png', '-vf',
                  'crop=%d:%d:%d:%d,scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280' % (pw, ph, col * (w // 2) + ins, row * (h // 2) + ins), W + '/sb%d.png' % (i + 1)])
-        return {'ok': True, 'gen_s': round(time.time() - t0, 1), 'model': STORYBOARD_MODEL, 'tokens': (r.get('usageMetadata') or {}).get('totalTokenCount'), 'size': '%dx%d' % (w, h)}
+        return {'ok': True, 'gen_s': round(time.time() - t0, 1), 'model': STORYBOARD_MODEL, 'tokens': (r.get('usageMetadata') or {}).get('totalTokenCount'), 'size': '%dx%d' % (w, h), 'same': same, 'note': note}
     except urllib.error.HTTPError as e:
         return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:160]), 'gen_s': round(time.time() - t0, 1)}
     except Exception as e:
