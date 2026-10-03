@@ -1388,6 +1388,18 @@ class H(BaseHTTPRequestHandler):
                 sd = deal_load(safe_id(d['deal_id']))
                 if not sd:
                     return self._json(404, {'error': 'ไม่พบข้อมูลดีลรหัสนี้ (เก็บไว้ 7 วัน)', 'deal_id': d['deal_id']})
+                # 3 ต.ค. 69: กันโพสต์ซ้ำ — user Reply คลิปดีลเดิมซ้ำ (เช่น Reply ผิดข้อความแล้วส่งใหม่) → ดีลเดียวกันที่ลงไปแล้วภายใน 6 ชม. ตอบ 409 ไม่เรนเดอร์/ไม่โพสต์ (อยากลงใหม่จริงให้บอก Claude ลบ /tiktok/posted/<id>.json)
+                pf = os.path.join('/tiktok/posted', safe_id(d['deal_id']) + '.json')
+                try:
+                    pj = json.load(open(pf))
+                    if time.time() - pj.get('at', 0) < 6 * 3600 and (d.get('tiktok') or d.get('fb_reel') is not None):
+                        when = time.strftime('%H:%M', time.gmtime(pj['at'] + 7 * 3600))
+                        print('[render] duplicate user clip for %s (posted %s) -> 409' % (safe_id(d['deal_id']), when), flush=True)
+                        return self._json(409, {'error': 'คลิปดีลนี้ลงไปแล้วเมื่อ %s น. (กันโพสต์ซ้ำ) — ถ้าต้องการลงคลิปใหม่แทน บอก Claude ได้' % when, 'deal_id': d['deal_id'], 'duplicate': True})
+                except FileNotFoundError:
+                    pass
+                except Exception:
+                    pass
                 for k in ('name', 'sale', 'full', 'desc', 'cat', 'img'):
                     d.setdefault(k, sd.get(k))
                 d.setdefault('page_id', safe_id(d['deal_id']))
@@ -1463,6 +1475,12 @@ class H(BaseHTTPRequestHandler):
                     r = tt_post(tt, mp4)
                     print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s err=%s' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), r.get('error')), flush=True)
                     out['tiktok'] = r; ok = ok and bool(r.get('ok'))
+                    if r.get('ok') and d.get('deal_id'):
+                        try:
+                            os.makedirs('/tiktok/posted', exist_ok=True)
+                            json.dump({'at': time.time(), 'name': d.get('name')}, open(os.path.join('/tiktok/posted', safe_id(d['deal_id']) + '.json'), 'w'), ensure_ascii=False)
+                        except Exception:
+                            pass
                 if fr:
                     t_u = time.time()
                     r = fb_reel_post(fr, mp4)
