@@ -1445,7 +1445,7 @@ class H(BaseHTTPRequestHandler):
                         capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt จากข้อความถัดไป (สไตล์กล้อง: ' + shot_u + ') 3) Reply คลิปที่ได้กลับมาที่ **ข้อความรูปนี้**\n\n#d ' + pid_d)
                         ps, pm = tg_send_photo(tg, jpg, capP[:1000])
                         if ps:
-                            tg_send_text(tg, '📝 prompt สำหรับ ' + (d.get('name') or '')[:50] + ' (' + shot_u + '):\n\n' + prompt_u)
+                            tg_send_text(tg, '📝 prompt สำหรับ ' + (d.get('name') or '')[:50] + ' (' + shot_u + '):\n\n' + prompt_u + '\n\n(Reply คลิปที่ข้อความนี้หรือข้อความรูปก็ได้)\n#d ' + pid_d)   # 3 ต.ค. 69: user Reply ที่ข้อความ prompt แทนรูป → ไม่มี #d ระบบเงียบ → ใส่ #d ทั้งสองข้อความ
                         out['photo_sent'] = ps; out['photo_message_id'] = pm
                         print('[review] veo unavailable (%s) -> photo for manual Veo sent=%s' % ((veo or {}).get('error'), ps), flush=True)
                     except Exception as e:
