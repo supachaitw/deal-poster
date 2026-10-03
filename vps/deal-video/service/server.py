@@ -222,15 +222,19 @@ NOPRICE = ['เดี๋ยวพาไปดูใกล้ ๆ นะครั
 # ⚠️ ช่องว่างรอบ ellipsis มีผลมาก (วัด 19 ก.ย. 69): ' … ' ≈ +1.1 วิ/จุด · '… ' ≈ +0.33 · '…' ติดคำ ≈ +0.09 — ต้องเป็น '… ' เท่านั้น
 # ⛔ ห้ามใช้ SSML <break> — Azure เสียงไทยเติมหยุด ~1.4 วิต่อจุดไม่ว่า time= เท่าไร (วัดแล้ว: 5 จุด → ท่อน 4.5 วิกลายเป็น 12 วิ)
 #    ', ' ≈ +0.33 วิเท่ากับ '… ' · '. ' ไม่หยุดเลย
+# 3 ต.ค. 69 โครง Hook → Promise → Body → Open loop → ราคา → CTA (จากคลิป @itshowardwang 'โครงสร้างคลิปล้านวิว' user: 'ลองปรับใช้กับดีลใหม่')
+PROMISES = ['เดี๋ยวบอกราคาท้ายคลิปนะครับ | ถูกกว่าที่คิด', 'ดูให้จบนะครับ | ราคาอยู่ท้ายคลิป', 'สั้น ๆ ครับ | พาดูของแล้วบอกราคาเลย', 'สิบวิพอครับ | เดี๋ยวรู้ว่าคุ้มมั้ย']
+PROMISES_NOPRICE = ['สั้น ๆ ครับ | ดูให้จบนะ', 'เดี๋ยวพาดูใกล้ ๆ นะครับ', 'ขอสิบวิครับ | เดี๋ยวเล่าให้ฟัง']
+LOOPS = ['แต่ที่ทำให้ผมหยุดดู | คือราคาครับ', 'ของดูดีแล้ว | แต่ราคานี่แหละครับ', 'ที่เด็ดจริง | อยู่ตรงราคาครับ', 'แล้วราคาเนี่ย | ผมไม่คิดว่าจะเท่านี้', 'ยังไม่ถึงจุดพีคนะครับ | ดูราคาก่อน']
 PAUSE_MARK = '… '
 # 'บาท, เองค่ะ' — ช่วง บาท→เอง วัดจริงด้วย ffprobe 26 ก.ย. 69 (Azure Premwadee): 'บาท…เอง' +0.14 วิ (user: ติดกันเกิน) · 'บาท… เอง' +1.3 วิ (user: ห่างเกิน
 #   — หลัง 'บาท' Azure ถือ '… ' เป็นจบประโยค) · 'บาท, เอง' +0.33 วิ ← ใช้อันนี้ · ⚠️ ' | ' (= '… ') ที่อื่นในบทได้แค่ 0.17–0.31 วิ แต่ต่อท้าย 'บาท' เป็น 1.3 วิ อย่าใช้หลังหน่วยเงิน
 # rate/pitch ต่อบทบาท: ท่อนเปิดเร็ว-สูง · ราคาเดิมเรียบ · ราคาใหม่ตื่นเต้น · ปิดช้าลงเป็นกันเอง
-PROSODY = {'hook': ('+0%', '+4Hz'), 'desc': ('-6%', '+2Hz'), 'old': ('-10%', '+0Hz'), 'new': ('-12%', '+6Hz'), 'cta': ('-10%', '+2Hz')}   # 27 ก.ย. #15 เสียงชาย Niwat: pitch ลดครึ่งจากค่าที่จูนกับ Premwadee (+8/+4/0/+12/+4) · rate เดิม   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2) · 26 ก.ย. #10: ช้าลงอีก 4 ทุกท่อน (+4/-2/-6/-8/-6)
-GAP_AFTER = {'hook': 0.55, 'desc': 0.5, 'old': 0.45, 'new': 0.65, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน · #10 26 ก.ย.: 0.4/0.35/0.3/0.5 → +0.15 ทุกช่วง user ว่ายังไม่ดี)
+PROSODY = {'hook': ('+0%', '+4Hz'), 'promise': ('-4%', '+2Hz'), 'desc': ('-6%', '+2Hz'), 'loop': ('-6%', '+4Hz'), 'old': ('-10%', '+0Hz'), 'new': ('-12%', '+6Hz'), 'cta': ('-10%', '+2Hz')}   # 27 ก.ย. #15 เสียงชาย Niwat: pitch ลดครึ่งจากค่าที่จูนกับ Premwadee (+8/+4/0/+12/+4) · rate เดิม   # user 19 ก.ย. 69: เดิมเร็วไป (+14/+6/+10/+2) · 26 ก.ย. #10: ช้าลงอีก 4 ทุกท่อน (+4/-2/-6/-8/-6)
+GAP_AFTER = {'hook': 0.55, 'promise': 0.5, 'desc': 0.5, 'loop': 0.6, 'old': 0.45, 'new': 0.65, 'cta': 0}   # เว้นวรรคระหว่างท่อนให้หายใจ (เดิม 0.18/0.12/0.32 ติดกันเกิน · #10 26 ก.ย.: 0.4/0.35/0.3/0.5 → +0.15 ทุกช่วง user ว่ายังไม่ดี)
 # ขยับความเร็ว/ระดับเสียง/ช่วงเว้น รอบค่ากลางนิดหน่อยตามดีล (คงที่ต่อดีล ไม่ใช่สุ่มใหม่ทุกครั้ง)
 # — คลิปหลายตัวเรียงกันในฟีดจะได้ไม่ฟังเหมือนอ่านสคริปต์ใบเดียวกันเป๊ะ ๆ
-ROLE_BITS = {'hook': 0, 'desc': 40, 'old': 10, 'new': 20, 'cta': 30}
+ROLE_BITS = {'hook': 0, 'promise': 50, 'desc': 40, 'loop': 60, 'old': 10, 'new': 20, 'cta': 30}
 
 def jitter(seed, bits, span):
     return (((seed >> bits) % 1001) / 1000.0 * 2 - 1) * span
@@ -297,7 +301,8 @@ STYLE_DEFAULT = """แนวบทพูดคลิปดีล TikTok ไท�
 - 2 วินาทีแรกต้องมีเหตุให้หยุดดู: สถานการณ์ที่คนดูเจอเอง (เวลา…ทีไร / ใครเป็นแบบนี้บ้าง), เรียกกลุ่ม (สายกาแฟ, คนทำงานออฟฟิศ, ทาสแมว), บอกต่อ (เจอแล้วต้องบอก), ถามด้วยคำลงท้าย (…มั้ยครับ / …รึเปล่า)
 - ภาษาพูดจริง สั้น เป็นกันเอง เหมือนเพื่อนเล่าให้ฟัง ไม่ใช่โฆษณาอ่านสคริปต์ · ห้ามเปิดด้วย "โอเค" "สวัสดีครับ" "วันนี้"
 - ศัพท์ที่ยังใช้ได้ปี 2569: ทำถึง เริ่ด ฉ่ำ ปัง คุ้ม ของมันต้องมี สายประหยัด — ใช้ไม่เกิน 1 คำต่อบท ไม่ฝืน
-- ท้ายคลิปชวนทำอะไรสักอย่างสลับกันไป: เซฟไว้ก่อน / ส่งให้เพื่อน / กดติดตาม / ไปดูที่เว็บ"""
+- ท้ายคลิปชวนทำอะไรสักอย่างสลับกันไป: เซฟไว้ก่อน / ส่งให้เพื่อน / กดติดตาม / ไปดูที่เว็บ
+- โครงคลิป (3 ต.ค. 69): hook → promise (บอกว่าดูจบแล้วได้อะไร เช่น รู้ราคา/รู้ว่าคุ้มมั้ย) → เล่าของ → open loop (ประโยคสั้นที่ทำให้อยากรู้ราคา เช่น "แต่ที่ทำให้ผมหยุดดูคือราคา") → ราคา (ระบบพูดเอง) → cta ที่บอกว่าไปแล้วได้อะไร"""
 
 def script_recent(n=SCRIPT_RECENT_N):
     try:
@@ -360,10 +365,12 @@ def llm_script(d, pct, recent):
         avoid = [r.get('hook_t') for r in recent if r.get('hook_t')][-25:] + [r.get('cta_t') for r in recent if r.get('cta_t')][-12:]
         sys_p = ('คุณเขียนบทพูด (voice-over เสียงผู้ชาย ลงท้าย ครับ/นะครับ แบบธรรมชาติ ไม่ทุกประโยค) สำหรับคลิป TikTok แนะนำดีลสินค้า ยาว ~15 วินาที '
                  'ผู้พูดคือคนชอบแชร์ดีล ไม่ใช่คนขาย และยังไม่เคยใช้สินค้า\n'
-                 'ตอบเป็น JSON อย่างเดียว: {"hook": "...", "desc": "...", "cta": "..."}\n'
+                 'ตอบเป็น JSON อย่างเดียว: {"hook": "...", "promise": "...", "desc": "...", "loop": "...", "cta": "..."}\n'
                  '- hook: 1 ประโยค 4–12 คำ ดึงให้หยุดดูใน 2 วินาที ผูกกับสินค้า/หมวด/สถานการณ์ใช้งาน สลับสไตล์ไม่ซ้ำกับรายการ avoid\n'
+                 '- promise: 1 ประโยคสั้น 4–10 คำ บอกว่าดูจบแล้วจะได้อะไร (เช่น จะรู้ราคาท้ายคลิป / จะรู้ว่าคุ้มมั้ย) ถ้า has_price เป็น false ห้ามพูดถึงราคา\n'
                  '- desc: 1 ประโยคพูด ไม่เกิน 25 คำ เล่าว่าของคืออะไร ใช้ข้อมูลที่ให้เท่านั้น ห้ามเดาสเปก ถ้าข้อมูลไม่พอให้ส่งสตริงว่าง\n'
-                 '- cta: 1 ประโยค ต้องมีคำว่า "ป้ายยาดีล ดอทคอม" (ชื่อเว็บแบบอ่าน) ตรงตามนี้ 1 ครั้ง สำนวนไม่ซ้ำกับ avoid\n'
+                 '- loop: 1 ประโยคสั้น 4–10 คำ พูดก่อนเปิดราคา ทำให้อยากดูต่อ (open loop เช่น "แต่ที่ทำให้ผมหยุดดูคือราคาครับ") ห้ามบอกตัวเลข ถ้า has_price เป็น false ให้ส่งสตริงว่าง\n'
+                 '- cta: 1 ประโยค ต้องมีคำว่า "ป้ายยาดีล ดอทคอม" (ชื่อเว็บแบบอ่าน) ตรงตามนี้ 1 ครั้ง และบอกว่าไปแล้วได้อะไร (รวมดีลไว้ให้/ไม่ต้องหาเอง) สำนวนไม่ซ้ำกับ avoid\n'
                  'กติกาเสียง: ภาษาไทยล้วน · คำอังกฤษใช้ได้เฉพาะคำที่อยู่ในชื่อสินค้า และต้องสะกดอังกฤษตามเดิม ห้ามถอดเสียงเป็นไทย · '
                  'ห้ามมีตัวเลข ราคา เปอร์เซ็นต์ (ส่วนนั้นระบบพูดเอง) · ห้ามเครื่องหมาย ? อิโมจิ แฮชแท็ก · ใช้ " | " ได้ไม่เกิน 1 จุดต่อประโยคเป็นจังหวะหายใจ · '
                  'ห้ามอ้างว่าใช้แล้วดี ถูกสุด ใกล้หมด ของแท้ · ห้ามเติมสรรพคุณหรือผลลัพธ์ที่ไม่อยู่ในข้อมูล (เช่น ผ่อนคลายกล้ามเนื้อ อุ่นใจทั้งวัน ช่วยได้จริง) · ห้ามพูดถึงลิงก์หรือไบโอ · ทุกประโยคต้องสมบูรณ์ อ่านออกเสียงแล้วไม่สะดุด\n'
@@ -388,13 +395,13 @@ def llm_script(d, pct, recent):
         if j is None:
             return None
         out = {}
-        for k_, lo, hi in (('hook', 6, 70), ('cta', 12, 90), ('desc', 8, 120)):
+        for k_, lo, hi in (('hook', 6, 70), ('cta', 12, 90), ('desc', 8, 120), ('promise', 6, 70), ('loop', 6, 70)):
             v = re.sub(r'\s+', ' ', str(j.get(k_) or '')).replace('?', '').strip()
             good = bool(v) and lo <= len(v) <= hi and script_ok(v, name, desc)
-            if k_ == 'desc':
+            if k_ in ('desc', 'promise', 'loop'):   # ท่อนเสริม: ไม่ผ่าน = ใช้ pool/ไม่มี ไม่ทิ้งทั้งบท
                 out[k_] = v if good else None
                 if v and not good:
-                    print('[script] llm desc dropped (len %d)' % len(v), flush=True)
+                    print('[script] llm %s dropped (len %d)' % (k_, len(v)), flush=True)
             elif good:
                 out[k_] = v
             else:
@@ -438,11 +445,19 @@ def script_for(d):
     if L and not pct_hook:
         hook = hook_t = L['hook']
     segs = [('hook', hook)]
+    has_price = bool(sale or full)
+    rp, rl = R('promise_t'), R('loop_t')
+    promise_t = (L.get('promise') if L else None) or pick(PROMISES if has_price else PROMISES_NOPRICE, h // 53, rp)
+    segs.append(('promise', promise_t))
     desc = clean_desc(d.get('desc'))
     if desc and L and L.get('desc'):
         segs.append(('desc', L['desc']))
     elif desc:
         segs.append(('desc', DESC_LEADS[(h // 11) % len(DESC_LEADS)] % desc))
+    loop_t = None
+    if has_price:
+        loop_t = (L.get('loop') if L else None) or pick(LOOPS, h // 59, rl)
+        segs.append(('loop', loop_t))
     old_t = new_t = None
     if pct:
         old_t = pick(OLD_LINES, h // 13, ro)
@@ -470,7 +485,7 @@ def script_for(d):
         segs.append(('new', new_t))   # ไม่มีราคาเลย = คลิปจะเหลือแค่ hook+CTA (7 วิ) โล่งไป
     cta_t = L['cta'] if L else pick(CTAS, h // 7, rc)
     segs.append(('cta', cta_t))
-    script_log({'name': name[:40], 'src': 'llm' if L else 'pool', 'hook_t': hook_t, 'cta_t': cta_t, 'old_t': old_t, 'new_t': new_t})
+    script_log({'name': name[:40], 'src': 'llm' if L else 'pool', 'hook_t': hook_t, 'cta_t': cta_t, 'old_t': old_t, 'new_t': new_t, 'promise_t': promise_t, 'loop_t': loop_t})
     print('[script] src=%s hook=%s' % ('llm' if L else 'pool', hook[:50]), flush=True)
     segs = [(r, re.sub(' {2,}', ' ', t).strip()) for r, t in segs]   # ช่องว่างซ้ำจาก thai_words/approx_words
     return segs, pct, h
@@ -1179,7 +1194,7 @@ def storyboard_prompt_for(d):
             'Panel 3 (bottom-left): %s '
             'Panel 4 (bottom-right): the product %s, calm wide closing shot. Consistent lighting and color grading across all panels.' % (name, setting, action, closing))
 
-STORYBOARD_CHECK_MODEL = os.environ.get('STORYBOARD_CHECK_MODEL', 'gemini-2.5-flash')
+STORYBOARD_CHECK_MODEL = os.environ.get('STORYBOARD_CHECK_MODEL', 'gemini-3.8-flash')   # 3 ต.ค. 69 เทียบบนราวตากผ้า (ช่อง 2 คำสลักแต่งเอง + ช่อง 4 ราวคนละแบบ): 2.5-flash จับได้แค่ช่อง 2 · 3.5-flash เท่ากัน · 3.8-flash และ 3.1-pro-preview จับได้ทั้งคู่ (~6–10 วิ)
 
 def storyboard_check(W):
     """ให้ Gemini เทียบรูปสินค้า (W/product.jpg) กับ storyboard (W/sb.png) ทีละช่อง · คืน (list[bool] ยาว 4 = ช่องนั้นเป็นสินค้าชิ้นเดียวกัน, note) · ล้ม = (None, err)"""
@@ -1188,9 +1203,10 @@ def storyboard_check(W):
         mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
         sb = open(W + '/sb.png', 'rb').read()
         q = ('Image 1 is a reference photo of a product. Image 2 is a 2x2 storyboard grid: panel 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right. '
-             'For each panel decide if it shows THE SAME product as image 1 (same type, shape, structure, number of parts, colors). A close-up of part of the product counts as same. '
-             'Mark false if the panel shows a different kind of object, a different model/design, a miniature, or invented printed text/engraving on the product. '
-             'Reply with JSON only: {"same":[true,false,true,true],"note":"short reason for any false"}')
+             'First describe the product in image 1 in one line (type, structure, number of legs/rails/parts, colors, any printed text). Then for EACH panel describe the object actually shown in one line, '
+             'then judge strictly whether it is THE SAME product (same type, structure, part count, colors). A close-up of part of the product counts as same. '
+             'Mark false if the panel shows a different kind of object or design (e.g. a ladder-style rack instead of an X-frame rack), a miniature, or printed text/engraving/logos on the product that are NOT in image 1. '
+             'Reply with JSON only: {"ref":"...","panels":[{"what":"...","same":true},{"what":"...","same":false},{"what":"...","same":true},{"what":"...","same":true}],"note":"short reason for any false"}')
         body = {'contents': [{'parts': [{'inline_data': {'mime_type': mime, 'data': base64.b64encode(img).decode()}}, {'inline_data': {'mime_type': 'image/png' if sb[:4] == b'\x89PNG' else 'image/jpeg', 'data': base64.b64encode(sb).decode()}}, {'text': q}]}],
                 'generationConfig': {'responseMimeType': 'application/json', 'temperature': 0}}
         req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % STORYBOARD_CHECK_MODEL, json.dumps(body).encode(),
@@ -1198,7 +1214,7 @@ def storyboard_check(W):
         r = json.load(urllib.request.urlopen(req, timeout=40))
         txt = ''.join(p.get('text', '') for p in ((r.get('candidates') or [{}])[0].get('content') or {}).get('parts') or [])
         j = json.loads(txt[txt.find('{'):txt.rfind('}') + 1])
-        same = [bool(x) for x in (j.get('same') or [])][:4]
+        same = [bool(x.get('same')) for x in (j.get('panels') or []) if isinstance(x, dict)][:4] or [bool(x) for x in (j.get('same') or [])][:4]
         if len(same) != 4:
             return None, 'bad answer %r' % txt[:80]
         return same, str(j.get('note') or '')[:120]
@@ -1531,20 +1547,48 @@ def render(d):
         body = ev(0, 'B', r'\an5\pos(360,118)\fs74\c' + WHITE, 'ป้ายยาดีลเด็ด')
         if pct:
             body += ev(0.8, 'B', r'\an5\pos(586,198)\fs100\shad0\c' + WHITE, '-%d%%' % pct)
+        # 3 ต.ค. 69 โครง Howard: ช่องชื่อสินค้าใช้ขึ้น 'วลี' ของ hook → promise ก่อน (สีเหลือง) แล้วค่อยเป็นชื่อสินค้าตั้งแต่ท่อนเล่าของ · ⛔ ตัวคั่น ' | '/'…' เป็นสัญญาณหายใจของ TTS ต้องล้างก่อนขึ้นจอ
+        said = {r: t for r, t in segs}
+        def shown(t):
+            return re.sub(r'\s+', ' ', re.sub(r'\s*\|\s*', ' ', t).replace('…', ' ')).strip()
+        t_name = next(at[r] for r in ('desc', 'loop', 'old', 'new', 'cta') if r in at)
+        phr = [('hook', 0.0, at.get('promise', t_name))]
+        if 'promise' in at:
+            phr.append(('promise', at['promise'], t_name))
+        for r, a0, a1 in phr:
+            if a1 - a0 < 0.3:
+                continue
+            pl = wrap_name(shown(said[r]), per_line=24, lines=2)
+            yp = (836 if len(pl) == 2 else 846) + DY
+            for i, ln in enumerate(pl):
+                body += ev2(a0, a1, 'B', r'\an5\pos(360,%d)\fs%d\fad(150,150)\c%s' % (yp + i * 60, 54 if len(pl) == 2 else 60, YELLOW), ln)
         if len(name_lines) == 2:
-            body += ev(0, 'B', r'\an5\pos(360,%d)\fs54\c' % (836 + DY) + WHITE, name_lines[0])
-            body += ev(0, 'B', r'\an5\pos(360,%d)\fs54\c' % (896 + DY) + WHITE, name_lines[1])
+            body += ev(t_name, 'B', r'\an5\pos(360,%d)\fs54\c' % (836 + DY) + WHITE, name_lines[0])
+            body += ev(t_name, 'B', r'\an5\pos(360,%d)\fs54\c' % (896 + DY) + WHITE, name_lines[1])
             y_old, y_new = 958 + DY, 1036 + DY
         else:
-            body += ev(0, 'B', r'\an5\pos(360,%d)\fs64\c' % (846 + DY) + WHITE, name_lines[0] if name_lines else '')
+            body += ev(t_name, 'B', r'\an5\pos(360,%d)\fs64\c' % (846 + DY) + WHITE, name_lines[0] if name_lines else '')
             y_old, y_new = 912 + DY, 1010 + DY
+        # แถบความคืบหน้าใต้แบรนด์ (เปิด · สินค้า · ราคา · ไปดู): ขั้นปัจจุบันเหลือง ผ่านแล้วขาว ยังไม่ถึงเทา
+        t_price = next((at[r] for r in ('old', 'new') if r in at), None) if (sale or full) else None
+        stages = [('เปิด', 0.0), ('สินค้า', t_name)] + ([('ราคา', t_price)] if t_price is not None else []) + [('ไปดู', at['cta'])]
+        stg = []
+        for lab, t_ in stages:
+            if not stg or t_ > stg[-1][1] + 0.2:
+                stg.append((lab, t_))
+        for k in range(len(stg)):
+            end = stg[k + 1][1] if k + 1 < len(stg) else D
+            line = '  '.join(('{\\c%s\\alpha&H00&}' % YELLOW if i == k else ('{\\c%s\\alpha&H50&}' % WHITE if i < k else '{\\c&H9A9A9A&\\alpha&H70&}')) + '● ' + lab for i, (lab, _) in enumerate(stg))
+            body += 'Dialogue: 0,%s,%s,R,,0,0,0,,{\\an7\\pos(60,168)\\fs22%s}%s\n' % (ts(stg[k][1]), ts(end), OUT, line)
         # คำบรรยายใช้พื้นที่เดียวกับบล็อกราคา แล้วหายไปตอนราคาขึ้น
         # (y 800-1100 มีที่พอสำหรับชื่อ+ราคาเท่านั้น ใส่พร้อมกันทั้งสามไม่ได้)
         if 'desc' in at:
             # ⛔ ห้ามดึงจาก segs — ตั้งแต่รอบ #7 ท่อนพากย์มีคำเชื่อม/ตัวคั่น ' | ' ปนอยู่ (DESC_LEADS)
             # ซึ่งเป็นสัญญาณให้ TTS หยุดหายใจเท่านั้น ขึ้นจอต้องเป็นคำบรรยายล้วน
             desc_text = clean_desc(d.get('desc'))
-            if 'old' in at:
+            if 'loop' in at:
+                desc_end = at['loop']
+            elif 'old' in at:
                 desc_end = at['old']
             elif (sale or full) and 'new' in at:
                 desc_end = at['new']
@@ -1555,6 +1599,13 @@ def render(d):
             for i, ln in enumerate(desc_lines):
                 body += ev2(at['desc'], desc_end, 'R',
                             r'\an5\pos(360,%d)\fs46\fad(250,250)\c%s' % (y_desc + i * 54, WHITE), ln)
+        if 'loop' in at:
+            # open loop ขึ้นจอในช่องคำบรรยาย (เหลือง) จนราคาขึ้น
+            loop_end = next((at[r] for r in ('old', 'new') if r in at), D)
+            ll = wrap_name(shown(said['loop']), per_line=28, lines=2)
+            y_l = (966 if len(ll) == 2 else 992) + DY
+            for i, ln in enumerate(ll):
+                body += ev2(at['loop'], loop_end, 'B', r'\an5\pos(360,%d)\fs48\fad(150,150)\c%s' % (y_l + i * 54, YELLOW), ln)
         if 'old' in at:
             body += ev(at['old'], 'R', r'\an5\pos(360,%d)\fs54\fad(300,0)\c%s' % (y_old, GRAY), 'จากปกติ %s บาท' % money(full))
         # ไม่มีราคาเลย = ยังมีท่อน 'new' (ท่อนกลางไว้ไม่ให้คลิปโล่ง) แต่ไม่มีอะไรจะขึ้นจอ
