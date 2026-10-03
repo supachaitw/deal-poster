@@ -1291,7 +1291,71 @@ def veo_prompt_for(d, shot=None):
     setting = VEO_SETS.get(str(d.get('cat') or '').strip(), 'on a clean neutral surface with a softly blurred background')
     return key, ('Realistic e-commerce product video of the exact item shown in the reference image, placed %s. %s %s' % (setting, body, VEO_INVARIANT))
 
-def _boomerang(W, mp4, gen_s, model, demo=False):
+# ── Veo Lite keyframes (3 ต.ค. 69, user: 'ทำ B วันละ 3 คลิป ดีลแรกรอบ 15/18/21') ────────────────────────────────────
+# ดีลแรกของรอบที่ขอ Veo แต่โควตา Fast หมด (4/วัน = รอบ 00/06/09/12) → ใช้เฟรม storyboard ช่อง 1 เป็นเฟรมแรก + ช่อง 4 เป็นเฟรมท้าย ให้ Veo Lite เชื่อม (interpolation) ≈ ฿14/คลิป
+# ได้คลิปเคลื่อนไหวที่สินค้าคงรูป (ทั้งสองเฟรมผ่านด่านตรวจ storyboard แล้ว) · โควตาแยก VEO_KF_DAILY_MAX=3 · บังคับทดสอบ `veo_kf:true` (ข้าม Fast) · `veo_test:true` ไม่นับโควตา
+VEO_KF_MODEL = os.environ.get('VEO_KF_MODEL', 'veo-3.1-lite-generate-preview')
+VEO_KF_DAILY_MAX = int(os.environ.get('VEO_KF_DAILY_MAX', '0'))   # 0 = ปิด (user 3 ต.ค. 69: 3/วัน = ฿1,260/เดือน 'เยอะไป' — รอเคาะจำนวน · เปิด = ตั้ง env แล้ว deploy)
+VEO_KF_COUNT_FILE = os.environ.get('VEO_KF_COUNT_FILE', '/tiktok/veo_kf_count.json')
+
+def kf_quota_take():
+    day = time.strftime('%Y-%m-%d', time.gmtime(time.time() + 7 * 3600))
+    try:
+        c = json.load(open(VEO_KF_COUNT_FILE))
+    except Exception:
+        c = {}
+    n = int(c.get(day, 0))
+    if n >= VEO_KF_DAILY_MAX:
+        return False
+    try:
+        json.dump({day: n + 1}, open(VEO_KF_COUNT_FILE, 'w'))
+    except Exception:
+        traceback.print_exc()
+    return True
+
+def veo_keyframes(W, d):
+    """Veo Lite: W/sb1.png (เฟรมแรก) → W/sb4.png (เฟรมท้าย) → W/boom.mp4 · คืน dict {ok, gen_s, error, shot:'keyframes'} ไม่ throw"""
+    t0 = time.time()
+    if not GOOGLE_AI_KEY:
+        return {'ok': False, 'error': 'no GOOGLE_AI_KEY', 'shot': 'keyframes'}
+    if not d.get('veo_test') and not kf_quota_take():
+        return {'ok': False, 'error': 'kf daily cap %d' % VEO_KF_DAILY_MAX, 'shot': 'keyframes'}
+    try:
+        name = re.sub(r'\s+', ' ', str(d.get('name') or ''))[:80]
+        prompt = ('Smooth realistic product video of the exact product in the first frame (%s). Starting from the first frame, the camera slowly glides around the product and settles on the final frame composition. '
+                  'The product stays exactly the same object throughout: same shape, size, number of parts, colors and markings. Only the product and its surroundings are in the shot, soft natural light. Audio: gentle natural room ambience.' % name)   # ⛔ 'no people, no text' โดน RAI 'issue with the audio' (เทสบราวนี่) → เขียนเชิงบวก
+        b1 = base64.b64encode(open(W + '/sb1.png', 'rb').read()).decode(); b4 = base64.b64encode(open(W + '/sb4.png', 'rb').read()).decode()
+        model = d.get('veo_kf_model') or VEO_KF_MODEL
+        body = {'instances': [{'prompt': prompt, 'image': {'bytesBase64Encoded': b1, 'mimeType': 'image/png'}, 'lastFrame': {'bytesBase64Encoded': b4, 'mimeType': 'image/png'}}],
+                'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}
+        base = 'https://generativelanguage.googleapis.com/v1beta/'; H = {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'}
+        print('[render] veo shot=keyframes model=%s' % model, flush=True)
+        op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % model, json.dumps(body).encode(), H), timeout=60))
+        while not op.get('done'):
+            if time.time() - t0 > VEO_TIMEOUT:
+                return {'ok': False, 'error': 'timeout %ds' % VEO_TIMEOUT, 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
+            time.sleep(8)
+            op = json.load(urllib.request.urlopen(urllib.request.Request(base + op['name'], headers=H), timeout=30))
+        if op.get('error'):
+            return {'ok': False, 'error': str(op['error'])[:200], 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
+        gv = (op.get('response') or {}).get('generateVideoResponse') or {}
+        samples = gv.get('generatedSamples') or []
+        if not samples:
+            return {'ok': False, 'error': 'no sample (filtered=%s %s)' % (gv.get('raiMediaFilteredCount'), [str(x)[:100] for x in (gv.get('raiMediaFilteredReasons') or [])]), 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
+        mp4 = urllib.request.urlopen(urllib.request.Request(samples[0]['video']['uri'], headers={'x-goog-api-key': GOOGLE_AI_KEY}), timeout=120).read()
+        open(W + '/veo.mp4', 'wb').write(mp4)
+        if d.get('veo_test'):
+            open('/tiktok/veo_test_last.mp4', 'wb').write(mp4)
+        out = _boomerang(W, mp4, round(time.time() - t0, 1), model, trim=0.0)   # เฟรมแรก = ช่อง 1 ที่สะอาดอยู่แล้ว ไม่ต้องตัดหัว · ไป-กลับ (ฉาก 1→4→1) ไม่กระโดด
+        out['shot'] = 'keyframes'
+        return out
+    except urllib.error.HTTPError as e:
+        return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:200]), 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)[:200], 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
+
+def _boomerang(W, mp4, gen_s, model, demo=False, trim=None):
+    trim = VEO_TRIM if trim is None else trim
     # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
     t1 = time.time()
     # 2 ต.ค. 69: Veo (ทั้ง API image-to-video และ Flow frames-to-video) เริ่มจากรูปต้นทางเป๊ะ ~1 วิแรก (มีขอบดำ/ตัวหนังสือบนรูป) และ boomerang พากลับมาอีกตอนท้าย → ตัดหัว VEO_TRIM วิ
@@ -1319,7 +1383,7 @@ def _boomerang(W, mp4, gen_s, model, demo=False):
     print('[render] veo crop=%s' % (pre or 'none'), flush=True)
     graph = (f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,setpts=1.4*PTS[v]' if demo else   # demo (3 ต.ค. 69): เดินหน้า ช้าลง 1.4x (8 วิ → 11 วิ) แล้ว stream_loop · ย้อนกลับไม่ได้ (น้ำ/การกระทำถอยหลัง)
              f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]')
-    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '0' if demo else str(VEO_TRIM), '-i', W + '/veo.mp4', '-filter_complex',
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '0' if demo else str(trim), '-i', W + '/veo.mp4', '-filter_complex',
          # 2 ต.ค. 69: boom.mp4 = 'ช่องบน' 720x790 โดยตรง — แนวนอน (aipass 16:9) ย่อให้สูง 790 พอดี (ตัดแค่ข้าง สินค้าเห็นเต็มตัว) · แนวตั้ง 9:16 (API) ย่อกว้าง 720 แล้วตัดเอาส่วนบน y 40 (สินค้าอยู่ครึ่งบนตาม prompt)
          # เดิมย่อเป็น 720x1280 แล้วค่อยตัด 790 → คลิปแนวนอนของ user ถูกซูม 1.78x สินค้าโดนตัดครึ่งใต้แถบมืด (user: 'แถบสีดำบังสินค้าหมดเลย')
          # 2 ต.ค. 69 (รอบ 3) user: 'เอาตัวหนังสือลง เอาสีดำออก ไม่ลดขนาดภาพ' → กลับเป็นเต็มเฟรม 720x1280 (scale increase + crop กลาง = เห็นสินค้าเต็มความสูงเสมอ) ตัวหนังสือย้ายลงล่าง+ขอบดำ ไม่มีแถบ
@@ -1408,6 +1472,8 @@ def render(d):
             # og:image ของ Lazada เป็นแบนเนอร์การตลาด (การ์ดชมพูมีช่องดำ) ไม่ใช่รูปสินค้า → Veo ทำออกมาเป็นแท็บเล็ต/กล่องโชว์แบนเนอร์ (เทส 2 ต.ค. 69 3/3) ข้ามไปใช้แบบเดิม
             veo = {'ok': False, 'error': 'skip: lazada banner image'}
             print('[render] veo skipped (lazada banner image)', flush=True)
+        elif d.get('veo_kf') and not d.get('bg_video'):
+            veo = {'ok': False, 'error': 'daily cap (forced veo_kf)'}   # ทดสอบ keyframes ตรง ๆ ไม่เรียก Fast
         elif d.get('veo') or d.get('bg_video'):
             veo = veo_clip(W, d)
             print('[render] veo ok=%s gen=%ss err=%s' % (veo.get('ok'), veo.get('gen_s'), veo.get('error')), flush=True)
@@ -1417,6 +1483,14 @@ def render(d):
             sb = storyboard_panels(W, d)
             print('[render] storyboard ok=%s gen=%ss err=%s' % (sb.get('ok'), sb.get('gen_s'), sb.get('error')), flush=True)
         use_sb = bool(sb and sb.get('ok'))
+        if use_sb and (d.get('veo') or d.get('veo_kf')) and str((veo or {}).get('error', '')).startswith('daily cap'):
+            # 3 ต.ค. 69 B: ขอ Veo แต่โควตา Fast หมด (รอบ 15/18/21) → Veo Lite เชื่อมเฟรม storyboard ช่อง 1→4 (โควตาแยก 3/วัน) · ล้ม = ใช้ storyboard ภาพนิ่งต่อ
+            kf = veo_keyframes(W, d)
+            print('[render] veo keyframes ok=%s gen=%ss err=%s' % (kf.get('ok'), kf.get('gen_s'), kf.get('error')), flush=True)
+            if kf.get('ok'):
+                veo = kf; use_veo = True
+            else:
+                veo = dict(veo or {}, kf_error=kf.get('error'))
         fullframe = use_veo or use_sb   # เลย์เอาต์เต็มเฟรม (ขอบดำตัวหนังสือ + บล็อกชื่อ/ราคาเลื่อนลง + แถบ CTA บาง) ใช้ทั้ง Veo และ storyboard
 
         segs, pct, seed = script_for(d)
@@ -1678,7 +1752,7 @@ class H(BaseHTTPRequestHandler):
             rv = d.get('review')
             pid_d = safe_id(d.get('page_id'))
             # 3 ต.ค. 69: โหมดไม่รอตรวจ — บอกใน caption TG ว่าคลิปนี้เป็น Veo และลง TikTok ให้แล้ว (ต่อหน้า caption ก่อนตัด 960 ตัว ไม่ให้ '#d' ท้ายหาย)
-            pre = ('🎬 คลิป Veo (gen %ss) → ลง TikTok อัตโนมัติ\n' % (veo or {}).get('gen_s', '?')) if (rv and (veo or {}).get('ok') and not VEO_REVIEW and tt) else ''
+            pre = ('🎬 คลิป Veo%s (gen %ss) → ลง TikTok อัตโนมัติ\n' % (' Lite เฟรม storyboard' if (veo or {}).get('shot') == 'keyframes' else '', (veo or {}).get('gen_s', '?'))) if (rv and (veo or {}).get('ok') and not VEO_REVIEW and tt) else ''
             if not pre and (sb or {}).get('ok'):
                 pre = '🎨 ฉาก storyboard AI (gen %ss)\n' % sb.get('gen_s', '?')
             if pid_d and not d.get('deal_id'):
