@@ -577,6 +577,17 @@ def tg_send_video(tg, mp4, caption):
     r = json.loads(urllib.request.urlopen(req, timeout=120).read().decode('utf-8', 'replace'))
     return bool(r.get('ok')), (r.get('result') or {}).get('message_id')
 
+def tg_send_text(tg, text):
+    """3 ต.ค. 69: ส่งข้อความธรรมดา (prompt Veo ยาว ~800 ตัว ใส่ caption รูปไม่พอ — caption จำกัด 1024 แล้ว '#d' ท้ายโดนตัด) · คืน (ok, message_id)"""
+    import urllib.parse
+    url = re.sub(r'/send(Video|Photo)$', '/sendMessage', str(tg.get('url') or ''))
+    body = urllib.parse.urlencode({'chat_id': tg.get('chat_id', ''), 'text': text[:4000], 'disable_web_page_preview': 'true'}).encode()
+    try:
+        r = json.loads(urllib.request.urlopen(urllib.request.Request(url, body), timeout=30).read().decode('utf-8', 'replace'))
+        return bool(r.get('ok')), (r.get('result') or {}).get('message_id')
+    except Exception as e:
+        return False, str(e)[:120]
+
 def tg_send_photo(tg, jpg, caption):
     """2 ต.ค. 69: ส่งรูปสินค้า (binary — Telegram ดึงจาก Shopee/Lazada CDN เองไม่ได้) ให้ user เอาไปทำคลิป Veo เองใน aipass/Flow"""
     import uuid
@@ -1430,9 +1441,11 @@ class H(BaseHTTPRequestHandler):
                     try:
                         jpg = urllib.request.urlopen(urllib.request.Request(d['img'], headers={'User-Agent': 'Mozilla/5.0'}), timeout=30).read()
                         shot_u, prompt_u = veo_prompt_for(d)
-                        capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt ด้านล่าง (สไตล์กล้อง: ' + shot_u + ') 3) Reply คลิปที่ได้กลับมาที่ข้อความนี้\n\n'
-                                + prompt_u + '\n\n#d ' + pid_d)
-                        ps, pm = tg_send_photo(tg, jpg, capP)
+                        # caption รูปจำกัด 1024 ตัว → ใส่แค่วิธีทำ + '#d' (ห้ามหาย) แล้วส่ง prompt เป็นข้อความแยกต่อท้าย
+                        capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt จากข้อความถัดไป (สไตล์กล้อง: ' + shot_u + ') 3) Reply คลิปที่ได้กลับมาที่ **ข้อความรูปนี้**\n\n#d ' + pid_d)
+                        ps, pm = tg_send_photo(tg, jpg, capP[:1000])
+                        if ps:
+                            tg_send_text(tg, '📝 prompt สำหรับ ' + (d.get('name') or '')[:50] + ' (' + shot_u + '):\n\n' + prompt_u)
                         out['photo_sent'] = ps; out['photo_message_id'] = pm
                         print('[review] veo unavailable (%s) -> photo for manual Veo sent=%s' % ((veo or {}).get('error'), ps), flush=True)
                     except Exception as e:
