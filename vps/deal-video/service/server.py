@@ -370,7 +370,7 @@ def llm_script(d, pct, recent):
                  'แนวทางสไตล์ปัจจุบัน:\n' + style)
         user = json.dumps({'name': name, 'cat': d.get('cat') or '', 'desc': desc, 'has_discount': bool(pct),
                            'has_price': bool(d.get('sale') or d.get('full')), 'avoid': avoid}, ensure_ascii=False)
-        body = {'model': LLM_SCRIPT_MODEL, 'max_tokens': 1500, 'temperature': 1.0, 'system': sys_p, 'thinking': {'type': 'disabled'},   # Sonnet 5 กับ prompt ยาวเคยคิด (thinking) จน max_tokens 300 หมดโดยไม่มี text (stop=max_tokens len=0) → ปิด thinking + เพดานกว้าง
+        body = {'model': LLM_SCRIPT_MODEL, 'max_tokens': 1500, 'system': sys_p, 'thinking': {'type': 'disabled'},   # Sonnet 5 กับ prompt ยาวเคยคิด (thinking) จน max_tokens 300 หมดโดยไม่มี text (stop=max_tokens len=0) → ปิด thinking + เพดานกว้าง
                 'messages': [{'role': 'user', 'content': user}]}
         req = urllib.request.Request('https://api.anthropic.com/v1/messages', json.dumps(body).encode('utf-8'),
                                      {'content-type': 'application/json', 'x-api-key': LLM_SCRIPT_KEY, 'anthropic-version': '2023-06-01'})
@@ -1080,20 +1080,72 @@ VEO_INVARIANT = ('Vertical 9:16 framing, the product centered and filling about 
                  'The product is the exact item in the reference image: keep its colors, shape, proportions, materials and printed details unchanged, '
                  'and it is the only object in the scene. No people, no hands, no text, no captions, no logos, no watermarks, no extra products.')
 
+# ---------- สไตล์ 'demo' สาธิตการใช้งาน (3 ต.ค. 69 user: 'เห็นคลิปสาธิตใน Google Flow เราทำบ้างได้มั้ย' → ทดสอบผ่าน → 'ทำ') ----------
+# โหมดรูปอ้างอิง (referenceImages = Ingredients ของ Flow) แทนเฟรมแรก · มือเข้ามาในเฟรมได้ แต่ห้ามมีหน้า/คำว่า person (RAI กรอง 'issue with the audio')
+# ท่าสาธิตให้ Sonnet เขียนจากชื่อ/คำบรรยาย (llm_demo_action) เฉพาะหน้าที่ที่สินค้าทำได้จริง · ไม่มี LLM → แม่แบบตามหมวด · เล่นเดินหน้า+ช้าลง ไม่ย้อนกลับ (น้ำไหลถอยหลัง)
+# ถูกกรอง/ล้ม → veo_clip ลองสไตล์ปกติ (เฟรมแรก) ซ้ำอัตโนมัติ · สัดส่วนดีลที่ได้ demo = VEO_DEMO_SHARE % (hash)
+VEO_DEMO_SHARE = int(os.environ.get('VEO_DEMO_SHARE', '50'))
+VEO_DEMO_FALLBACK = {
+    'บ้าน': 'A hand enters from the bottom right, picks up the product and holds it up in its normal position of use, turning it slightly so the whole product is visible.',
+    'กาแฟ': 'A hand enters from the bottom right, lifts the product and tilts it gently as if about to use it, showing the whole product clearly.',
+    'อาหาร': 'A hand enters from the bottom right, picks up the pack, tilts it toward the camera and opens the top of the pack slowly.',
+    'gadget': 'A hand enters from the bottom right, picks up the device and turns it slowly to show the front and the side ports.',
+    'ความงาม': 'A hand enters from the bottom right, lifts the product, removes the cap slowly and holds it up to the light.',
+    'แฟชั่น': 'A hand enters from the bottom right, lifts the item and turns it slowly to show the front and the back.',
+}
+VEO_DEMO_INVARIANT = ('Only the hand and forearm are visible, no face. Single continuous shot, steady camera with a gentle slow push-in. '
+                      'Vertical 9:16 framing with the product centered and clearly visible. Keep the product\'s colors, shape, proportions, materials and printed details exactly as in the reference image; '
+                      'it is the hero product and any other object in the scene is generic and unbranded. No text, no captions, no logos, no watermarks. '
+                      'Audio: gentle natural ambient sound that matches the action.')   # ถ้อยคำบวก — 'no speech, no music' เคยถูก RAI ปัดว่า issue with the audio (3 ต.ค. 69)
+
+def llm_demo_action(d):
+    """ให้ Sonnet เขียนท่าสาธิต 1–2 ประโยคอังกฤษ (มือเข้ามาในเฟรม) จากชื่อ/คำบรรยาย · คืน str หรือ None"""
+    if not LLM_SCRIPT or time.time() < LLM_SCRIPT_COOLDOWN_UNTIL:
+        return None
+    try:
+        name = (d.get('name') or '')[:120]; desc = clean_desc(d.get('desc')) or ''
+        sys_p = ('You write ONE short English shot description (1-2 sentences, 25-60 words) for an AI product-demo video. '
+                 'Describe a hand entering the frame and performing the product\'s ordinary, physically obvious function (e.g. pressing its button, pouring from it, plugging a generic cable into it, opening its pack). '
+                 'Rules: say "a hand" or "a thumb", never "person/man/woman/people/face"; only the hand and forearm are visible; no outcome or benefit claims; '
+                 'no numbers; do not describe how the product is installed or mounted; mention at most one generic unbranded helper object only if the function needs it (e.g. "a generic smartphone"); '
+                 'refer to the product as "the exact product from the reference image". Output the sentence only, no quotes.')
+        user = json.dumps({'product_name': name, 'description': desc, 'category': d.get('cat') or ''}, ensure_ascii=False)
+        body = {'model': LLM_SCRIPT_MODEL, 'max_tokens': 400, 'system': sys_p, 'thinking': {'type': 'disabled'}, 'messages': [{'role': 'user', 'content': user}]}   # ห้ามส่ง temperature — Sonnet 5 ตอบ 400 '`temperature` is deprecated for this model'
+        req = urllib.request.Request('https://api.anthropic.com/v1/messages', json.dumps(body).encode('utf-8'),
+                                     {'content-type': 'application/json', 'x-api-key': LLM_SCRIPT_KEY, 'anthropic-version': '2023-06-01'})
+        r = json.load(urllib.request.urlopen(req, timeout=15))
+        txt = ' '.join(''.join(c.get('text', '') for c in r.get('content', []) if c.get('type') == 'text').split()).strip().strip('"')
+        for a_, b_ in (('\u2014', '-'), ('\u2013', '-'), ('\u2019', "'"), ('\u2018', "'"), ('\u201c', '"'), ('\u201d', '"'), ('\u2026', '...')):   # Sonnet ชอบใส่ em dash/curly quotes → แปลงก่อนตรวจ ASCII
+            txt = txt.replace(a_, b_)
+        low = txt.lower()
+        if not (80 <= len(txt) <= 450) or 'hand' not in low or re.search(r'\b(person|man|woman|people|face|girl|boy|model)\b', low) or re.search(r'[^\x20-\x7E]', txt):
+            print('[render] demo action rejected: %r' % txt[:80], flush=True)
+            return None
+        return txt
+    except Exception as e:
+        print('[render] demo action failed %s' % str(e)[:80], flush=True)
+        return None
+
 def veo_prompt_for(d, shot=None):
     """คืน (ชื่อสไตล์, prompt) — สไตล์เลือกตาม hash ชื่อดีล หรือบังคับด้วย d['veo_shot'] / ส่ง prompt เต็มด้วย d['veo_prompt']"""
     if d.get('veo_prompt'):
         return 'custom', str(d['veo_prompt'])
     names = [n for n, _ in VEO_SHOTS]
     key = shot or d.get('veo_shot')
-    if key not in names:
-        h = int(hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest(), 16)
+    h = int(hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest(), 16)
+    if key not in names and key != 'demo':
+        key = 'demo' if (VEO_DEMO_SHARE > 0 and (h // 67) % 100 < VEO_DEMO_SHARE and (LLM_SCRIPT or str(d.get('cat') or '').strip() in VEO_DEMO_FALLBACK)) else names[(h // 61) % len(names)]
+    if key == 'demo':
+        action = d.get('veo_action') or llm_demo_action(d) or VEO_DEMO_FALLBACK.get(str(d.get('cat') or '').strip())
+        if action:
+            setting = VEO_SETS.get(str(d.get('cat') or '').strip(), 'on a clean neutral surface with a softly blurred background')
+            return 'demo', ('Realistic close-up product demo video. The exact product from the reference image is %s. %s %s' % (setting, action, VEO_DEMO_INVARIANT))
         key = names[(h // 61) % len(names)]
     body = dict(VEO_SHOTS)[key]
     setting = VEO_SETS.get(str(d.get('cat') or '').strip(), 'on a clean neutral surface with a softly blurred background')
     return key, ('Realistic e-commerce product video of the exact item shown in the reference image, placed %s. %s %s' % (setting, body, VEO_INVARIANT))
 
-def _boomerang(W, mp4, gen_s, model):
+def _boomerang(W, mp4, gen_s, model, demo=False):
     # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
     t1 = time.time()
     # 2 ต.ค. 69: Veo (ทั้ง API image-to-video และ Flow frames-to-video) เริ่มจากรูปต้นทางเป๊ะ ~1 วิแรก (มีขอบดำ/ตัวหนังสือบนรูป) และ boomerang พากลับมาอีกตอนท้าย → ตัดหัว VEO_TRIM วิ
@@ -1119,11 +1171,13 @@ def _boomerang(W, mp4, gen_s, model):
     except Exception:
         traceback.print_exc()
     print('[render] veo crop=%s' % (pre or 'none'), flush=True)
-    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', str(VEO_TRIM), '-i', W + '/veo.mp4', '-filter_complex',
+    graph = (f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,setpts=1.4*PTS[v]' if demo else   # demo (3 ต.ค. 69): เดินหน้า ช้าลง 1.4x (8 วิ → 11 วิ) แล้ว stream_loop · ย้อนกลับไม่ได้ (น้ำ/การกระทำถอยหลัง)
+             f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]')
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '0' if demo else str(VEO_TRIM), '-i', W + '/veo.mp4', '-filter_complex',
          # 2 ต.ค. 69: boom.mp4 = 'ช่องบน' 720x790 โดยตรง — แนวนอน (aipass 16:9) ย่อให้สูง 790 พอดี (ตัดแค่ข้าง สินค้าเห็นเต็มตัว) · แนวตั้ง 9:16 (API) ย่อกว้าง 720 แล้วตัดเอาส่วนบน y 40 (สินค้าอยู่ครึ่งบนตาม prompt)
          # เดิมย่อเป็น 720x1280 แล้วค่อยตัด 790 → คลิปแนวนอนของ user ถูกซูม 1.78x สินค้าโดนตัดครึ่งใต้แถบมืด (user: 'แถบสีดำบังสินค้าหมดเลย')
          # 2 ต.ค. 69 (รอบ 3) user: 'เอาตัวหนังสือลง เอาสีดำออก ไม่ลดขนาดภาพ' → กลับเป็นเต็มเฟรม 720x1280 (scale increase + crop กลาง = เห็นสินค้าเต็มความสูงเสมอ) ตัวหนังสือย้ายลงล่าง+ขอบดำ ไม่มีแถบ
-         f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]',
+         graph,
          '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', W + '/boom.mp4'])
     return {'ok': True, 'gen_s': gen_s, 'prep_s': round(time.time() - t1, 1), 'bytes': len(mp4), 'model': model, 'src_dur': round(dur(W + '/veo.mp4'), 1)}
 
@@ -1141,36 +1195,54 @@ def veo_clip(W, d):
             return {'ok': False, 'error': 'bg_video: ' + str(e)[:160]}
     if not key:
         return {'ok': False, 'error': 'no GOOGLE_AI_KEY'}
-    if not veo_quota_take():
+    if not d.get('veo_test') and not veo_quota_take():   # veo_test: ทดสอบมือโดยไม่นับโควตา
         return {'ok': False, 'error': 'daily cap %d' % VEO_DAILY_MAX}
     try:
         img = open(W + '/product.jpg', 'rb').read()
         mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
         model = d.get('veo_model') or VEO_MODEL      # 2 ต.ค. 69: ทดสอบรุ่น/prompt ต่อคำขอได้ (Lite วาดพาวเวอร์แบงค์เป็นคนละรุ่น)
         shot, prompt = veo_prompt_for(d)
-        prompt += ((' The product is: ' + str(d.get('veo_desc'))) if d.get('veo_desc') else '')
-        print('[render] veo shot=%s' % shot, flush=True)
-        body = {'instances': [{'prompt': prompt, 'image': {'bytesBase64Encoded': base64.b64encode(img).decode(), 'mimeType': mime}}],
-                'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}
+        b64 = base64.b64encode(img).decode()
         base = 'https://generativelanguage.googleapis.com/v1beta/'
-        op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % model, json.dumps(body).encode(),
-                                                                     {'x-goog-api-key': key, 'Content-Type': 'application/json'}), timeout=60))
-        name = op['name']
-        while not op.get('done'):
-            if time.time() - t0 > VEO_TIMEOUT:
-                return {'ok': False, 'error': 'timeout %ds' % VEO_TIMEOUT, 'gen_s': round(time.time() - t0, 1)}
-            time.sleep(8)
-            op = json.load(urllib.request.urlopen(urllib.request.Request(base + name, headers={'x-goog-api-key': key}), timeout=30))
-        if op.get('error'):
-            return {'ok': False, 'error': str(op['error'])[:200], 'gen_s': round(time.time() - t0, 1)}
-        gv = (op.get('response') or {}).get('generateVideoResponse') or {}
-        samples = gv.get('generatedSamples') or []
-        if not samples:
-            return {'ok': False, 'error': 'no sample (filtered=%s %s)' % (gv.get('raiMediaFilteredCount'), [str(x)[:100] for x in (gv.get('raiMediaFilteredReasons') or [])]),
-                    'gen_s': round(time.time() - t0, 1)}
-        mp4 = urllib.request.urlopen(urllib.request.Request(samples[0]['video']['uri'], headers={'x-goog-api-key': key}), timeout=120).read()
-        open(W + '/veo.mp4', 'wb').write(mp4)
-        return _boomerang(W, mp4, round(time.time() - t0, 1), model)
+        attempts = [(shot, prompt)]
+        if shot == 'demo':   # ถูกกรอง/ล้ม → ลองสไตล์ปกติ (เฟรมแรก) ต่อทันที (คำขอที่ถูกกรองไม่คิดเงิน)
+            attempts.append(veo_prompt_for(d, shot=[n for n, _ in VEO_SHOTS][(int(hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest(), 16) // 61) % len(VEO_SHOTS)]))
+        last_err = 'no attempt'
+        for shot, prompt in attempts:
+            prompt += ((' The product is: ' + str(d.get('veo_desc'))) if d.get('veo_desc') else '')
+            demo = shot == 'demo'
+            inst = {'prompt': prompt}
+            if demo:
+                inst['referenceImages'] = [{'image': {'bytesBase64Encoded': b64, 'mimeType': mime}, 'referenceType': 'asset'}]
+            else:
+                inst['image'] = {'bytesBase64Encoded': b64, 'mimeType': mime}
+            print('[render] veo shot=%s mode=%s' % (shot, 'ref' if demo else 'i2v'), flush=True)
+            body = {'instances': [inst], 'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}
+            try:
+                op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % model, json.dumps(body).encode(),
+                                                                             {'x-goog-api-key': key, 'Content-Type': 'application/json'}), timeout=60))
+            except urllib.error.HTTPError as e:
+                last_err = 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:160]); print('[render] veo start failed: %s' % last_err, flush=True); continue
+            name = op['name']
+            while not op.get('done'):
+                if time.time() - t0 > VEO_TIMEOUT:
+                    return {'ok': False, 'error': 'timeout %ds' % VEO_TIMEOUT, 'gen_s': round(time.time() - t0, 1), 'shot': shot}
+                time.sleep(8)
+                op = json.load(urllib.request.urlopen(urllib.request.Request(base + name, headers={'x-goog-api-key': key}), timeout=30))
+            if op.get('error'):
+                last_err = str(op['error'])[:200]; print('[render] veo op error: %s' % last_err, flush=True); continue
+            gv = (op.get('response') or {}).get('generateVideoResponse') or {}
+            samples = gv.get('generatedSamples') or []
+            if not samples:
+                last_err = 'no sample (filtered=%s %s)' % (gv.get('raiMediaFilteredCount'), [str(x)[:100] for x in (gv.get('raiMediaFilteredReasons') or [])])
+                print('[render] veo %s filtered -> %s' % (shot, 'next attempt' if demo else 'give up'), flush=True); continue
+            mp4 = urllib.request.urlopen(urllib.request.Request(samples[0]['video']['uri'], headers={'x-goog-api-key': key}), timeout=120).read()
+            open(W + '/veo.mp4', 'wb').write(mp4)
+            if d.get('veo_test'):
+                open('/tiktok/veo_test_last.mp4', 'wb').write(mp4)   # เก็บคลิปดิบไว้ตรวจเฟรมบน host
+            out = _boomerang(W, mp4, round(time.time() - t0, 1), model, demo=demo); out['shot'] = shot
+            return out
+        return {'ok': False, 'error': last_err, 'gen_s': round(time.time() - t0, 1)}
     except urllib.error.HTTPError as e:
         return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:200]), 'gen_s': round(time.time() - t0, 1)}
     except Exception as e:
@@ -1454,7 +1526,7 @@ class H(BaseHTTPRequestHandler):
                         jpg = urllib.request.urlopen(urllib.request.Request(d['img'], headers={'User-Agent': 'Mozilla/5.0'}), timeout=30).read()
                         shot_u, prompt_u = veo_prompt_for(d)
                         # caption รูปจำกัด 1024 ตัว → ใส่แค่วิธีทำ + '#d' (ห้ามหาย) แล้วส่ง prompt เป็นข้อความแยกต่อท้าย
-                        capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt จากข้อความถัดไป (สไตล์กล้อง: ' + shot_u + ') 3) Reply คลิปที่ได้กลับมาที่ **ข้อความรูปนี้**\n\n#d ' + pid_d)
+                        capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt จากข้อความถัดไป (สไตล์กล้อง: ' + shot_u + (' — ใช้โหมด Ingredients/รูปอ้างอิง ไม่ใช่เฟรมแรก' if shot_u == 'demo' else '') + ') 3) Reply คลิปที่ได้กลับมาที่ **ข้อความรูปนี้**\n\n#d ' + pid_d)
                         ps, pm = tg_send_photo(tg, jpg, capP[:1000])
                         if ps:
                             tg_send_text(tg, '📝 prompt สำหรับ ' + (d.get('name') or '')[:50] + ' (' + shot_u + '):\n\n' + prompt_u + '\n\n(Reply คลิปที่ข้อความนี้หรือข้อความรูปก็ได้)\n#d ' + pid_d)   # 3 ต.ค. 69: user Reply ที่ข้อความ prompt แทนรูป → ไม่มี #d ระบบเงียบ → ใส่ #d ทั้งสองข้อความ
