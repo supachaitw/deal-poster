@@ -12,10 +12,13 @@ except Exception:
 if data.get('tool_name') != 'Bash':
     sys.exit(0)
 cmd = (data.get('tool_input') or {}).get('command') or ''
-if 'redact.py' in cmd or 'n8n_get.py' in cmd or 'export_workflows.py' in cmd:
+# 3 ต.ค. 69: ผ่านได้เฉพาะเมื่อ 'ต่อท่อ' เข้า redact จริง (เดิมแค่มีคำว่า redact.py ที่ไหนก็ผ่าน) หรือใช้สคริปต์ที่ redact ในตัว
+PIPED = re.search(r'\|\s*python3?\s+(\S*/)?scripts/redact\.py', cmd) is not None
+if PIPED or re.search(r'scripts/(n8n_get|export_workflows|notion_secret)\.py', cmd):
     sys.exit(0)
 RISKY = [
     (r'api/v1/(workflows|credentials)', 'n8n API ดิบ'),
+    (r'api\.notion\.com|DP_NOTION|NOTION_TOKEN', 'Notion API (หน้า Config = ความลับทุกบล็อก — 3 ต.ค. 69 หลุด Azure key 35 ตัวจากการพิมพ์ "ตัวอย่างข้อความ")'),
     (r'\bdocker\s+inspect\b', 'docker inspect (มี env/secret)'),
     (r'(^|[;&|]\s*)(env|printenv)\b', 'env/printenv'),
     (r'\b(cat|less|more|head|tail|grep|sed|awk)\b[^|;&]*\.env\b', 'อ่านไฟล์ .env'),
@@ -29,10 +32,10 @@ if not hits:
 safe_sink = re.search(r'(-o\s+\S+|>\s*/\S+|=\$\()', cmd)
 if safe_sink and 'print(' not in cmd:
     sys.exit(0)
-# python heredoc: ตรวจไม่ได้ว่า print อะไร → ต้องประกาศเอง: import redact หรือมีมาร์กเกอร์ '# noraw' (= ยืนยันว่าไม่ print ค่าดิบจากแหล่งความลับ)
-if re.search(r"python3?\s+-\s*<<\s*'?\w+'?", cmd) and ('redact' in cmd or '# noraw' in cmd):
+# python heredoc: '# noraw' อย่างเดียวไม่พออีกแล้ว (3 ต.ค. 69 สคริปต์ที่มี # noraw พิมพ์ข้อความบล็อก Notion 40 ตัวแล้วหลุด) → ต้อง '# noraw' และต่อท่อ stdout เข้า redact.py ด้วย
+if re.search(r"python3?\s+-\s*<<\s*'?\w+'?", cmd) and '# noraw' in cmd and PIPED:
     sys.exit(0)
-sys.stderr.write('🔒 guard_bash: คำสั่งนี้แตะแหล่งความลับ (%s) และอาจพิมพ์ token ขึ้นจอ — เคยหลุดมาแล้ว 3 ครั้ง\n'
-                 'ทำแบบใดแบบหนึ่ง: ต่อท่อ `| python3 scripts/redact.py` · ใช้ `python3 scripts/n8n_get.py <id> [node]` · '
-                 'หรือเขียนลงไฟล์/ตัวแปรแล้วประมวลผลใน script โดยไม่ print ค่าดิบ (print เฉพาะฟิลด์ที่เลือกแล้ว redact)\n' % ', '.join(hits))
+sys.stderr.write('🔒 guard_bash: คำสั่งนี้แตะแหล่งความลับ (%s) และอาจพิมพ์ token ขึ้นจอ — เคยหลุดมาแล้ว 4 ครั้ง\n'
+                 'ต้องทำ: heredoc ที่แตะแหล่งความลับต้องมี `# noraw` **และ** ปิดท้ายคำสั่งทั้งก้อนด้วย `| python3 scripts/redact.py` (เช่น `python3 - <<EOF ... EOF | python3 scripts/redact.py`) · '
+                 'อ่านคีย์จาก Notion Config ใช้ `python3 scripts/notion_secret.py "<หัวข้อ>" --env FILE --key NAME` เท่านั้น · n8n ใช้ `scripts/n8n_get.py` · ห้าม print "ตัวอย่างข้อความ" ของบล็อก/ฟิลด์ลับแม้ตัดสั้น\n' % ', '.join(hits))
 sys.exit(2)

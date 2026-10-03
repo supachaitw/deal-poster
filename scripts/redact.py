@@ -31,6 +31,8 @@ KEYED = [
     re.compile(r'(?i)("(?:[a-z0-9_.-]*' + KEYNAMES + r'[a-z0-9_.-]*)"\s*:\s*")([^"]{8,})(")'),
     re.compile(r'(?i)(\b[A-Z0-9_]*' + KEYNAMES.upper().replace('(?:', '(?:') + r'[A-Z0-9_]*\s*=\s*["\']?)([^\s"\']{8,})(["\']?)'),
     re.compile(r'(?i)((?:x-api-key|ocp-apim-subscription-key|x-n8n-api-key|x-tts-access-token|api-key)\s*[:=]\s*["\']?)([^\s"\',]{8,})'),
+    # 3 ต.ค. 69: หลุด 'Key: MOLM…' 35 ตัวจากบล็อก Notion Config (ตัดสั้นจน pattern token ยาวไม่จับ) → ค่าหลังป้ายชื่อคีย์ในข้อความธรรมดาถูกปิดเสมอ ไม่ว่ายาวเท่าไร
+    re.compile(r'(?i)(\b(?:' + KEYNAMES + r'|คีย์|รหัสผ่าน|โทเค็น)\s*[:=：]\s*)([^\s]{6,})'),
 ]
 # สตริงสุ่มยาว (hex ≥ 32 หรือ base64/alnum ≥ 40 ที่ไม่มีช่องว่าง) — กัน token รูปแบบที่ยังไม่รู้จัก · ยกเว้น URL path ธรรมดา/hash git สั้น
 RANDOM = [
