@@ -738,7 +738,8 @@ def tt_post(tt, mp4):
         if privacy not in (cd.get('privacy_level_options') or []):
             out['error'] = 'privacy_not_allowed'; return out
         body = {'post_info': {'title': (tt.get('title') or '')[:2200], 'privacy_level': privacy,
-                              'disable_duet': False, 'disable_comment': False, 'disable_stitch': False, 'video_cover_timestamp_ms': 1000},
+                              'disable_duet': False, 'disable_comment': False, 'disable_stitch': False, 'video_cover_timestamp_ms': 1000,
+                              'is_aigc': bool(tt.get('aigc'))},   # 3 ต.ค. 69: ป้าย AI-generated ของ TikTok (เอกสาร Direct Post: post_info.is_aigc)
                 'source_info': {'source': 'FILE_UPLOAD', 'video_size': len(mp4), 'chunk_size': len(mp4), 'total_chunk_count': 1}}
         code, init = tt_http(TT_API + 'post/publish/video/init/', token, body=body)
         ie = (init.get('error') or {})
@@ -1126,6 +1127,117 @@ def llm_demo_action(d):
         print('[render] demo action failed %s' % str(e)[:80], flush=True)
         return None
 
+# ── Storyboard stills (3 ต.ค. 69, user: 'ทำข้อ 1 และติดป้าย AI ให้ด้วย') ─────────────────────────────────────────────
+# เทคนิคจากคลิป TikTok @joychatti: ให้ AI วาด storyboard 4 ช่องในรูปเดียวจากรูปสินค้า → สินค้าหน้าตาเหมือนกันทุกช่อง → ครอปแยก 4 ฉาก
+# ใช้กับคลิปที่ไม่มี Veo (รอบ 15/18/21 + ดีลที่ 2–6 ทุกรอบ ≈ 35 คลิป/วัน) แทนรูปโฆษณาร้าน (ตัวหนังสือ/ป้าย/หลายสี) ≈ ฿1–2/คลิป
+# ฉาก: 1 hero (ท่อน hook) · 2 close-up (desc) · 3 มือใช้งาน (ราคา) · 4 ปิดท้าย (CTA) · Ken Burns สลับซูมเข้า/ออก + crossfade 0.4 วิ
+# ล้ม/ถูกกรอง/เกินโควตา → เรนเดอร์แบบเดิม (รูปร้าน) อัตโนมัติ · บังคับปิดต่อคำขอ `storyboard:false` · `storyboard_test:true` เก็บรูปดิบ /tiktok/storyboard_test_last.png
+STORYBOARD = os.environ.get('STORYBOARD', '1') == '1'
+STORYBOARD_MODEL = os.environ.get('STORYBOARD_MODEL', 'gemini-3.1-flash-image-preview')   # 2K 9:16 → 1536x2752 ≈ 18 วิ ~2,700 token (เทส 3 ต.ค. 69)
+STORYBOARD_DAILY_MAX = int(os.environ.get('STORYBOARD_DAILY_MAX', '80'))
+STORYBOARD_TIMEOUT = int(os.environ.get('STORYBOARD_TIMEOUT', '90'))
+SB_COUNT_FILE = os.environ.get('SB_COUNT_FILE', '/tiktok/storyboard_count.json')
+SB_CLOSING = {
+    'บ้าน': 'placed in a tidy, softly lit living room corner',
+    'gadget': 'on a modern desk next to a closed laptop, evening lamp light',
+    'ความงาม': 'on a marble vanity beside a small plant, soft morning light',
+    'แฟชั่น': 'laid neatly on a linen bed in warm daylight',
+    'อาหาร': 'on a kitchen counter with a cup of tea nearby',
+    'กาแฟ': 'on a wooden cafe table by a window',
+    'รถ': 'inside a clean car interior on the passenger seat',
+    'สัตว์เลี้ยง': 'on a living room rug near a pet bed',
+    'Fitness': 'on a yoga mat in a bright room',
+}
+
+def sb_quota_take():
+    day = time.strftime('%Y-%m-%d', time.gmtime(time.time() + 7 * 3600))
+    try:
+        c = json.load(open(SB_COUNT_FILE))
+    except Exception:
+        c = {}
+    n = int(c.get(day, 0))
+    if n >= STORYBOARD_DAILY_MAX:
+        return False
+    try:
+        os.makedirs(os.path.dirname(SB_COUNT_FILE), exist_ok=True)
+        json.dump({day: n + 1}, open(SB_COUNT_FILE, 'w'))
+    except Exception:
+        traceback.print_exc()
+    return True
+
+def storyboard_prompt_for(d):
+    cat = str(d.get('cat') or '').strip()
+    setting = 'in the realistic place where this product is normally used, shown at its real scale'   # ไม่ใช้ VEO_SETS (บอก 'บนโต๊ะไม้') — ของใหญ่เช่นราวตากผ้าถูกย่อเป็นของตั้งโต๊ะ (เทส 3 ต.ค. 69)
+    action = d.get('veo_action') or llm_demo_action(d) or VEO_DEMO_FALLBACK.get(cat) or 'A hand enters from the side and holds the exact product from the reference image naturally; only the hand and forearm are visible.'
+    closing = SB_CLOSING.get(cat, 'in a tidy, softly lit home setting')
+    name = re.sub(r'\s+', ' ', str(d.get('name') or ''))[:100]
+    return ('Create ONE vertical 9:16 photorealistic storyboard image divided into a 2x2 grid of 4 equal panels separated by thin white borders, '
+            'for a short product video of the exact product in the attached photo (%s). Keep the product\'s shape, colors, materials, proportions, number of parts and printed markings identical in every panel; '
+            'show the same single item at its true real-world size relative to the surroundings as implied by the photo, never a different model, variant or miniature. No added text, captions, logos, watermarks, price tags, faces or people. '
+            'Panel 1 (top-left): hero shot of the entire product fully visible %s, soft natural light, product centered and filling about sixty percent of the panel height. '
+            'Panel 2 (top-right): extreme close-up of the product\'s most distinctive surface detail, material texture and markings, shallow depth of field. '
+            'Panel 3 (bottom-left): %s '
+            'Panel 4 (bottom-right): the product %s, calm wide closing shot. Consistent lighting and color grading across all panels.' % (name, setting, action, closing))
+
+def storyboard_panels(W, d):
+    """สร้างภาพ storyboard 4 ช่องจาก W/product.jpg → W/sb1..sb4.png (720x1280) · คืน {ok, gen_s, error, model, tokens, size} ไม่ throw"""
+    t0 = time.time()
+    if not d.get('storyboard_test') and not sb_quota_take():
+        return {'ok': False, 'error': 'daily cap %d' % STORYBOARD_DAILY_MAX}
+    try:
+        img = open(W + '/product.jpg', 'rb').read()
+        mime = 'image/png' if img[:4] == b'\x89PNG' else ('image/webp' if img[8:12] == b'WEBP' else 'image/jpeg')
+        prompt = storyboard_prompt_for(d)
+        body = {'contents': [{'parts': [{'inline_data': {'mime_type': mime, 'data': base64.b64encode(img).decode()}}, {'text': prompt}]}],
+                'generationConfig': {'responseModalities': ['IMAGE', 'TEXT'], 'imageConfig': {'aspectRatio': '9:16', 'imageSize': '2K'}}}
+        req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % STORYBOARD_MODEL, json.dumps(body).encode(),
+                                     {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'})
+        r = json.load(urllib.request.urlopen(req, timeout=STORYBOARD_TIMEOUT))
+        cand = (r.get('candidates') or [{}])[0]
+        data, note = None, ''
+        for p in (cand.get('content') or {}).get('parts') or []:
+            if 'inlineData' in p and not data:
+                data = base64.b64decode(p['inlineData']['data'])
+            elif 'text' in p:
+                note = p['text'][:80]
+        if not data:
+            return {'ok': False, 'error': 'no image (%s %s)' % (cand.get('finishReason'), note), 'gen_s': round(time.time() - t0, 1)}
+        open(W + '/sb.png', 'wb').write(data)
+        if d.get('storyboard_test'):
+            open('/tiktok/storyboard_test_last.png', 'wb').write(data)
+        w, h = [int(x) for x in subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', W + '/sb.png']).decode().strip().split(',')[:2]]
+        if w < 900 or not (0.5 <= w / h <= 0.62):
+            return {'ok': False, 'error': 'bad size %dx%d' % (w, h), 'gen_s': round(time.time() - t0, 1)}
+        ins = max(8, w // 128)   # กันเส้นขอบขาวระหว่างช่องติดมา (≈12px ที่ 1536)
+        pw, ph = w // 2 - 2 * ins, h // 2 - 2 * ins
+        for i in range(4):
+            col, row = i % 2, i // 2
+            run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/sb.png', '-vf',
+                 'crop=%d:%d:%d:%d,scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280' % (pw, ph, col * (w // 2) + ins, row * (h // 2) + ins), W + '/sb%d.png' % (i + 1)])
+        return {'ok': True, 'gen_s': round(time.time() - t0, 1), 'model': STORYBOARD_MODEL, 'tokens': (r.get('usageMetadata') or {}).get('totalTokenCount'), 'size': '%dx%d' % (w, h)}
+    except urllib.error.HTTPError as e:
+        return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:160]), 'gen_s': round(time.time() - t0, 1)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)[:200], 'gen_s': round(time.time() - t0, 1)}
+
+def scene_cuts(at, D):
+    """จุดเปลี่ยนฉาก 3 จุดสำหรับ 4 ช่อง: ลำดับความสำคัญ desc → cta → old → new · ห่างกัน ≥ 1 วิ และห่างขอบ ≥ 1 วิ · ขาดเติมกึ่งกลางช่วงที่ยาวสุด"""
+    cuts = []
+    for r in ('desc', 'cta', 'old', 'new'):
+        if r in at and len(cuts) < 3:
+            cuts.append(at[r])
+    cuts = sorted(c for c in set(cuts) if 1.0 <= c <= D - 1.0)
+    out = []
+    for c in cuts:
+        if not out or c - out[-1] >= 1.0:
+            out.append(c)
+    while len(out) < 3:
+        b = [0.0] + out + [D]
+        i = max(range(len(b) - 1), key=lambda k: b[k + 1] - b[k])
+        out.append((b[i] + b[i + 1]) / 2)
+        out.sort()
+    return out[:3]
+
 def veo_prompt_for(d, shot=None):
     """คืน (ชื่อสไตล์, prompt) — สไตล์เลือกตาม hash ชื่อดีล หรือบังคับด้วย d['veo_shot'] / ส่ง prompt เต็มด้วย d['veo_prompt']"""
     if d.get('veo_prompt'):
@@ -1266,6 +1378,12 @@ def render(d):
             veo = veo_clip(W, d)
             print('[render] veo ok=%s gen=%ss err=%s' % (veo.get('ok'), veo.get('gen_s'), veo.get('error')), flush=True)
         use_veo = bool(veo and veo.get('ok'))
+        sb = None
+        if not use_veo and STORYBOARD and d.get('storyboard') is not False and GOOGLE_AI_KEY and 'lazada-creative-center' not in str(d.get('img', '')):
+            sb = storyboard_panels(W, d)
+            print('[render] storyboard ok=%s gen=%ss err=%s' % (sb.get('ok'), sb.get('gen_s'), sb.get('error')), flush=True)
+        use_sb = bool(sb and sb.get('ok'))
+        fullframe = use_veo or use_sb   # เลย์เอาต์เต็มเฟรม (ขอบดำตัวหนังสือ + บล็อกชื่อ/ราคาเลื่อนลง + แถบ CTA บาง) ใช้ทั้ง Veo และ storyboard
 
         segs, pct, seed = script_for(d)
         roles = [r for r, _ in segs]
@@ -1296,8 +1414,8 @@ def render(d):
         sale, full = d.get('sale'), d.get('full')
         name_lines = wrap_name(d.get('name') or '')
         # โหมด Veo: ไม่มีแถบมืด → ตัวหนังสือใส่ขอบดำ (\bord) ให้อ่านออกบนฉากสว่าง และเลื่อนบล็อกชื่อ/ราคาลง DY px (วิดีโอเต็มเฟรม สินค้ามักอยู่กลาง)
-        OUT = r'\bord3\3c&H000000&' if use_veo else ''
-        DY = 150 if use_veo else 0
+        OUT = r'\bord3\3c&H000000&' if fullframe else ''
+        DY = 150 if fullframe else 0
         def ev(start, style, tags, text):
             return 'Dialogue: 0,%s,%s,%s,,0,0,0,,{%s}%s\n' % (ts(start), ts(D), style, tags + OUT, ass_escape(text))
         def ev2(start, end, style, tags, text):
@@ -1338,11 +1456,14 @@ def render(d):
             if len(name_lines) == 2:
                 fs = int(fs * 0.9)
             body += ev(at['new'], 'B', r'\an5\pos(360,%d)\fs%d\fad(300,0)\c%s' % (y_new, fs, YELLOW), txt)
-        if use_veo:
+        if fullframe:
             body += ev(at['cta'], 'B', r'\an5\pos(360,1251)\fs46\shad0\bord0\c' + WHITE, 'ดูดีลนี้ที่ paiyaadeals.com')   # แถบ CTA ชิดขอบล่าง (y 1222–1280) ไม่มีบรรทัด @ ในโหมดนี้
         else:
             body += ev(at['cta'], 'B', r'\an5\pos(360,1160)\fs64\shad0\c' + WHITE, 'ดูดีลนี้ที่ paiyaadeals.com')
             body += ev(0, 'R', r'\an5\pos(360,1244)\fs46\alpha&H30&\c' + WHITE, '@paiyaa_deals')
+        if fullframe:
+            # ป้าย AI บนจอ (3 ต.ค. 69): ฉาก Veo/คลิป user/storyboard ล้วนเป็นภาพสร้างด้วย AI — TikTok ติดผ่าน is_aigc ด้วย · FB ไม่มีฟิลด์ API จึงต้องมีบนจอ+ในข้อความ
+            body += ev(0, 'R', r'\an7\pos(18,16)\fs26\alpha&H40&\c' + WHITE, 'ภาพประกอบสร้างด้วย AI')
         open(W + '/subs.ass', 'w', encoding='utf-8').write(HEAD + body)
 
         frames = int(round(D * FPS))
@@ -1363,13 +1484,27 @@ def render(d):
             g = f"""[1:v]nullsink;
 [0:v]setsar=1,zoompan=z='1+0.16*in/{frames}':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=720x1280:fps={FPS},
 {badge}"""
+        elif use_sb:
+            # storyboard: 4 ช่อง (input n+3..n+6 ต่อท้ายเพลง ไม่ขยับเลข input เสียง) → Ken Burns ซูมเข้า/ออกสลับช่อง → xfade 0.4 วิ ที่จุดเปลี่ยนท่อนพากย์
+            XF = 0.4
+            cuts = scene_cuts(at, D); sb['cuts'] = [round(c, 2) for c in cuts]
+            bnd = [0.0] + cuts + [D]
+            g = '[0:v]nullsink;[1:v]nullsink;\n'
+            for i in range(4):
+                ln = (bnd[i + 1] - bnd[i]) + (XF if i > 0 else 0)
+                N = max(2, int(round(ln * FPS)))
+                z = ('1+0.10*on/%d' % N) if i % 2 == 0 else ('1.10-0.10*on/%d' % N)
+                g += f"[{n + 3 + i}:v]setsar=1,zoompan=z='{z}':d={N}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=720x1280:fps={FPS}[s{i}];\n"
+            g += (f"[s0][s1]xfade=transition=fade:duration={XF}:offset={bnd[1] - XF:.3f}[x1];\n"
+                  f"[x1][s2]xfade=transition=fade:duration={XF}:offset={bnd[2] - XF:.3f}[x2];\n"
+                  f"[x2][s3]xfade=transition=fade:duration={XF}:offset={bnd[3] - XF:.3f},trim=duration={D},setpts=PTS-STARTPTS,\n{badge}")
         else:
             g = f"""[0:v]setsar=1[bg];
 [1:v]zoompan=z='min(zoom+0.0005,1.14)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=600x600:fps={FPS},setsar=1[fg];
 [bg][fg]overlay=60:190:shortest=1,
 drawbox=x=56:y=186:w=608:h=608:color=white@0.92:t=5,
 {badge}"""
-        cta_box = 'x=0:y=1222:w=720:h=58:color=0x8B5E3C@0.85' if use_veo else 'x=0:y=1108:w=720:h=104:color=0x8B5E3C@0.95'
+        cta_box = 'x=0:y=1222:w=720:h=58:color=0x8B5E3C@0.85' if fullframe else 'x=0:y=1108:w=720:h=104:color=0x8B5E3C@0.95'
         g += f"""drawbox={cta_box}:t=fill:enable='gte(t,{at['cta']:.2f})',
 ass=filename={W}/subs.ass:fontsdir={FONTS},
 fade=t=in:st=0:d=0.4,fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
@@ -1388,14 +1523,18 @@ fade=t=in:st=0:d=0.4,fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
         if use_veo:
             cmd += ['-stream_loop', '-1', '-t', str(D), '-i', W + '/boom.mp4', '-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', W + '/bg.png']
         else:
-            cmd += ['-loop', '1', '-framerate', str(FPS), '-t', str(D), '-i', W + '/bg.png', '-i', W + '/fg.png']
+            cmd += ['-loop', '1', '-framerate', str(FPS), '-t', '0.5' if use_sb else str(D), '-i', W + '/bg.png', '-i', W + '/fg.png']   # โหมด storyboard: bg/fg ถูก nullsink ใส่สั้น ๆ พอ
         for w in wavs:
             cmd += ['-i', w]
-        cmd += ['-i', MUSIC, '-filter_complex_script', W + '/graph.txt', '-map', '[v]', '-map', '[aout]',
+        cmd += ['-i', MUSIC]
+        if use_sb:
+            for i in range(4):
+                cmd += ['-i', W + '/sb%d.png' % (i + 1)]
+        cmd += ['-filter_complex_script', W + '/graph.txt', '-map', '[v]', '-map', '[aout]',
                 '-c:v', 'libx264', '-preset', X264_PRESET, '-crf', str(X264_CRF), '-r', str(FPS),
                 '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', W + '/out.mp4']
         run(cmd)
-        return open(W + '/out.mp4', 'rb').read(), voiced, D, [t for _, t in segs], veo
+        return open(W + '/out.mp4', 'rb').read(), voiced, D, [t for _, t in segs], veo, sb
     finally:
         shutil.rmtree(W, ignore_errors=True)
 
@@ -1492,15 +1631,22 @@ class H(BaseHTTPRequestHandler):
                     d[k] = None
             forced = d.get('voice') is not None   # โหมดบังคับ/auto ใช้ตอบ header+JSON ด้านล่าง (เดิมนิยามแค่ใน render() → NameError ทำทุก request ตอบ 500 ตั้งแต่ 22 ก.ย. 69)
             t_r = time.time()
-            mp4, voiced, D, lines, veo = render(d)
+            mp4, voiced, D, lines, veo, sb = render(d)
             render_s = round(time.time() - t_r, 1)
-            print('[timing] render=%.1fs dur=%s voice=%s veo=%s' % (render_s, D, voiced, (veo or {}).get('ok')), flush=True)
+            aigc = bool((veo or {}).get('ok') or (sb or {}).get('ok'))   # ภาพในคลิปสร้างด้วย AI (Veo API / คลิปที่ user gen / storyboard) → ติดป้ายทุกช่องทาง
+            print('[timing] render=%.1fs dur=%s voice=%s veo=%s storyboard=%s aigc=%s' % (render_s, D, voiced, (veo or {}).get('ok'), (sb or {}).get('ok'), aigc), flush=True)
             tg = d.get('telegram'); tt = d.get('tiktok')
+            if isinstance(tt, dict):
+                tt['aigc'] = aigc   # tt_post → post_info.is_aigc (TikTok ติดป้าย AI-generated ให้ในคำบรรยาย)
             fr = d.get('fb_reel') if (isinstance(d.get('fb_reel'), dict) and d['fb_reel'].get('post', True) and d['fb_reel'].get('token')) else None
+            if fr and aigc:
+                fr = dict(fr, description=(fr.get('description') or '') + '\n\n🤖 ภาพประกอบในคลิปสร้างด้วย AI')   # Graph API ไม่มีฟิลด์ป้าย AI สำหรับ Reels → เปิดเผยในข้อความ + ป้ายบนจอ
             rv = d.get('review')
             pid_d = safe_id(d.get('page_id'))
             # 3 ต.ค. 69: โหมดไม่รอตรวจ — บอกใน caption TG ว่าคลิปนี้เป็น Veo และลง TikTok ให้แล้ว (ต่อหน้า caption ก่อนตัด 960 ตัว ไม่ให้ '#d' ท้ายหาย)
             pre = ('🎬 คลิป Veo (gen %ss) → ลง TikTok อัตโนมัติ\n' % (veo or {}).get('gen_s', '?')) if (rv and (veo or {}).get('ok') and not VEO_REVIEW and tt) else ''
+            if not pre and (sb or {}).get('ok'):
+                pre = '🎨 ฉาก storyboard AI (gen %ss)\n' % sb.get('gen_s', '?')
             if pid_d and not d.get('deal_id'):
                 deal_save(pid_d, d, ((tg or {}).get('caption') or (rv or {}).get('caption') or '').split('\n\n', 1)[-1])
             if tg and tg.get('caption') is not None and (pre or (pid_d and not d.get('deal_id'))):
@@ -1518,7 +1664,7 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200 if sent else 502, {'review': True, 'pending_id': pid, 'sent': sent, 'message_id': mid, 'bytes': len(mp4), 'voice': voiced,
                                                           'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo})
             if tg or tt or fr:
-                out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo}
+                out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo, 'storyboard': sb, 'aigc': aigc}
                 ok = True
                 # 2 ต.ค. 69: ขอ Veo แต่ไม่ได้ (เกินโควตา 4/วัน, ล้ม, รูปแบนเนอร์) และมี review → ส่ง "รูปสินค้า + prompt" ให้ user ทำคลิป Veo เองใน aipass/Flow แล้ว Reply คลิปกลับที่ข้อความรูป (caption มี #d)
                 if tg and rv and d.get('veo') and not (veo or {}).get('ok') and pid_d and 'lazada-creative-center' not in str(d.get('img', '')):
@@ -1545,7 +1691,7 @@ class H(BaseHTTPRequestHandler):
                 if tt:
                     t_u = time.time()
                     r = tt_post(tt, mp4)
-                    print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s err=%s' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), r.get('error')), flush=True)
+                    print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s aigc=%s err=%s' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), tt.get('aigc'), r.get('error')), flush=True)
                     out['tiktok'] = r; ok = ok and bool(r.get('ok'))
                     if r.get('ok') and d.get('deal_id'):
                         try:
@@ -1580,7 +1726,7 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200 if code == 200 else 502, {
                     'uploaded': code == 200, 'status': code, 'response': body[:800],
                     'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto',
-                    'duration': D, 'lines': lines, 'render_s': render_s, 'upload_s': upload_s, 'veo': veo})
+                    'duration': D, 'lines': lines, 'render_s': render_s, 'upload_s': upload_s, 'veo': veo, 'storyboard': sb, 'aigc': aigc})
         except subprocess.CalledProcessError as e:
             return self._json(500, {'error': 'ffmpeg failed', 'detail': (e.stderr or b'')[-800:].decode('utf-8', 'replace')})
         except Exception as e:
@@ -1593,6 +1739,8 @@ class H(BaseHTTPRequestHandler):
         self.send_header('X-Voice-Mode', 'req' if forced else 'auto')
         self.send_header('X-Duration', str(D))
         self.send_header('X-Veo', '1' if (veo or {}).get('ok') else '0')
+        self.send_header('X-Storyboard', '1' if (sb or {}).get('ok') else '0')
+        self.send_header('X-AIGC', '1' if aigc else '0')
         self.end_headers()
         self.wfile.write(mp4)
 
