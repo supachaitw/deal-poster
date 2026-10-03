@@ -628,6 +628,65 @@ def tt_token(mode):
         print('[tiktok] token refreshed (%s)' % mode, flush=True)
     return m['access_token']
 
+# ---------- Facebook Reels ของเพจ (3 ต.ค. 69 user: "คลิปเคลื่อนไหวลงที่อื่นด้วยมั้ย" → "เริ่มเลย") ----------
+# /render {fb_reel:{page_id, token, description}} → start (video_reels) → POST binary ไป rupload.facebook.com/video-reels → finish PUBLISHED → poll status ≤ 60 วิ
+# token = page token ตัวเดียวกับ IG (มากับ request ใน n8n_default ไม่เก็บ/ไม่ log) · ล้ม = fb_reel.ok:false + HTTP 502 (TG/TikTok ที่ส่งไปแล้วไม่กระทบ)
+FB_GRAPH = 'https://graph.facebook.com/v21.0/'
+
+def fb_http(url, data=None, headers=None, method=None, raw=None, timeout=60):
+    import urllib.parse
+    body = raw if raw is not None else (urllib.parse.urlencode(data).encode() if data is not None else None)
+    req = urllib.request.Request(url, data=body, headers=headers or {}, method=method)
+    try:
+        r = urllib.request.urlopen(req, timeout=timeout)
+        return r.status, json.loads(r.read().decode('utf-8', 'replace') or '{}')
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode('utf-8', 'replace'))
+        except Exception:
+            return e.code, {}
+
+def fb_reel_post(fr, mp4):
+    """fr = {page_id, token, description} → {ok, video_id, post_id, status, phase, error, upload_s} (ไม่มี token)"""
+    import urllib.parse
+    out = {'ok': False}
+    try:
+        page, tok = str(fr.get('page_id') or ''), fr.get('token') or ''
+        if not page or not tok:
+            out['error'] = 'missing page_id/token'; return out
+        c, r = fb_http(FB_GRAPH + page + '/video_reels', {'upload_phase': 'start', 'access_token': tok})
+        vid = r.get('video_id')
+        if c != 200 or not vid:
+            out['error'] = 'start: ' + json.dumps(r.get('error') or r, ensure_ascii=False)[:200]; return out
+        out['video_id'] = vid
+        up_url = r.get('upload_url') or ('https://rupload.facebook.com/video-upload/v21.0/' + vid)   # ใช้ upload_url ที่ start คืนมา (path จริงคือ video-upload ไม่ใช่ video-reels — เจอ 3 ต.ค. 69 InvalidEndpointError)
+        if not up_url.startswith('https://rupload.facebook.com/'):
+            out['error'] = 'start: unexpected upload_url host'; return out
+        t0 = time.time()
+        c, r = fb_http(up_url, raw=mp4, method='POST', timeout=180,
+                       headers={'Authorization': 'OAuth ' + tok, 'offset': '0', 'file_size': str(len(mp4)), 'Content-Type': 'application/octet-stream'})
+        out['upload_s'] = round(time.time() - t0, 1)
+        if c != 200 or not r.get('success'):
+            out['error'] = 'upload: HTTP %s %s' % (c, json.dumps(r, ensure_ascii=False)[:200]); return out
+        c, r = fb_http(FB_GRAPH + page + '/video_reels', {'upload_phase': 'finish', 'video_id': vid, 'video_state': 'PUBLISHED',
+                                                         'description': (fr.get('description') or '')[:2000], 'access_token': tok})
+        if c != 200 or not r.get('success'):
+            out['error'] = 'finish: ' + json.dumps(r.get('error') or r, ensure_ascii=False)[:200]; return out
+        out['post_id'] = r.get('post_id')
+        for _ in range(12):
+            c, s = fb_http(FB_GRAPH + vid + '?fields=status&access_token=' + urllib.parse.quote(tok))
+            st = s.get('status') or {}
+            out['status'] = st.get('video_status'); out['phase'] = (st.get('publishing_phase') or {}).get('status')
+            if st.get('video_status') == 'error' or (st.get('processing_phase') or {}).get('status') == 'error':
+                out['error'] = 'processing: ' + json.dumps(st, ensure_ascii=False)[:300]; return out
+            if out['phase'] == 'complete' or st.get('video_status') == 'ready':
+                break
+            time.sleep(5)
+        out['ok'] = True
+        return out
+    except Exception as e:
+        out['error'] = str(e)[:200]; return out
+
 def tt_post(tt, mp4):
     """tt = {mode: sandbox|prod, privacy: SELF_ONLY|PUBLIC_TO_EVERYONE|…, title} → dict สรุป (ไม่มี token)"""
     mode = tt.get('mode') or 'sandbox'; privacy = tt.get('privacy') or 'SELF_ONLY'
@@ -1198,9 +1257,13 @@ class H(BaseHTTPRequestHandler):
                 t_u = time.time()
                 r = tt_post(tt, mp4)
                 print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s err=%s (review publish %s)' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), r.get('error'), pid), flush=True)
+                fr_r = None
+                if r.get('ok') and meta.get('fb_reel'):
+                    fr_r = fb_reel_post(meta['fb_reel'], mp4)
+                    print('[timing] fb_reel ok=%s status=%s err=%s (review publish %s)' % (fr_r.get('ok'), fr_r.get('status'), fr_r.get('error'), pid), flush=True)
                 if r.get('ok'):
                     pending_drop(pid, 'published')
-                return self._json(200 if r.get('ok') else 502, {'ok': bool(r.get('ok')), 'id': pid, 'name': meta.get('name'), 'tiktok': r, 'error': r.get('error')})
+                return self._json(200 if r.get('ok') else 502, {'ok': bool(r.get('ok')), 'id': pid, 'name': meta.get('name'), 'tiktok': r, 'fb_reel': fr_r, 'error': r.get('error')})
             except Exception as e:
                 traceback.print_exc()
                 return self._json(500, {'ok': False, 'error': str(e)[:200]})
@@ -1230,7 +1293,7 @@ class H(BaseHTTPRequestHandler):
             mp4, voiced, D, lines, veo = render(d)
             render_s = round(time.time() - t_r, 1)
             print('[timing] render=%.1fs dur=%s voice=%s veo=%s' % (render_s, D, voiced, (veo or {}).get('ok')), flush=True)
-            tg = d.get('telegram'); tt = d.get('tiktok')
+            tg = d.get('telegram'); tt = d.get('tiktok'); fr = d.get('fb_reel')
             rv = d.get('review')
             pid_d = safe_id(d.get('page_id'))
             # 3 ต.ค. 69: โหมดไม่รอตรวจ — บอกใน caption TG ว่าคลิปนี้เป็น Veo และลง TikTok ให้แล้ว (ต่อหน้า caption ก่อนตัด 960 ตัว ไม่ให้ '#d' ท้ายหาย)
@@ -1241,7 +1304,7 @@ class H(BaseHTTPRequestHandler):
                 tg['caption'] = pre + str(tg['caption'])[:960 - len(pre)] + (('\n#d ' + pid_d) if (pid_d and not d.get('deal_id')) else '')
             if rv and VEO_REVIEW and (veo or {}).get('ok'):
                 pid = safe_id(d.get('page_id')) or hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest()[:16]
-                pending_save(pid, mp4, {'name': d.get('name'), 'tiktok': tt, 'created': time.time(), 'caption': rv.get('caption'), 'veo': veo})
+                pending_save(pid, mp4, {'name': d.get('name'), 'tiktok': tt, 'fb_reel': fr, 'created': time.time(), 'caption': rv.get('caption'), 'veo': veo})
                 cap = '#veo ' + pid + '\n' + (rv.get('caption') or '') + '\n\n✅ ตอบกลับ (reply) ข้อความนี้ว่า "โพสต์" เพื่อลง TikTok · "ไม่" เพื่อทิ้ง'
                 t_u = time.time()
                 try:
@@ -1251,7 +1314,7 @@ class H(BaseHTTPRequestHandler):
                 print('[timing] review-telegram=%.1fs sent=%s pending=%s bytes=%d' % (time.time() - t_u, sent, pid, len(mp4)), flush=True)
                 return self._json(200 if sent else 502, {'review': True, 'pending_id': pid, 'sent': sent, 'message_id': mid, 'bytes': len(mp4), 'voice': voiced,
                                                           'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo})
-            if tg or tt:
+            if tg or tt or fr:
                 out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo}
                 ok = True
                 # 2 ต.ค. 69: ขอ Veo แต่ไม่ได้ (เกินโควตา 4/วัน, ล้ม, รูปแบนเนอร์) และมี review → ส่ง "รูปสินค้า + prompt" ให้ user ทำคลิป Veo เองใน aipass/Flow แล้ว Reply คลิปกลับที่ข้อความรูป (caption มี #d)
@@ -1278,6 +1341,11 @@ class H(BaseHTTPRequestHandler):
                     r = tt_post(tt, mp4)
                     print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s err=%s' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), r.get('error')), flush=True)
                     out['tiktok'] = r; ok = ok and bool(r.get('ok'))
+                if fr:
+                    t_u = time.time()
+                    r = fb_reel_post(fr, mp4)
+                    print('[timing] fb_reel=%.1fs ok=%s status=%s phase=%s upload=%ss err=%s' % (time.time() - t_u, r.get('ok'), r.get('status'), r.get('phase'), r.get('upload_s'), r.get('error')), flush=True)
+                    out['fb_reel'] = r; ok = ok and bool(r.get('ok'))
                 return self._json(200 if ok else 502, out)
             up = d.get('upload')
             if up:
