@@ -959,7 +959,8 @@ VEO_TRIM = float(os.environ.get('VEO_TRIM', '1.0'))   # วินาทีที
 # ตั้ง env VEO_REVIEW=1 ถ้าจะกลับไปใช้ขั้นรอตรวจ · ฟิลด์ review ยังต้องส่งมาเพราะ path 'รูป+prompt ให้ user ทำเอง' ใช้ url/chat_id จากมัน
 VEO_REVIEW = os.environ.get('VEO_REVIEW', '0') == '1'
 PENDING_DIR = os.environ.get('VEO_PENDING_DIR', '/tiktok/pending')
-VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '4'))   # 2 ต.ค. 69 user: 'ใช้ Fast 4 คลิป/วัน สลับกับผม gen ใน Flow เองแล้วส่งคลิปให้' → รอบ 00/06/09/12 ได้ Veo API, รอบ 15/18/21 user ส่งคลิปเอง
+VEO_DAILY_MAX = int(os.environ.get('VEO_DAILY_MAX', '0'))   # 4 ต.ค. 69 user 'แพงไป' เลือก ก: ปิด Veo Fast (.env ก็ 0) จนกว่า TikTok ผ่าน audit · เปิดกลับ = VEO_DAILY_MAX=4 ใน .env + deploy · รอบโพสต์ใช้ storyboard/keyframes
+VEO_SECONDS = int(os.environ.get('VEO_SECONDS', '6'))      # 4 ต.ค. 69: 8 → 6 วิ (−25% ค่า Veo) · boomerang ไป-กลับยังได้ 10 วิ หลังตัดหัว VEO_TRIM · Veo 3.1 รับ 4/6/8   # 2 ต.ค. 69 user: 'ใช้ Fast 4 คลิป/วัน สลับกับผม gen ใน Flow เองแล้วส่งคลิปให้' → รอบ 00/06/09/12 ได้ Veo API, รอบ 15/18/21 user ส่งคลิปเอง
 # คลิปที่ user สร้างเอง (Flow): ทุก /render ที่มี page_id จะเก็บข้อมูลดีลไว้ DEALS_DIR/<page_id>.json (7 วัน) และต่อท้าย caption ใน Telegram ด้วย '#d <page_id>'
 # → user Reply ข้อความคลิปนั้นด้วยวิดีโอ → Intake TG (Extract) เห็น message.video + '#d <id>' → POST /render {deal_id, bg_video:<tg file url>, tiktok, telegram} → service เติมฟิลด์ดีลจากไฟล์ → ประกอบ+ลง TikTok ตรง (user ทำเองถือว่าอนุมัติแล้ว)
 DEALS_DIR = os.environ.get('DEALS_DIR', '/tiktok/deals')
@@ -1153,6 +1154,7 @@ def llm_demo_action(d):
 STORYBOARD = os.environ.get('STORYBOARD', '1') == '1'
 STORYBOARD_MODEL = os.environ.get('STORYBOARD_MODEL', 'gemini-3.1-flash-image-preview')   # 2K 9:16 → 1536x2752 ≈ 18 วิ ~2,700 token (เทส 3 ต.ค. 69)
 STORYBOARD_DAILY_MAX = int(os.environ.get('STORYBOARD_DAILY_MAX', '80'))
+STORYBOARD_ALL = os.environ.get('STORYBOARD_ALL', '0') == '1'   # 4 ต.ค. 69: ค่าเริ่มต้นทำ storyboard เฉพาะคลิปที่โพสต์จริง (ดู sb_wanted ใน render)
 STORYBOARD_TIMEOUT = int(os.environ.get('STORYBOARD_TIMEOUT', '90'))
 SB_COUNT_FILE = os.environ.get('SB_COUNT_FILE', '/tiktok/storyboard_count.json')
 SB_CLOSING = {
@@ -1346,7 +1348,7 @@ def veo_keyframes(W, d):
         b1 = base64.b64encode(open(W + '/sb1.png', 'rb').read()).decode(); b4 = base64.b64encode(open(W + '/sb4.png', 'rb').read()).decode()
         model = d.get('veo_kf_model') or VEO_KF_MODEL
         body = {'instances': [{'prompt': prompt, 'image': {'bytesBase64Encoded': b1, 'mimeType': 'image/png'}, 'lastFrame': {'bytesBase64Encoded': b4, 'mimeType': 'image/png'}}],
-                'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}
+                'parameters': {'aspectRatio': '9:16', 'durationSeconds': VEO_SECONDS, 'resolution': '720p', 'sampleCount': 1}}
         base = 'https://generativelanguage.googleapis.com/v1beta/'; H = {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'}
         print('[render] veo shot=keyframes model=%s' % model, flush=True)
         op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % model, json.dumps(body).encode(), H), timeout=60))
@@ -1446,7 +1448,7 @@ def veo_clip(W, d):
             else:
                 inst['image'] = {'bytesBase64Encoded': b64, 'mimeType': mime}
             print('[render] veo shot=%s mode=%s' % (shot, 'ref' if demo else 'i2v'), flush=True)
-            body = {'instances': [inst], 'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}
+            body = {'instances': [inst], 'parameters': {'aspectRatio': '9:16', 'durationSeconds': VEO_SECONDS, 'resolution': '720p', 'sampleCount': 1}}
             try:
                 op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % model, json.dumps(body).encode(),
                                                                              {'x-goog-api-key': key, 'Content-Type': 'application/json'}), timeout=60))
@@ -1498,7 +1500,11 @@ def render(d):
             print('[render] veo ok=%s gen=%ss err=%s' % (veo.get('ok'), veo.get('gen_s'), veo.get('error')), flush=True)
         use_veo = bool(veo and veo.get('ok'))
         sb = None
-        if not use_veo and STORYBOARD and d.get('storyboard') is not False and GOOGLE_AI_KEY and 'lazada-creative-center' not in str(d.get('img', '')):
+        # 4 ต.ค. 69 user 'แพงไป': storyboard (฿1–2/คลิป) เฉพาะคลิปที่ถูกโพสต์จริง (tiktok หรือ fb_reel.post = ดีลแรกของรอบ) หรือสั่งตรง storyboard:true ·
+        # คลิปที่ส่งเข้า Telegram อย่างเดียว (IG พัก, user อัปโหลดเองไม่กี่ตัว) ใช้รูปร้านแบบเดิม · STORYBOARD_ALL=1 กลับไปทำทุกคลิป
+        posted = bool(d.get('tiktok')) or (isinstance(d.get('fb_reel'), dict) and bool(d['fb_reel'].get('post', True)))
+        sb_wanted = d.get('storyboard') is True or d.get('storyboard_test') or (STORYBOARD_ALL and d.get('storyboard') is not False) or (posted and d.get('storyboard') is not False)
+        if not use_veo and STORYBOARD and sb_wanted and GOOGLE_AI_KEY and 'lazada-creative-center' not in str(d.get('img', '')):
             sb = storyboard_panels(W, d)
             print('[render] storyboard ok=%s gen=%ss err=%s' % (sb.get('ok'), sb.get('gen_s'), sb.get('error')), flush=True)
         use_sb = bool(sb and sb.get('ok'))
