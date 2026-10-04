@@ -38,7 +38,7 @@ def gemini_model():
         if GEMINI_MODEL_COOL.get(m, 0) <= now:
             return m
     return None
-GEMINI_VOICES = [('Puck', 'm'), ('Achird', 'm'), ('Zubenelgenubi', 'm'), ('Leda', 'f'), ('Laomedeia', 'f'), ('Sulafat', 'f')]
+GEMINI_VOICES = [('Puck', 'm'), ('Achird', 'm'), ('Zubenelgenubi', 'm'), ('Leda', 'f'), ('Sulafat', 'f')]   # 4 ต.ค. 69 ถอด Laomedeia: user ฟังคลิปคีย์แคป (รอบ 00:00) แล้วว่า 'บทเป็นผู้หญิง (ค่ะ) แต่เสียงเป็นผู้ชาย' — เสียงนี้ฟังก้ำกึ่ง
 # ⛔ ห้ามใส่คำสั่งสไตล์นำหน้าบท — วัด 27 ก.ย. 69: Gemini TTS อ่านคำสั่งออกเสียงไปด้วย (ท่อน 2.4 วิ → 4.1–13.5 วิ ตามความยาวคำสั่ง)
 #   และ systemInstruction ใช้กับโมเดล TTS ไม่ได้ (400 'Developer instruction is not enabled') → ส่งข้อความล้วน ใช้โทนธรรมชาติของแต่ละเสียง
 GEMINI_STYLE = ''
@@ -1514,10 +1514,11 @@ def render(d):
         want = d.get('voice')
         forced = want is not None
         want = voice_for_round() if not forced else bool(want)
-        voiced, wavs = False, []
+        voiced, wavs, fem = False, [], False
         if want:
             try:
                 vkey = voice_for(seed, d)
+                fem = vkey.startswith('gemini:') and dict(GEMINI_VOICES).get(vkey.split(':', 1)[1], 'm') == 'f'   # เสียงหญิง → ตัวหนังสือบนจอต้องเป็น ค่ะ/คะ ตามเสียง (4 ต.ค. 69)
                 print('[render] tts voice=%s' % vkey, flush=True)
                 wavs = make_voice(segs, W, seed, vkey)
                 durs = [dur(w) for w in wavs]
@@ -1550,6 +1551,7 @@ def render(d):
         # 3 ต.ค. 69 โครง Howard: ช่องชื่อสินค้าใช้ขึ้น 'วลี' ของ hook → promise ก่อน (สีเหลือง) แล้วค่อยเป็นชื่อสินค้าตั้งแต่ท่อนเล่าของ · ⛔ ตัวคั่น ' | '/'…' เป็นสัญญาณหายใจของ TTS ต้องล้างก่อนขึ้นจอ
         said = {r: t for r, t in segs}
         def shown(t):
+            t = feminize(t) if fem else t   # ให้คำลงท้ายบนจอตรงกับเพศเสียงที่พูดจริง (เสียงหญิง feminize ตอน TTS อยู่แล้ว)
             return re.sub(r'\s+', ' ', re.sub(r'\s*\|\s*', ' ', t).replace('…', ' ')).strip()
         t_name = next(at[r] for r in ('desc', 'loop', 'old', 'new', 'cta') if r in at)
         phr = [('hook', 0.0, at.get('promise', t_name))]
