@@ -24,6 +24,10 @@ KNOWN = [
     (re.compile(r'\bAKIA[0-9A-Z]{16}\b'), '<AWS_KEY>'),
     (re.compile(r'\bgh[pousr]_[A-Za-z0-9]{30,}'), '<GITHUB_TOKEN>'),
     (re.compile(r'\bglpat-[A-Za-z0-9_-]{20,}'), '<GITLAB_TOKEN>'),
+    # password hashes (htpasswd/traefik basicauth) — $ may be doubled in compose files ($$apr1$$…) · 4 ต.ค. 69
+    (re.compile(r'\$+(?:apr1|2[abxy]?|1|5|6)\$+[A-Za-z0-9./$]{8,}'), '<PASSWORD_HASH>'),
+    # Discord bot token (id.timestamp.hmac) · 4 ต.ค. 69
+    (re.compile(r'\b[A-Za-z0-9_-]{23,30}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}'), '<DISCORD_TOKEN>'),
 ]
 # ค่าของคีย์ที่ชื่อบ่งบอกว่าเป็นความลับ — JSON ("secret": "..."), env (SECRET=...), header (X-API-Key: ...)
 KEYNAMES = r'(?:secret|token|password|passwd|pwd|api[_-]?key|apikey|access[_-]?key|private[_-]?key|authorization|auth|credential|client[_-]?secret|signature|sig|key)'
