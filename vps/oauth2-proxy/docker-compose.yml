@@ -1,11 +1,12 @@
 # oauth2-proxy — Google login for the Home Console (replaces traefik basic-auth `home-auth`)
 # live: /root/oauth2-proxy/docker-compose.yml  ·  secrets in /root/oauth2-proxy/.env (chmod 600, not in repo)
-#   OAUTH2_PROXY_CLIENT_ID / OAUTH2_PROXY_CLIENT_SECRET  = ONE Google OAuth client (Web application) with TWO redirect URIs:
-#       https://home.srv1277799.hstgr.cloud/oauth2/callback   and   https://dp.srv1277799.hstgr.cloud/oauth2/callback
+#   OAUTH2_PROXY_CLIENT_ID / OAUTH2_PROXY_CLIENT_SECRET  = ONE Google OAuth client "paiyaa-home" (Web application) with THREE redirect URIs:
+#       https://{home,dp,cryptobot}.srv1277799.hstgr.cloud/oauth2/callback
 #   OAUTH2_PROXY_COOKIE_SECRET                            = 32 random bytes base64 (.cookie-secret)
 # two instances, two trust levels:
 #   oauth2-proxy     -> middleware `google-auth`    : ONLY the e-mails in emails.txt (owner)  -> whole home.
 #   oauth2-proxy-dp  -> middleware `google-auth-dp` : ANY Google account                     -> dp. = /dealposter.html + /api/dealposter* only
+#   oauth2-proxy-cb  -> middleware `google-auth-cb` : ONLY the e-mails in emails.txt (owner)  -> cryptobot. (crypto-bot-dashboard, 4 ต.ค. 69)
 # switch on with: bash /root/oauth2-proxy/switch.sh   (rollback: switch.sh rollback)
 x-common: &common
   image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1
@@ -83,6 +84,44 @@ services:
       - traefik.http.middlewares.google-auth-dp.forwardauth.address=http://oauth2-proxy-dp:4180/
       - traefik.http.middlewares.google-auth-dp.forwardauth.trustForwardHeader=true
       - traefik.http.middlewares.google-auth-dp.forwardauth.authResponseHeaders=X-Auth-Request-Email,X-Auth-Request-User
+
+  # 4 ต.ค. 2569 — cryptobot dashboard (แทน basic-auth cryptobot-auth) · เฉพาะอีเมลใน emails.txt เหมือน home.
+  # ต้องมี redirect URI https://cryptobot.srv1277799.hstgr.cloud/oauth2/callback ใน Google OAuth client ใบเดียวกัน
+  oauth2-proxy-cb:
+    <<: *common
+    container_name: oauth2-proxy-cb
+    environment:
+      OAUTH2_PROXY_PROVIDER: google
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_REDIRECT_URL: https://cryptobot.srv1277799.hstgr.cloud/oauth2/callback
+      OAUTH2_PROXY_WHITELIST_DOMAINS: cryptobot.srv1277799.hstgr.cloud
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_cb
+      OAUTH2_PROXY_COOKIE_DOMAINS: cryptobot.srv1277799.hstgr.cloud
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_EXPIRE: 720h
+      OAUTH2_PROXY_COOKIE_REFRESH: 1h
+      OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: /etc/oauth2-proxy/emails.txt
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_SILENCE_PING_LOGGING: "true"
+    volumes:
+      - /root/oauth2-proxy/emails.txt:/etc/oauth2-proxy/emails.txt:ro
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n_default
+      - "traefik.http.routers.oauth2-cb.rule=Host(`cryptobot.srv1277799.hstgr.cloud`) && PathPrefix(`/oauth2/`)"
+      - traefik.http.routers.oauth2-cb.priority=300
+      - traefik.http.routers.oauth2-cb.entrypoints=websecure
+      - traefik.http.routers.oauth2-cb.tls=true
+      - traefik.http.routers.oauth2-cb.tls.certresolver=mytlschallenge
+      - traefik.http.routers.oauth2-cb.service=oauth2-cb
+      - traefik.http.services.oauth2-cb.loadbalancer.server.port=4180
+      - traefik.http.middlewares.google-auth-cb.forwardauth.address=http://oauth2-proxy-cb:4180/
+      - traefik.http.middlewares.google-auth-cb.forwardauth.trustForwardHeader=true
+      - traefik.http.middlewares.google-auth-cb.forwardauth.authResponseHeaders=X-Auth-Request-Email,X-Auth-Request-User
 
 networks:
   proxy:
