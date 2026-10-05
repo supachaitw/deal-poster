@@ -1771,7 +1771,7 @@ drawbox=x=56:y=186:w=608:h=608:color=white@0.92:t=5,
         cta_box = 'x=0:y=1222:w=720:h=58:color=0x8B5E3C@0.85' if fullframe else 'x=0:y=1108:w=720:h=104:color=0x8B5E3C@0.95'
         g += f"""drawbox={cta_box}:t=fill:enable='gte(t,{at['cta']:.2f})',
 ass=filename={W}/subs.ass:fontsdir={FONTS},
-fade=t=in:st=0:d=0.4,fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
+fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
 [{n + 2}:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:{D},asetpts=N/SR/TB,volume={0.14 if voiced else 0.5},afade=t=in:st=0:d=0.6,afade=t=out:st={D - 1.2:.2f}:d=1.2[mu];
 """
         if voiced:
