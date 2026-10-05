@@ -263,6 +263,14 @@ def voice_for_round(now=None):
     # (รอบ/วันเป็นเลขคี่ = 7 → ข้ามวันแล้วยังสลับต่อเนื่อง ไม่ซ้ำสองรอบติด)
     return ((int(now // 86400) + idx) % 2) == 0
 
+# 5 ต.ค. 69 user: TikTok (ร่าง) เฉพาะรอบ 18:00 และ 21:00 น. — user โพสต์ราว 19:00 / 21:30 · ไม่ใช่รอบนี้ = ตัด tiktok ออกจากคำขอของรอบ (ดีลแรกยังได้ FB Reel + TG)
+# คลิปที่ user Reply ส่งเอง (deal_id) ไม่ถูกจำกัด · env TIKTOK_ROUND_HOURS='18,21' · tiktok.force:true = ข้ามเงื่อนไข (ทดสอบ)
+TIKTOK_ROUND_HOURS = [int(x) for x in os.environ.get('TIKTOK_ROUND_HOURS', '18,21').split(',') if x.strip().isdigit()]
+
+def current_round(now=None):
+    hour = time.gmtime((now if now is not None else time.time()) + 7 * 3600).tm_hour
+    return max(h for h in ROUND_HOURS if h <= hour)
+
 def silent_durs(segs, budget=7.5, floor=1.0):
     # คลิปไม่มีพากย์ = คนต้องอ่านเอง แบ่งเวลาตามความยาวข้อความแทนการให้เท่ากันทุกท่อน
     # (เดิมตายตัว 1.3 วิ/ท่อน → คำบรรยาย 90 ตัวได้เวลาเท่า hook 20 ตัว อ่านไม่ทัน)
@@ -1545,7 +1553,8 @@ def render(d):
             sb = storyboard_panels(W, d)
             print('[render] storyboard ok=%s gen=%ss err=%s' % (sb.get('ok'), sb.get('gen_s'), sb.get('error')), flush=True)
         use_sb = bool(sb and sb.get('ok'))
-        if use_sb and (d.get('veo') or d.get('veo_kf')) and str((veo or {}).get('error', '')).startswith('daily cap'):
+        # 5 ต.ค. 69: Veo Lite keyframes (2/วัน) ใช้กับดีลที่มี tiktok (= รอบ 18/21) ให้คลิปเคลื่อนไหวไปอยู่บน TikTok · veo_kf:true บังคับได้
+        if use_sb and (d.get('veo_kf') or (d.get('veo') and d.get('tiktok'))) and str((veo or {}).get('error', '')).startswith('daily cap'):
             # 3 ต.ค. 69 B: ขอ Veo แต่โควตา Fast หมด (รอบ 15/18/21) → Veo Lite เชื่อมเฟรม storyboard ช่อง 1→4 (โควตาแยก 3/วัน) · ล้ม = ใช้ storyboard ภาพนิ่งต่อ
             kf = veo_keyframes(W, d)
             print('[render] veo keyframes ok=%s gen=%ss err=%s' % (kf.get('ok'), kf.get('gen_s'), kf.get('error')), flush=True)
@@ -1836,6 +1845,9 @@ class H(BaseHTTPRequestHandler):
                     d[k] = float(d[k]) if d.get(k) not in (None, '', 0) else None
                 except (TypeError, ValueError):
                     d[k] = None
+            if isinstance(d.get('tiktok'), dict) and not d.get('deal_id') and not d['tiktok'].get('force') and current_round() not in TIKTOK_ROUND_HOURS:
+                print('[render] tiktok skipped (round %02d:00 not in %s)' % (current_round(), TIKTOK_ROUND_HOURS), flush=True)
+                d.pop('tiktok')
             forced = d.get('voice') is not None   # โหมดบังคับ/auto ใช้ตอบ header+JSON ด้านล่าง (เดิมนิยามแค่ใน render() → NameError ทำทุก request ตอบ 500 ตั้งแต่ 22 ก.ย. 69)
             t_r = time.time()
             mp4, voiced, D, lines, veo, sb = render(d)
@@ -1856,7 +1868,7 @@ class H(BaseHTTPRequestHandler):
                 pre = '🎨 ฉาก storyboard AI (gen %ss)\n' % sb.get('gen_s', '?')
             if tt and tt_inbox(tt) and not (rv and VEO_REVIEW and (veo or {}).get('ok')):
                 # 5 ต.ค. 69: คลิปนี้ไปเป็นร่างใน TikTok → บอกวิธีโพสต์ในแอป (แคปชันคัดลอกจากข้อความนี้)
-                pre += '📥 ร่างอยู่ในกล่องข้อความ TikTok แล้ว — เปิดแอป กดโพสต์ เลือก "ทุกคน" แล้ววางแคปชันนี้' + (' · เปิด "เนื้อหาที่สร้างด้วย AI" ด้วย' if aigc else '') + '\n\n'
+                pre += '📥 ร่างเข้ากล่องข้อความ TikTok — แคปชันอยู่ข้อความถัดไป (กดค้าง → คัดลอก) · ตั้ง Branded content + ทุกคน' + (' · เปิดป้าย AI ด้วย' if aigc else '') + '\n\n'
             if pid_d and not d.get('deal_id'):
                 deal_save(pid_d, d, ((tg or {}).get('caption') or (rv or {}).get('caption') or '').split('\n\n', 1)[-1])
             if tg and tg.get('caption') is not None and (pre or (pid_d and not d.get('deal_id'))):
@@ -1898,6 +1910,12 @@ class H(BaseHTTPRequestHandler):
                         sent, mid = False, str(e)[:200]
                     print('[timing] telegram=%.1fs sent=%s bytes=%d' % (time.time() - t_u, sent, len(mp4)), flush=True)
                     out.update(sent=sent, message_id=mid); ok = ok and sent
+                    if sent and tt and tt_inbox(tt):
+                        # 5 ต.ค. 69: แคปชัน TikTok เป็นข้อความแยก กดค้างคัดลอกได้ทั้งก้อน (ร่าง inbox ส่งแคปชันไปไม่ได้)
+                        try:
+                            tg_send_text(tg, (tt.get('title') or d.get('_saved_title') or '')[:2200] or '(ไม่มีแคปชัน)')
+                        except Exception as e:
+                            print('[telegram] caption text failed: %s' % str(e)[:120], flush=True)
                 if tt:
                     t_u = time.time()
                     r = tt_post(tt, mp4)
