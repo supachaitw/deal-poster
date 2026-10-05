@@ -842,7 +842,8 @@
         616
       ],
       "onError": "continueRegularOutput",
-      "id": "0c9ba1a2-a5fe-4964-81fd-18683e472d91"
+      "id": "0c9ba1a2-a5fe-4964-81fd-18683e472d91",
+      "disabled": true
     },
     {
       "parameters": {
@@ -914,6 +915,35 @@
         456
       ],
       "id": "3238af1b-97b6-41f4-92af-a71e089e8a79"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://discord-bot:3000/notify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: 'deals', text: $json.text, mention: $json.text.includes('❌') }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "name": "Discord Deals Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4032,
+        816
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jhnQV8hQrNBjwU37",
+          "name": "Discord ops bot alert"
+        }
+      },
+      "id": "1780f1de-7ebe-4939-abf5-178c87beb8f0"
     }
   ],
   "connections": {
@@ -1250,6 +1280,11 @@
         [
           {
             "node": "LINE Quota OK?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Discord Deals Summary",
             "type": "main",
             "index": 0
           }
