@@ -27,7 +27,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const b=$input.first().json.body||$input.first().json;\nconst msg=b.message||{};\nconst text=msg.text||msg.caption||'';\nconst chatId=msg.chat?msg.chat.id:null;\n// 2 ต.ค. 69: คำตอบรีวิวคลิป Veo — user ตอบกลับ (reply) ข้อความคลิปที่มี '#veo <id>' บรรทัดแรก ว่า โพสต์/ไม่ → deal-video /publish หรือ /discard (คลิปเก็บอยู่ /tiktok/pending)\nconst rep = msg.reply_to_message || {};\n// 2 ต.ค. 69: user สร้างคลิป Veo เองใน Flow แล้ว Reply ข้อความคลิปของดีล (caption มี '#d <page_id>') ด้วยวิดีโอ → deal-video ประกอบ (ป้ายราคา/พากย์/เพลง) + ลง TikTok ตรง + ส่งคลิปผลกลับ\nconst dm = String(rep.caption || rep.text || '').match(/#d\\s+([A-Za-z0-9_-]+)/);   // 3 ต.ค. 69: ข้อความ prompt (text) ก็มี #d แล้ว — user เคย Reply ที่ prompt แทนรูปแล้วระบบเงียบ\nif (dm && chatId && msg.video && msg.video.file_id) {\n  const TG_BOT = 'REPLACE_TELEGRAM_BOT_TOKEN';\n  let reply;\n  try {\n    const f = await this.helpers.httpRequest({ method: 'GET', url: 'https://api.telegram.org/bot' + TG_BOT + '/getFile', qs: { file_id: msg.video.file_id }, json: true, timeout: 30000 });\n    const fileUrl = 'https://api.telegram.org/file/bot' + TG_BOT + '/' + f.result.file_path;\n    const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/render',\n      body: { deal_id: dm[1], bg_video: fileUrl, voice: true,\n              tiktok: { mode: 'sandbox', privacy: 'SELF_ONLY' },\n              telegram: { url: 'https://api.telegram.org/bot' + TG_BOT + '/sendVideo', chat_id: String(chatId), caption: '🎬 ประกอบจากคลิปที่คุณส่ง — ลง TikTok แล้ว' } },\n      json: true, timeout: 290000, ignoreHttpStatusErrors: true });\n    const tk = (r && r.tiktok) || {};\n    if (r && r.error) reply = '❌ ' + r.error;\n    else reply = (tk.ok ? '✅ ลง TikTok แล้ว (' + (tk.mode || '') + '/' + (tk.privacy || '') + ')' : '❌ TikTok ไม่สำเร็จ: ' + (tk.error || 'unknown')) + (r && r.sent ? '' : ' · ส่งคลิปผลกลับไม่สำเร็จ') + (r && r.veo && r.veo.ok ? '' : ' · ใช้คลิปที่ส่งมาไม่ได้: ' + ((r && r.veo && r.veo.error) || '?'));\n  } catch (e) { reply = '❌ ' + String((e && e.message) || e).slice(0, 120); }\n  return [{ json: { text, chatId, url: null, source: null, origUrl: null, affNote: null, hasUrl: false, veoReply: reply, userClip: true } }];\n}\nconst vm = String(rep.caption || '').match(/#veo\\s+([A-Za-z0-9_-]+)/);\nif (vm && chatId) {\n  const t = String(msg.text || '').trim();\n  const yes = /^(โพสต์|ลง|post|ok|โอเค|ตกลง|ใช่|y)/i.test(t), no = /^(ไม่|ทิ้ง|no|skip|ยกเลิก|n)/i.test(t);\n  let reply;\n  if (!yes && !no) reply = 'ตอบว่า \"โพสต์\" เพื่อลง TikTok หรือ \"ไม่\" เพื่อทิ้งคลิปนี้';\n  else {\n    try {\n      const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/' + (yes ? 'publish' : 'discard'), body: { id: vm[1] }, json: true, timeout: 180000, ignoreHttpStatusErrors: true });\n      const tk = (r && r.tiktok) || {};\n      reply = yes ? ((r && r.ok) ? '✅ ลง TikTok แล้ว (' + (tk.mode || '') + '/' + (tk.privacy || '') + ') — ' + (r.name || '') : '❌ ลงไม่สำเร็จ: ' + ((r && (r.error || tk.error)) || 'unknown'))\n                  : ((r && r.ok) ? '🗑 ทิ้งคลิปแล้ว — ' + (r.name || '') : '❌ ' + ((r && r.error) || 'unknown'));\n    } catch (e) { reply = '❌ ' + String((e && e.message) || e).slice(0, 120); }\n  }\n  return [{ json: { text, chatId, url: null, source: null, origUrl: null, affNote: null, hasUrl: false, veoReply: reply } }];\n}\nlet url=(text.match(/https?:\\/\\/\\S+/)||[null])[0];\nconst source=!url?null:(/tiktok\\.com/i.test(url)?'tiktok':(/lazada\\.|lzd\\.co/i.test(url)?'lazada':(/shopee\\.|shp\\.ee/i.test(url)?'shopee':null)));\n\n// 27 ก.ย. 69: ลิงก์ Shopee ธรรมดา (shopee.co.th / th.shp.ee) → ขอลิงก์ affiliate จาก deal-video /afflink (Shopee Affiliate Open API)\n// แปลงไม่ได้/บริการล่ม = ใช้ลิงก์เดิมต่อ (affNote บอกเหตุผล) — ห้ามให้ขั้นนี้ทำ intake ล้ม\nlet affNote = null, origUrl = null;\nif (url && source === 'shopee') {\n  try {\n    const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/afflink', body: { url }, json: true, timeout: 20000 });\n    if (r && r.ok && r.link) { if (r.link !== url) { origUrl = url; url = r.link; } }\n    else affNote = (r && r.reason) || 'afflink failed';\n  } catch (e) { affNote = 'afflink error: ' + String((e && e.message) || e).slice(0, 80); }\n}\n\nreturn [{json:{text,chatId,url,source,origUrl,affNote,hasUrl:!!(url&&chatId)}}];"
+        "jsCode": "const b=$input.first().json.body||$input.first().json;\nconst msg=b.message||{};\nconst text=msg.text||msg.caption||'';\nconst chatId=msg.chat?msg.chat.id:null;\n// 2 ต.ค. 69: คำตอบรีวิวคลิป Veo — user ตอบกลับ (reply) ข้อความคลิปที่มี '#veo <id>' บรรทัดแรก ว่า โพสต์/ไม่ → deal-video /publish หรือ /discard (คลิปเก็บอยู่ /tiktok/pending)\nconst rep = msg.reply_to_message || {};\n// 2 ต.ค. 69: user สร้างคลิป Veo เองใน Flow แล้ว Reply ข้อความคลิปของดีล (caption มี '#d <page_id>') ด้วยวิดีโอ → deal-video ประกอบ (ป้ายราคา/พากย์/เพลง) + ลง TikTok ตรง + ส่งคลิปผลกลับ\nconst dm = String(rep.caption || rep.text || '').match(/#d\\s+([A-Za-z0-9_-]+)/);   // 3 ต.ค. 69: ข้อความ prompt (text) ก็มี #d แล้ว — user เคย Reply ที่ prompt แทนรูปแล้วระบบเงียบ\nif (dm && chatId && msg.video && msg.video.file_id) {\n  const TG_BOT = 'REPLACE_TELEGRAM_BOT_TOKEN';\n  let reply;\n  try {\n    const f = await this.helpers.httpRequest({ method: 'GET', url: 'https://api.telegram.org/bot' + TG_BOT + '/getFile', qs: { file_id: msg.video.file_id }, json: true, timeout: 30000 });\n    const fileUrl = 'https://api.telegram.org/file/bot' + TG_BOT + '/' + f.result.file_path;\n    const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/render',\n      body: { deal_id: dm[1], bg_video: fileUrl, voice: true,\n              tiktok: { mode: 'sandbox', privacy: 'SELF_ONLY' },\n              telegram: { url: 'https://api.telegram.org/bot' + TG_BOT + '/sendVideo', chat_id: String(chatId), caption: '🎬 ประกอบจากคลิปที่คุณส่ง — ลง TikTok แล้ว' } },\n      json: true, timeout: 290000, ignoreHttpStatusErrors: true });\n    const tk = (r && r.tiktok) || {};\n    if (r && r.error) reply = '❌ ' + r.error;\n    else reply = (tk.ok ? '✅ ลง TikTok แล้ว (' + (tk.mode || '') + '/' + (tk.privacy || '') + ')' : '❌ TikTok ไม่สำเร็จ: ' + (tk.error || 'unknown')) + (r && r.sent ? '' : ' · ส่งคลิปผลกลับไม่สำเร็จ') + (r && r.veo && r.veo.ok ? '' : ' · ใช้คลิปที่ส่งมาไม่ได้: ' + ((r && r.veo && r.veo.error) || '?'));\n  } catch (e) { reply = '❌ ' + String((e && e.message) || e).slice(0, 120); }\n  return [{ json: { text, chatId, url: null, source: null, origUrl: null, affNote: null, hasUrl: false, veoReply: reply, userClip: true } }];\n}\nconst vm = String(rep.caption || '').match(/#veo\\s+([A-Za-z0-9_-]+)/);\nif (vm && chatId) {\n  const t = String(msg.text || '').trim();\n  const yes = /^(โพสต์|ลง|post|ok|โอเค|ตกลง|ใช่|y)/i.test(t), no = /^(ไม่|ทิ้ง|no|skip|ยกเลิก|n)/i.test(t);\n  let reply;\n  if (!yes && !no) reply = 'ตอบว่า \"โพสต์\" เพื่อลง TikTok หรือ \"ไม่\" เพื่อทิ้งคลิปนี้';\n  else {\n    try {\n      const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/' + (yes ? 'publish' : 'discard'), body: { id: vm[1] }, json: true, timeout: 180000, ignoreHttpStatusErrors: true });\n      const tk = (r && r.tiktok) || {};\n      reply = yes ? ((r && r.ok) ? '✅ ลง TikTok แล้ว (' + (tk.mode || '') + '/' + (tk.privacy || '') + ') — ' + (r.name || '') : '❌ ลงไม่สำเร็จ: ' + ((r && (r.error || tk.error)) || 'unknown'))\n                  : ((r && r.ok) ? '🗑 ทิ้งคลิปแล้ว — ' + (r.name || '') : '❌ ' + ((r && r.error) || 'unknown'));\n    } catch (e) { reply = '❌ ' + String((e && e.message) || e).slice(0, 120); }\n  }\n  return [{ json: { text, chatId, url: null, source: null, origUrl: null, affNote: null, hasUrl: false, veoReply: reply } }];\n}\nlet url=(text.match(/https?:\\/\\/\\S+/)||[null])[0];\nconst source=!url?null:(/tiktok\\.com/i.test(url)?'tiktok':(/lazada\\.|lzd\\.co/i.test(url)?'lazada':(/shopee\\.|shp\\.ee/i.test(url)?'shopee':null)));\n\n// 27 ก.ย. 69: ลิงก์ Shopee ธรรมดา (shopee.co.th / th.shp.ee) → ขอลิงก์ affiliate จาก deal-video /afflink (Shopee Affiliate Open API)\n// แปลงไม่ได้/บริการล่ม = ใช้ลิงก์เดิมต่อ (affNote บอกเหตุผล) — ห้ามให้ขั้นนี้ทำ intake ล้ม\nlet affNote = null, origUrl = null;\nif (url && source === 'shopee') {\n  try {\n    const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/afflink', body: { url }, json: true, timeout: 20000 });\n    if (r && r.ok && r.link) { if (r.link !== url) { origUrl = url; url = r.link; } }\n    else affNote = (r && r.reason) || 'afflink failed';\n  } catch (e) { affNote = 'afflink error: ' + String((e && e.message) || e).slice(0, 80); }\n}\n\n// 5 ต.ค. 69: /deal จาก Discord ส่ง update แบบเดียวกับ Telegram + discord.channel → ตอบกลับทาง Discord (node 'Via Discord?')\nconst dc = (b.discord && b.discord.channel) ? String(b.discord.channel) : null;\nreturn [{json:{text,chatId,url,source,origUrl,affNote,hasUrl:!!(url&&chatId),dc}}];"
       }
     },
     {
@@ -499,6 +499,66 @@
       "parameters": {
         "jsCode": "const i=$input.first().json;\nreturn [{json:{chat_id:i.chatId,text:i.veoReply,disable_web_page_preview:true}}];"
       }
+    },
+    {
+      "name": "Via Discord?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !!$('Extract').first().json.dc }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cdcf3488-f81a-483d-8c6d-d3fffb6c13f2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://discord-bot:3000/notify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: $('Extract').first().json.dc, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "name": "Discord Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        200
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jhnQV8hQrNBjwU37",
+          "name": "Discord ops bot alert"
+        }
+      },
+      "id": "611d95a1-3a9d-4a53-a330-9f712a60251d"
     }
   ],
   "connections": {
@@ -579,7 +639,7 @@
       "main": [
         [
           {
-            "node": "TG Confirm",
+            "node": "Via Discord?",
             "type": "main",
             "index": 0
           }
@@ -590,7 +650,7 @@
       "main": [
         [
           {
-            "node": "TG Help",
+            "node": "Via Discord?",
             "type": "main",
             "index": 0
           }
@@ -692,7 +752,7 @@
       "main": [
         [
           {
-            "node": "TG Confirm",
+            "node": "Via Discord?",
             "type": "main",
             "index": 0
           }
@@ -703,7 +763,7 @@
       "main": [
         [
           {
-            "node": "TG Confirm",
+            "node": "Via Discord?",
             "type": "main",
             "index": 0
           }
@@ -730,6 +790,24 @@
     },
     "Build Veo Reply": {
       "main": [
+        [
+          {
+            "node": "Via Discord?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Via Discord?": {
+      "main": [
+        [
+          {
+            "node": "Discord Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "TG Confirm",

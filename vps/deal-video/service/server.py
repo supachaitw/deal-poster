@@ -631,6 +631,50 @@ def tg_send_photo(tg, jpg, caption):
     r = json.loads(urllib.request.urlopen(req, timeout=60).read().decode('utf-8', 'replace'))
     return bool(r.get('ok')), (r.get('result') or {}).get('message_id')
 
+# ---------- Discord (5 ต.ค. 69 user: 'ทำ 1 2 3' ย้ายจาก Telegram) ----------
+# ทุกข้อความที่เคยส่ง Telegram (คลิป/รูป+prompt/แคปชัน) ส่งสำเนาเข้า Discord ผ่าน discord-ops-bot POST /post ด้วย
+# DISCORD_CHANNEL ว่าง = ไม่ส่ง · TELEGRAM_OFF=1 = เลิกส่ง Telegram (ตัดหลังใช้ Discord คู่กันจนมั่นใจ)
+# คำขอที่มาจาก /clip ใน Discord ส่ง 'discord': {channel, caption} แทน 'telegram'
+DISCORD_POST_URL = os.environ.get('DISCORD_POST_URL', 'http://discord-bot:3000/post')
+DISCORD_SECRET = os.environ.get('DISCORD_SECRET', '')
+DISCORD_CHANNEL = os.environ.get('DISCORD_CHANNEL', '')
+TELEGRAM_OFF = os.environ.get('TELEGRAM_OFF', '0') == '1'
+DC_HINT = '\n↩️ Discord: พิมพ์ /clip เลือกดีลนี้ แล้วแนบวิดีโอ'
+
+def dc_post(channel, text, data=None, fname=None, mention=False):
+    if not (channel and DISCORD_SECRET):
+        return False, 'discord off'
+    body = {'channel': channel, 'text': (text or '').strip() or '-', 'mention': bool(mention)}
+    if data:
+        body['file'] = {'name': fname, 'b64': base64.b64encode(data).decode()}
+    try:
+        req = urllib.request.Request(DISCORD_POST_URL, json.dumps(body).encode(), {'Content-Type': 'application/json', 'X-Alert-Secret': DISCORD_SECRET}, method='POST')
+        r = json.loads(urllib.request.urlopen(req, timeout=90).read().decode('utf-8', 'replace'))
+        return r.get('status') == 'posted', r.get('messageId')
+    except Exception as e:
+        print('[discord] post failed: %s' % str(e)[:160], flush=True)
+        return False, str(e)[:120]
+
+def _out(tg, tg_fn, text, data, fname, mention):
+    """ส่ง Telegram (ถ้ามี url และไม่ปิด) + Discord · คืน (ส่งได้อย่างน้อยหนึ่งที่, message_id ของ Telegram ถ้ามี ไม่งั้นของ Discord)"""
+    ok_t, mid = False, None
+    if tg.get('url') and not TELEGRAM_OFF:
+        try:
+            ok_t, mid = tg_fn()
+        except Exception as e:
+            ok_t, mid = False, str(e)[:200]
+    ok_d, did = dc_post(tg.get('channel') or DISCORD_CHANNEL, text + (DC_HINT if '#d ' in text else ''), data, fname, mention)
+    return (ok_t or ok_d), (mid if ok_t else did)
+
+def out_video(tg, mp4, caption):
+    return _out(tg, lambda: tg_send_video(tg, mp4, caption), caption or '', mp4, 'deal.mp4', False)
+
+def out_photo(tg, jpg, caption):
+    return _out(tg, lambda: tg_send_photo(tg, jpg, caption), caption or '', jpg, 'product.jpg', True)
+
+def out_text(tg, text):
+    return _out(tg, lambda: tg_send_text(tg, text), text or '', None, None, False)
+
 # ---------- TikTok Content Posting API (28 ก.ย. 69) ----------
 # โพสต์คลิปเข้า TikTok ตรงจาก service · client key/secret จาก env (TIKTOK_[SB_]CLIENT_KEY/SECRET) ·
 # access/refresh token อยู่ในไฟล์ที่ mount มา (/tiktok/tokens.json — env ตรึงตอนสร้าง container จึงเก็บ token ที่ refresh ได้ในไฟล์)
@@ -1764,6 +1808,18 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(b)
 
     def do_GET(self):
+        if self.path == '/deals':
+            # 5 ต.ค. 69: รายการดีลที่รับคลิปได้ (ให้ /clip ใน Discord เลือก) · ไม่ส่ง fb_reel/token ออก
+            out = []
+            try:
+                fs = sorted((f for f in os.listdir(DEALS_DIR) if f.endswith('.json')), key=lambda f: os.path.getmtime(os.path.join(DEALS_DIR, f)), reverse=True)[:100]
+                for f in fs:
+                    rec = json.load(open(os.path.join(DEALS_DIR, f))) or {}
+                    did = f[:-5]
+                    out.append({'id': did, 'name': rec.get('name') or did, 'saved': rec.get('saved'), 'posted': os.path.exists(os.path.join('/tiktok/posted', did + '.json'))})
+            except Exception:
+                traceback.print_exc()
+            return self._json(200, {'deals': out})
         if self.path == '/health':
             return self._json(200, {'ok': True})
         self._json(404, {'error': 'not found'})
@@ -1854,7 +1910,7 @@ class H(BaseHTTPRequestHandler):
             render_s = round(time.time() - t_r, 1)
             aigc = bool((veo or {}).get('ok') or (sb or {}).get('ok'))   # ภาพในคลิปสร้างด้วย AI (Veo API / คลิปที่ user gen / storyboard) → ติดป้ายทุกช่องทาง
             print('[timing] render=%.1fs dur=%s voice=%s veo=%s storyboard=%s aigc=%s' % (render_s, D, voiced, (veo or {}).get('ok'), (sb or {}).get('ok'), aigc), flush=True)
-            tg = d.get('telegram'); tt = d.get('tiktok')
+            tg = d.get('telegram') or d.get('discord'); tt = d.get('tiktok')
             if isinstance(tt, dict):
                 tt['aigc'] = aigc   # tt_post → post_info.is_aigc (TikTok ติดป้าย AI-generated ให้ในคำบรรยาย)
             fr = d.get('fb_reel') if (isinstance(d.get('fb_reel'), dict) and d['fb_reel'].get('post', True) and d['fb_reel'].get('token')) else None
@@ -1879,7 +1935,7 @@ class H(BaseHTTPRequestHandler):
                 cap = '#veo ' + pid + '\n' + (rv.get('caption') or '') + '\n\n✅ ตอบกลับ (reply) ข้อความนี้ว่า "โพสต์" เพื่อลง TikTok · "ไม่" เพื่อทิ้ง'
                 t_u = time.time()
                 try:
-                    sent, mid = tg_send_video(rv, mp4, cap)
+                    sent, mid = out_video(rv, mp4, cap)
                 except Exception as e:
                     sent, mid = False, str(e)[:200]
                 print('[timing] review-telegram=%.1fs sent=%s pending=%s bytes=%d' % (time.time() - t_u, sent, pid, len(mp4)), flush=True)
@@ -1895,9 +1951,9 @@ class H(BaseHTTPRequestHandler):
                         shot_u, prompt_u = veo_prompt_for(d)
                         # caption รูปจำกัด 1024 ตัว → ใส่แค่วิธีทำ + '#d' (ห้ามหาย) แล้วส่ง prompt เป็นข้อความแยกต่อท้าย
                         capP = ('🖼 ดีลเด่นรอบนี้ — ทำคลิป Veo เอง: ' + (d.get('name') or '')[:80] + '\n\n1) เซฟรูปนี้ 2) ใน aipass เลือก Veo 3.1 Fast + 9:16 แนบรูป วาง prompt จากข้อความถัดไป (สไตล์กล้อง: ' + shot_u + (' — ใช้โหมด Ingredients/รูปอ้างอิง ไม่ใช่เฟรมแรก' if shot_u == 'demo' else '') + ') 3) Reply คลิปที่ได้กลับมาที่ **ข้อความรูปนี้**\n\n#d ' + pid_d)
-                        ps, pm = tg_send_photo(tg, jpg, capP[:1000])
+                        ps, pm = out_photo(tg, jpg, capP[:1000])
                         if ps:
-                            tg_send_text(tg, '📝 prompt สำหรับ ' + (d.get('name') or '')[:50] + ' (' + shot_u + '):\n\n' + prompt_u + '\n\n(Reply คลิปที่ข้อความนี้หรือข้อความรูปก็ได้)\n#d ' + pid_d)   # 3 ต.ค. 69: user Reply ที่ข้อความ prompt แทนรูป → ไม่มี #d ระบบเงียบ → ใส่ #d ทั้งสองข้อความ
+                            out_text(tg, '📝 prompt สำหรับ ' + (d.get('name') or '')[:50] + ' (' + shot_u + '):\n\n' + prompt_u + '\n\n(Reply คลิปที่ข้อความนี้หรือข้อความรูปก็ได้)\n#d ' + pid_d)   # 3 ต.ค. 69: user Reply ที่ข้อความ prompt แทนรูป → ไม่มี #d ระบบเงียบ → ใส่ #d ทั้งสองข้อความ
                         out['photo_sent'] = ps; out['photo_message_id'] = pm
                         print('[review] veo unavailable (%s) -> photo for manual Veo sent=%s' % ((veo or {}).get('error'), ps), flush=True)
                     except Exception as e:
@@ -1905,7 +1961,7 @@ class H(BaseHTTPRequestHandler):
                 if tg:
                     t_u = time.time()
                     try:
-                        sent, mid = tg_send_video(tg, mp4, tg.get('caption') or '')
+                        sent, mid = out_video(tg, mp4, tg.get('caption') or '')
                     except Exception as e:
                         sent, mid = False, str(e)[:200]
                     print('[timing] telegram=%.1fs sent=%s bytes=%d' % (time.time() - t_u, sent, len(mp4)), flush=True)
@@ -1913,7 +1969,7 @@ class H(BaseHTTPRequestHandler):
                     if sent and tt and tt_inbox(tt):
                         # 5 ต.ค. 69: แคปชัน TikTok เป็นข้อความแยก กดค้างคัดลอกได้ทั้งก้อน (ร่าง inbox ส่งแคปชันไปไม่ได้)
                         try:
-                            tg_send_text(tg, (tt.get('title') or d.get('_saved_title') or '')[:2200] or '(ไม่มีแคปชัน)')
+                            out_text(tg, (tt.get('title') or d.get('_saved_title') or '')[:2200] or '(ไม่มีแคปชัน)')
                         except Exception as e:
                             print('[telegram] caption text failed: %s' % str(e)[:120], flush=True)
                 if tt:
