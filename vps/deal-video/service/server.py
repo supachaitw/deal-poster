@@ -1992,6 +1992,9 @@ class H(BaseHTTPRequestHandler):
                     r = fb_reel_post(fr, mp4)
                     print('[timing] fb_reel=%.1fs ok=%s status=%s phase=%s upload=%ss err=%s' % (time.time() - t_u, r.get('ok'), r.get('status'), r.get('phase'), r.get('upload_s'), r.get('error')), flush=True)
                     out['fb_reel'] = r; ok = ok and bool(r.get('ok'))
+                    if r.get('ok') and r.get('video_id') and tg:
+                        # 5 ต.ค. 69 user: 'ไม่เห็นคลิป reels' → บอกลิงก์ Reel ในห้อง Discord ต่อท้ายคลิปเดียวกัน
+                        dc_post((tg or {}).get('channel') or DISCORD_CHANNEL, '🎞 ลง FB Reels แล้ว: https://www.facebook.com/reel/%s' % r['video_id'])
                 return self._json(200 if ok else 502, out)
             up = d.get('upload')
             if up:
