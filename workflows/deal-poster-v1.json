@@ -175,7 +175,8 @@
       "position": [
         3584,
         616
-      ]
+      ],
+      "disabled": true
     },
     {
       "parameters": {
@@ -1195,7 +1196,7 @@
       "main": [
         [
           {
-            "node": "TG Posted Alert",
+            "node": "Build LINE Summary",
             "type": "main",
             "index": 0
           }
@@ -1262,17 +1263,6 @@
       "main": [
         [],
         []
-      ]
-    },
-    "TG Posted Alert": {
-      "main": [
-        [
-          {
-            "node": "Build LINE Summary",
-            "type": "main",
-            "index": 0
-          }
-        ]
       ]
     },
     "Build LINE Summary": {
