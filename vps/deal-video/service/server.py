@@ -192,6 +192,7 @@ CAT_HOOKS = {
     'สัตว์เลี้ยง': ['ทาสหมาทาสแมว | มาดูอันนี้ครับ', 'ใครมีน้องที่บ้าน | อันนี้เลย'],
     'Fitness': ['สายออกกำลังกาย | ต้องดูอันนี้', 'ใครฟิตอยู่ | มาดูครับ'],
     'กาแฟ': ['สายกาแฟ | อันนี้ต้องดูครับ', 'ใครติดกาแฟ | มาทางนี้เลย'],
+    'เครื่องดนตรี': ['สายดนตรี | ต้องดูอันนี้', 'ใครเล่นดนตรี | มาดูอันนี้ครับ'],   # 5 ต.ค. 69 หมวดใหม่
 }
 # 28 ก.ย. 69 #20: IG จำกัดบัญชี 30 วัน (prohibited commercial practices) — CTA เลิกพูด 'ลิ้งค์ในไบโอ' ทุกคลิป → บอกชื่อเว็บ paiyaadeals.com เป็นคำพูด
 # 2 ต.ค. 69: user ฟังแล้ว 'paiyaadeals.com' เพี้ยน (Gemini อ่านสะกด) → ส่งเทียบ 4 แบบ เลือก A/B → บทพูดใช้ 'ป้ายยาดีล ดอทคอม' (บนจอยังเขียน paiyaadeals.com)
@@ -1177,6 +1178,7 @@ VEO_SHOTS = [
 VEO_SETS = {
     'บ้าน': 'on a light wooden table in a bright, tidy home interior with a softly blurred background',
     'กาแฟ': 'on a light wooden café table with a softly blurred café background',
+    'เครื่องดนตรี': 'in a cozy home music corner with warm lamp light and a softly blurred background',
     'อาหาร': 'on a clean kitchen counter with warm natural light and a softly blurred background',
     'gadget': 'on a matte dark desk with a softly blurred modern background',
     'ความงาม': 'on a white marble vanity with soft bokeh in the background',
@@ -1197,6 +1199,7 @@ VEO_DEMO_SHARE = int(os.environ.get('VEO_DEMO_SHARE', '50'))
 VEO_DEMO_FALLBACK = {
     'บ้าน': 'A hand enters from the bottom right, picks up the product and holds it up in its normal position of use, turning it slightly so the whole product is visible.',
     'กาแฟ': 'A hand enters from the bottom right, lifts the product and tilts it gently as if about to use it, showing the whole product clearly.',
+    'เครื่องดนตรี': 'A hand enters from the bottom right and gently plays or touches the product the way it is normally used, the whole product stays clearly visible.',
     'อาหาร': 'A hand enters from the bottom right, picks up the pack, tilts it toward the camera and opens the top of the pack slowly.',
     'gadget': 'A hand enters from the bottom right, picks up the device and turns it slowly to show the front and the side ports.',
     'ความงาม': 'A hand enters from the bottom right, lifts the product, removes the cap slowly and holds it up to the light.',
@@ -1253,6 +1256,7 @@ SB_CLOSING = {
     'แฟชั่น': 'laid neatly on a linen bed in warm daylight',
     'อาหาร': 'on a kitchen counter with a cup of tea nearby',
     'กาแฟ': 'on a wooden cafe table by a window',
+    'เครื่องดนตรี': 'in a cozy music corner of a living room',
     'รถ': 'inside a clean car interior on the passenger seat',
     'สัตว์เลี้ยง': 'on a living room rug near a pet bed',
     'Fitness': 'on a yoga mat in a bright room',
