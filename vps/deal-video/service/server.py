@@ -742,10 +742,47 @@ def fb_reel_post(fr, mp4):
     except Exception as e:
         out['error'] = str(e)[:200]; return out
 
+# 5 ต.ค. 69: audit ถูกปฏิเสธ (personal use) → ส่งเป็น 'ร่าง' เข้ากล่องข้อความ TikTok (inbox/video/init, scope video.upload) ให้ user กดโพสต์เองในแอป เลือก Everyone ได้
+# ไม่มี post_info (แคปชัน/ป้าย AI ตั้งในแอป) · สำเร็จ = SEND_TO_USER_INBOX · TIKTOK_INBOX=0 หรือ tiktok.inbox:false = Direct Post เดิม
+TT_INBOX = os.environ.get('TIKTOK_INBOX', '1') != '0'
+
+def tt_inbox(tt):
+    return bool(tt.get('inbox', TT_INBOX)) if isinstance(tt, dict) else False
+
 def tt_post(tt, mp4):
     """tt = {mode: sandbox|prod, privacy: SELF_ONLY|PUBLIC_TO_EVERYONE|…, title} → dict สรุป (ไม่มี token)"""
     mode = tt.get('mode') or 'sandbox'; privacy = tt.get('privacy') or 'SELF_ONLY'
     out = {'ok': False, 'mode': mode, 'privacy': privacy}
+    if tt_inbox(tt):
+        out['privacy'] = 'inbox'
+        try:
+            token = tt_token(mode)
+            code, init = tt_http(TT_API + 'post/publish/inbox/video/init/', token,
+                                 body={'source_info': {'source': 'FILE_UPLOAD', 'video_size': len(mp4), 'chunk_size': len(mp4), 'total_chunk_count': 1}})
+            ie = (init.get('error') or {})
+            if code != 200 or ie.get('code') not in (None, 'ok'):
+                out['error'] = 'inbox init: ' + str(ie.get('code') or code); return out
+            pid = init['data']['publish_id']; out['publish_id'] = pid
+            t0 = time.time()
+            code, up = tt_http(init['data']['upload_url'], token, method='PUT', raw=mp4,
+                               headers={'Content-Type': 'video/mp4', 'Content-Length': str(len(mp4)), 'Content-Range': 'bytes 0-%d/%d' % (len(mp4) - 1, len(mp4))})
+            out['upload_s'] = round(time.time() - t0, 1)
+            if code not in (200, 201):
+                out['error'] = 'upload: %s %s' % (code, str(up)[:200]); return out
+            st = {}
+            for i in range(20):
+                time.sleep(3)
+                code, s = tt_http(TT_API + 'post/publish/status/fetch/', token, body={'publish_id': pid})
+                st = s.get('data') or {}
+                if st.get('status') in ('SEND_TO_USER_INBOX', 'PUBLISH_COMPLETE', 'FAILED'):
+                    break
+            out['status'] = st.get('status'); out['fail_reason'] = st.get('fail_reason')
+            out['ok'] = st.get('status') in ('SEND_TO_USER_INBOX', 'PUBLISH_COMPLETE')
+            if not out['ok']:
+                out['error'] = 'status: ' + str(st.get('status')) + (' ' + str(st.get('fail_reason')) if st.get('fail_reason') else '')
+        except Exception as e:
+            out['error'] = str(e)[:300]
+        return out
     try:
         token = tt_token(mode)
         code, ci = tt_http(TT_API + 'post/publish/creator_info/query/', token, body={})
@@ -1814,9 +1851,12 @@ class H(BaseHTTPRequestHandler):
             rv = d.get('review')
             pid_d = safe_id(d.get('page_id'))
             # 3 ต.ค. 69: โหมดไม่รอตรวจ — บอกใน caption TG ว่าคลิปนี้เป็น Veo และลง TikTok ให้แล้ว (ต่อหน้า caption ก่อนตัด 960 ตัว ไม่ให้ '#d' ท้ายหาย)
-            pre = ('🎬 คลิป Veo%s (gen %ss) → ลง TikTok อัตโนมัติ\n' % (' Lite เฟรม storyboard' if (veo or {}).get('shot') == 'keyframes' else '', (veo or {}).get('gen_s', '?'))) if (rv and (veo or {}).get('ok') and not VEO_REVIEW and tt) else ''
+            pre = ('🎬 คลิป Veo%s (gen %ss)\n' % (' Lite เฟรม storyboard' if (veo or {}).get('shot') == 'keyframes' else '', (veo or {}).get('gen_s', '?'))) if (rv and (veo or {}).get('ok') and not VEO_REVIEW and tt) else ''
             if not pre and (sb or {}).get('ok'):
                 pre = '🎨 ฉาก storyboard AI (gen %ss)\n' % sb.get('gen_s', '?')
+            if tt and tt_inbox(tt) and not (rv and VEO_REVIEW and (veo or {}).get('ok')):
+                # 5 ต.ค. 69: คลิปนี้ไปเป็นร่างใน TikTok → บอกวิธีโพสต์ในแอป (แคปชันคัดลอกจากข้อความนี้)
+                pre += '📥 ร่างอยู่ในกล่องข้อความ TikTok แล้ว — เปิดแอป กดโพสต์ เลือก "ทุกคน" แล้ววางแคปชันนี้' + (' · เปิด "เนื้อหาที่สร้างด้วย AI" ด้วย' if aigc else '') + '\n\n'
             if pid_d and not d.get('deal_id'):
                 deal_save(pid_d, d, ((tg or {}).get('caption') or (rv or {}).get('caption') or '').split('\n\n', 1)[-1])
             if tg and tg.get('caption') is not None and (pre or (pid_d and not d.get('deal_id'))):
