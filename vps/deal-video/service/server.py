@@ -999,14 +999,143 @@ async def _tts(segs, W, seed, vkey='niwat'):
                 await asyncio.sleep(1.5 * (k + 1))
         print('tts seg %d ok after %d tries' % (i, k + 1), flush=True)
 
+# รอบ #23 (6 ต.ค. 69 user เลือก C): Gemini สร้างทั้งบทในคำขอเดียว = น้ำเสียงต่อเนื่องแบบคนพูดจริง ไม่เริ่มใหม่ทุกประโยค
+# แล้วตัดเป็นท่อนที่ช่วงเงียบจริงในเสียง (ให้ตัวหนังสือบนจอขึ้นตรงท่อน) · ไม่มี VOICE_FX (user ฟังแล้วว่าเสียงสดเหมือนคนกว่า)
+# ชิ้นต่อกันพอดีไม่มีช่องว่างเพิ่ม (gap=0) · ตัดไม่ลงตัว/Gemini ล้ม → ถอยไปทีละท่อนแบบเดิม
+VOICE_ONESHOT = os.environ.get('VOICE_ONESHOT', '1') != '0'
+TRIM_FX = ('silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.04,areverse,'
+           'silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.08,areverse')
+
+def tts_text(text, fem):
+    t = text.replace(' | ', ', ').replace('…', ',').replace(',,', ',')
+    return feminize(t) if fem else t
+
+def split_points(wav, weights, hint=None):
+    """เลือกช่วงเงียบ N-1 ช่วง (เรียงตามเวลา) ที่ยาวและใกล้ตำแหน่งที่คาดจากสัดส่วนความยาวข้อความ → คืนเวลาตัด (กลางช่วงเงียบ) หรือ None"""
+    total = dur(wav)
+    out = subprocess.run(['ffmpeg', '-hide_banner', '-i', wav, '-af', 'silencedetect=noise=-35dB:d=0.12', '-f', 'null', '-'],
+                         capture_output=True, text=True).stderr
+    st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', out)]
+    en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', out)]
+    sil = [(a, b) for a, b in zip(st, en) if 0.3 < a and b < total - 0.3]
+    n = len(weights) - 1
+    if n <= 0:
+        return []
+    if len(sil) < n:
+        return None
+    W = float(sum(weights)); acc, exp = 0, []
+    for w in weights[:-1]:
+        acc += w; exp.append(total * acc / W)
+    # วัด 6 ต.ค. 69: ช่วงเงียบกลางประโยค (ลูกน้ำ) ยาว 0.5–0.65 วิ เท่ากับระหว่างท่อน → แยกด้วยความยาวไม่ได้
+    # → ใช้เวลาที่ Gemini ฟังแล้วบอก (hint คลาด ~0.5–1 วิ) เป็นตำแหน่งคาด แล้วเลือกช่วงเงียบจริงที่ใกล้สุด · ไม่มี hint ใช้สัดส่วนตัวอักษร (หยาบ)
+    LAM = 0.25
+    if hint and len(hint) == n:
+        exp, LAM = [float(x) for x in hint], 1.5
+    score = lambda k, j: (sil[j][1] - sil[j][0]) - LAM * abs((sil[j][0] + sil[j][1]) / 2 - exp[k])
+    NEG = float('-inf')
+    best = [[NEG] * len(sil) for _ in range(n)]; prev = [[-1] * len(sil) for _ in range(n)]
+    for j in range(len(sil)):
+        best[0][j] = score(0, j)
+    for k in range(1, n):
+        for j in range(k, len(sil)):
+            i = max(range(k - 1, j), key=lambda i: best[k - 1][i])
+            if best[k - 1][i] > NEG:
+                best[k][j] = best[k - 1][i] + score(k, j); prev[k][j] = i
+    j = max(range(len(sil)), key=lambda j: best[n - 1][j])
+    if best[n - 1][j] == NEG:
+        return None
+    pick = []
+    for k in range(n - 1, -1, -1):
+        pick.append(j); j = prev[k][j]
+    cuts = [(sil[j][0] + sil[j][1]) / 2 for j in reversed(pick)]
+    if hint and len(hint) == n:
+        # ชิ้นเสียงต่อกันพอดี (gap 0) → เสียงที่ได้เหมือนเดิมไม่ว่าตัดตรงไหน จุดตัดมีผลแค่จังหวะตัวหนังสือบนจอ
+        # ช่วงเงียบที่เลือกห่างเวลาที่ Gemini บอกเกิน 1 วิ = ไม่ใช่รอยต่อจริง → ใช้เวลาของ Gemini ตรง ๆ (คลาด ~0.5–1 วิ ยอมรับได้)
+        cuts = [c if abs(c - x) <= 1.0 else x for c, x in zip(cuts, exp)]
+        if any(b <= a for a, b in zip([0.0] + cuts, cuts + [total])):
+            return None
+    # ตรวจสัดส่วน: ชิ้นที่ได้ต้องไม่เพี้ยนจากที่คาดเกินไป (ตัดผิดที่ = ตัวหนังสือขึ้นผิดท่อน)
+    edges = [0.0] + cuts + [total]
+    for k, w in enumerate(weights):
+        d, e = edges[k + 1] - edges[k], total * w / W
+        if d < 0.5 or (hint is None and not (0.35 <= d / e <= 2.8)):
+            return None
+    return cuts
+
+ALIGN_MODEL = os.environ.get('VOICE_ALIGN_MODEL', 'gemini-3.8-flash')
+
+def align_hint(wav, texts):
+    """ให้ Gemini ฟังเสียงทั้งบทแล้วบอกเวลาเริ่มของบรรทัด 2..N (ไว้เป็นตำแหน่งคาดของจุดตัด)"""
+    import base64
+    small = wav + '.16k.wav'
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', wav, '-ar', '16000', '-ac', '1', small])
+    q = ('This Thai audio (%.2f seconds) reads these %d lines in order:\n' % (dur(small), len(texts)) +
+         '\n'.join('%d. %s' % (i + 1, t) for i, t in enumerate(texts)) +
+         '\nReturn JSON {"starts":[...]} with the start time in seconds (decimals) of lines 2..%d.' % len(texts))
+    body = {'contents': [{'parts': [{'inline_data': {'mime_type': 'audio/wav', 'data': base64.b64encode(open(small, 'rb').read()).decode()}},
+                                    {'text': q}]}],
+            'generationConfig': {'responseMimeType': 'application/json'}}
+    req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % ALIGN_MODEL,
+                                 json.dumps(body).encode(), {'Content-Type': 'application/json', 'x-goog-api-key': GOOGLE_AI_KEY})
+    r = json.loads(urllib.request.urlopen(req, timeout=60).read().decode('utf-8'))
+    txt = ''.join(p.get('text', '') for p in r['candidates'][0]['content'].get('parts', []))
+    st = [float(x) for x in json.loads(txt)['starts']]
+    return st if len(st) == len(texts) - 1 and st == sorted(st) else None
+
+def voice_oneshot(segs, W, vkey):
+    voice = vkey.split(':', 1)[1]
+    fem = dict(GEMINI_VOICES).get(voice, 'm') == 'f'
+    texts = [tts_text(t, fem) for _, t in segs]
+    raw = W + '/vo_all.mp3'
+    for _ in range(len(GEMINI_MODELS)):
+        model = gemini_model()
+        if not model:
+            raise RuntimeError('all gemini models cooling')
+        try:
+            gemini_tts('\n'.join(texts), voice, raw, model)
+            break
+        except urllib.error.HTTPError as e:
+            if e.code != 429:
+                raise
+            GEMINI_MODEL_COOL[model] = time.time() + 60
+    else:
+        raise RuntimeError('gemini 429 on all models')
+    full = W + '/vo_all.wav'
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', raw, '-af', TRIM_FX, '-ar', '44100', full])
+    try:
+        hint = align_hint(full, texts)
+    except Exception as e:
+        hint = None
+        print('tts oneshot align failed: %s' % str(e)[:80], flush=True)
+    if not hint:
+        raise RuntimeError('no alignment')   # สัดส่วนตัวอักษรอย่างเดียวตัดผิดท่อนบ่อย (ทดสอบ 6 ต.ค.) → ถอยไปทีละท่อนดีกว่าตัวหนังสือขึ้นผิดจังหวะ
+    cuts = split_points(full, [max(1, len(re.sub(r'\s', '', t))) for t in texts], hint)
+    if cuts is None:
+        raise RuntimeError('split failed')
+    edges = [0.0] + cuts + [dur(full)]
+    wavs = []
+    for i in range(len(segs)):
+        wav = '%s/vo_%d.wav' % (W, i)
+        run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', full, '-af',
+             'atrim=%.3f:%.3f,asetpts=PTS-STARTPTS' % (edges[i], edges[i + 1]), wav])
+        wavs.append(wav)
+    print('tts oneshot ok (gemini %s %s) hint=%s cuts=%s' % (voice, model, ','.join('%.1f' % c for c in hint), ','.join('%.2f' % c for c in cuts)), flush=True)
+    return wavs
+
 def make_voice(segs, W, seed, vkey='niwat'):
+    """คืน (wavs, oneshot) · oneshot=True = ชิ้นต่อกันพอดี ห้ามเติมช่องว่างระหว่างท่อน"""
+    if VOICE_ONESHOT and vkey.startswith('gemini:') and len(segs) > 1:
+        try:
+            return voice_oneshot(segs, W, vkey), True
+        except Exception as e:
+            print('tts oneshot failed (%s) -> per-segment' % str(e)[:100], flush=True)
     asyncio.run(asyncio.wait_for(_tts(segs, W, seed, vkey), timeout=150))
     wavs = []
     for i in range(len(segs)):
         wav = '%s/vo_%d.wav' % (W, i)
         run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', '%s/vo_%d.mp3' % (W, i), '-af', VOICE_FX, wav])
         wavs.append(wav)
-    return wavs
+    return wavs, False
 
 # ---------- ASS ----------
 def ts(sec):
@@ -1617,13 +1746,13 @@ def render(d):
         want = d.get('voice')
         forced = want is not None
         want = voice_for_round() if not forced else bool(want)
-        voiced, wavs, fem = False, [], False
+        voiced, wavs, fem, oneshot = False, [], False, False
         if want:
             try:
                 vkey = voice_for(seed, d)
                 fem = vkey.startswith('gemini:') and dict(GEMINI_VOICES).get(vkey.split(':', 1)[1], 'm') == 'f'   # เสียงหญิง → ตัวหนังสือบนจอต้องเป็น ค่ะ/คะ ตามเสียง (4 ต.ค. 69)
                 print('[render] tts voice=%s' % vkey, flush=True)
-                wavs = make_voice(segs, W, seed, vkey)
+                wavs, oneshot = make_voice(segs, W, seed, vkey)
                 durs = [dur(w) for w in wavs]
                 voiced = True
             except Exception:
@@ -1635,7 +1764,7 @@ def render(d):
         starts, cur = [], LEAD
         for i, x in enumerate(durs):
             starts.append(cur)
-            cur += x + (gap_for(roles[i], seed) if i < len(durs) - 1 else 0)
+            cur += x + (gap_for(roles[i], seed) if i < len(durs) - 1 and not oneshot else 0)
         D = max(7.0, math.ceil((starts[-1] + durs[-1] + TAIL) * 10) / 10)
         at = {r: starts[i] for i, r in enumerate(roles)}
 
