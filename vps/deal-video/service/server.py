@@ -1570,7 +1570,7 @@ def veo_keyframes(W, d):
         b1 = base64.b64encode(open(W + '/sb1.png', 'rb').read()).decode(); b4 = base64.b64encode(open(W + '/sb4.png', 'rb').read()).decode()
         model = d.get('veo_kf_model') or VEO_KF_MODEL
         body = {'instances': [{'prompt': prompt, 'image': {'bytesBase64Encoded': b1, 'mimeType': 'image/png'}, 'lastFrame': {'bytesBase64Encoded': b4, 'mimeType': 'image/png'}}],
-                'parameters': {'aspectRatio': '9:16', 'durationSeconds': VEO_SECONDS, 'resolution': '720p', 'sampleCount': 1}}
+                'parameters': {'aspectRatio': '9:16', 'durationSeconds': 8, 'resolution': '720p', 'sampleCount': 1}}   # 8 ต.ค. 69: โหมดเฟรมแรก→เฟรมท้ายรับแค่ 8 วิ — VEO_SECONDS=6 (4 ต.ค.) ทำให้ Lite ตอบ 400 'use case not supported' ทุกครั้ง
         base = 'https://generativelanguage.googleapis.com/v1beta/'; H = {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'}
         print('[render] veo shot=keyframes model=%s' % model, flush=True)
         op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % model, json.dumps(body).encode(), H), timeout=60))
