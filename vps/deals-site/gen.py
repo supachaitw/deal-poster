@@ -21,7 +21,7 @@ TG = 'https://t.me/paiyaa_deals'
 IG = 'https://www.instagram.com/paiyaa_deals'
 FB = 'https://www.facebook.com/paiyaa.deals'
 TH = 'https://www.threads.net/@paiyaa_deals'
-DC = ''  # Discord invite to the public #ดีลเด็ด channel (empty = no Discord button)
+DC = 'https://discord.gg/ayRWzwVvB8'  # Discord invite to the public #ดีลเด็ด channel (empty = no Discord button)
 CATS = [  # (notion name, slug, label)
     ('ความงาม', 'beauty', 'ความงาม'), ('บ้าน', 'home', 'ของใช้ในบ้าน'), ('แฟชั่น', 'fashion', 'แฟชั่น'),
     ('gadget', 'gadget', 'Gadget'), ('อาหาร', 'food', 'อาหาร'), ('รถ', 'auto', 'ของใช้ในรถ'), ('อื่นๆ', 'other', 'อื่น ๆ'),
