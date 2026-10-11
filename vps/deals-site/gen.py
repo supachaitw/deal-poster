@@ -21,6 +21,7 @@ TG = 'https://t.me/paiyaa_deals'
 IG = 'https://www.instagram.com/paiyaa_deals'
 FB = 'https://www.facebook.com/paiyaa.deals'
 TH = 'https://www.threads.net/@paiyaa_deals'
+DC = ''  # Discord invite to the public #ดีลเด็ด channel (empty = no Discord button)
 CATS = [  # (notion name, slug, label)
     ('ความงาม', 'beauty', 'ความงาม'), ('บ้าน', 'home', 'ของใช้ในบ้าน'), ('แฟชั่น', 'fashion', 'แฟชั่น'),
     ('gadget', 'gadget', 'Gadget'), ('อาหาร', 'food', 'อาหาร'), ('รถ', 'auto', 'ของใช้ในรถ'), ('อื่นๆ', 'other', 'อื่น ๆ'),
@@ -169,6 +170,7 @@ def svg(name, color='currentColor', size=18):
     P = {
         'search': '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
         'send': '<path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4z"/>',
+        'chat': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
         'arrow': '<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>',
         'back': '<path d="M15 5l-7 7 7 7"/>',
         'bolt': '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
@@ -215,9 +217,10 @@ def chips(counts, active='all'):
 def subscribe():
     return ('<section class="sub" id="subscribe"><h2>ดีลดีหมดเร็ว<br>รับแจ้งเตือนก่อนใคร</h2>'
             '<p>ส่งเฉพาะดีลที่คัดแล้ว วันละไม่เกิน 7 รอบ ไม่มีสแปม</p>'
-            '<a class="btn w" href="%s" rel="noopener">%s Telegram @paiyaa_deals</a>'
+            '<a class="btn w" href="%s" rel="noopener">%s Telegram @paiyaa_deals</a>%s'
             '<div class="soc"><a href="%s" rel="noopener">Instagram</a><a href="%s" rel="noopener">Facebook</a><a href="%s" rel="noopener">Threads</a></div></section>'
-            ) % (TG, svg('send', '#1F6E63', 18), IG, FB, TH)
+            ) % (TG, svg('send', '#1F6E63', 18),
+                 '<a class="btn dc" href="%s" rel="noopener">%s Discord #ดีลเด็ด</a>' % (DC, svg('chat', '#fff', 18)) if DC else '', IG, FB, TH)
 
 
 def trust():
@@ -333,8 +336,9 @@ def build(deals, now):
             body += '<section class="why"><h2>ทำไมถึงป้ายยาชิ้นนี้</h2>%s' % ''.join('<p>%s</p>' % esc(t) for t in lines)
         else:
             body += '<section class="why">'
-        body += ('<dl><div><dt>ร้าน</dt><dd>%s</dd></div><div><dt>โพสต์เมื่อ</dt><dd>%s</dd></div>%s<div><dt>เห็นก่อนใครที่</dt><dd><a href="%s" rel="noopener">Telegram @paiyaa_deals</a></dd></div></dl></section>'
-                 ) % (esc(d['store']), th_date(d['when']), '<div><dt>ส่วนลด</dt><dd>%d%% (ประหยัด %s ฿)</dd></div>' % (d['off'], money(d['save'])) if d['off'] else '', TG)
+        body += ('<dl><div><dt>ร้าน</dt><dd>%s</dd></div><div><dt>โพสต์เมื่อ</dt><dd>%s</dd></div>%s<div><dt>เห็นก่อนใครที่</dt><dd><a href="%s" rel="noopener">Telegram @paiyaa_deals</a>%s</dd></div></dl></section>'
+                 ) % (esc(d['store']), th_date(d['when']), '<div><dt>ส่วนลด</dt><dd>%d%% (ประหยัด %s ฿)</dd></div>' % (d['off'], money(d['save'])) if d['off'] else '', TG,
+                      ' · <a href="%s" rel="noopener">Discord</a>' % DC if DC else '')
         u = urllib.parse.quote(SITE + '/d/' + d['id'], safe='')
         body += ('<section class="share"><h2>ส่งต่อให้เพื่อน</h2><div class="sb"><button type="button" id="cp">%s คัดลอกลิงก์</button>'
                  '<a href="https://social-plugins.line.me/lineit/share?url=%s" rel="noopener">แชร์ LINE</a>'

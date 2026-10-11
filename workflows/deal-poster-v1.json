@@ -945,6 +945,55 @@
         }
       },
       "id": "1780f1de-7ebe-4939-abf5-178c87beb8f0"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Public #ดีลเด็ด channel on Discord (link on paiyaadeals.com): one card per deal, product photo + shop link.\nconst deals = $('Split Approved').all().map(x => x.json);\nlet photos = []; try { photos = $('Build Post Body').all().map(x => x.json.photoUrl || ''); } catch (e) {}\nif (photos.length !== deals.length) photos = [];\n// only deals that reached this node in this run (Build Posted Alert output) — no duplicates if it runs twice\nconst done = new Set($input.all().map(x => x.json.name));\nconst fmt = n => Number(n).toLocaleString('en-US');\nreturn deals.map((d, i) => ({ d, i })).filter(({ d }) => d.name && d.link && done.has(d.name)).map(({ d, i }) => {\n  const sale = Number(d.sale) || 0, full = Number(d.full) || 0;\n  let price = '';\n  if (sale && full > sale) price = '💥 เหลือ **' + fmt(sale) + ' บาท** (ลด ' + Math.round((1 - sale / full) * 100) + '% จาก ' + fmt(full) + ')';\n  else if (sale) price = '💥 **' + fmt(sale) + ' บาท**';\n  else if (full) price = '💰 ราคา ' + fmt(full) + ' บาท';\n  const desc = String(d.desc || '').replace(/https?:\\/\\/\\S+/g, '').trim().slice(0, 300);\n  const img = photos[i] && !/lazada-creative-center/.test(photos[i]) ? photos[i] : null;\n  const lines = [price, desc, '🛒 [ไปที่ร้าน](' + d.link + ')', '*ลิงก์ affiliate · ราคาตอนโพสต์ เช็คราคาล่าสุดที่ร้านก่อนสั่ง*'].filter(Boolean);\n  return { json: { channel: 'ดีลเด็ด', embed: { title: String(d.name).slice(0, 250), url: d.link, description: lines.join('\\n'), image: img } } };\n});"
+      },
+      "id": "2947d9a3-519d-44a0-a720-ccf28a5f9d8a",
+      "name": "Build Public Cards",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3696,
+        1024
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://discord-bot:3000/notify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: $json.channel, embed: $json.embed }) }}",
+        "options": {
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
+      },
+      "id": "bc031936-95f4-4b7b-b8d8-58049d641346",
+      "name": "Discord Public Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4032,
+        1024
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jhnQV8hQrNBjwU37",
+          "name": "Discord ops bot alert"
+        }
+      }
     }
   ],
   "connections": {
@@ -1199,6 +1248,11 @@
             "node": "Build LINE Summary",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Public Cards",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1345,6 +1399,17 @@
         [
           {
             "node": "Mark Posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Public Cards": {
+      "main": [
+        [
+          {
+            "node": "Discord Public Post",
             "type": "main",
             "index": 0
           }
