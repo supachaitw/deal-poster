@@ -730,7 +730,7 @@ export workflow **ทั้ง 8** → sanitize → commit + **push ทั้ง
 - คนอื่นที่ได้ dp. กดอนุมัติ/ถอน/ซ่อนดีลได้เท่ากับเจ้าของ (endpoint เดียวกัน) — ให้เฉพาะคนที่ไว้ใจ · จะจำกัดอีเมลทีหลัง: เปลี่ยน `OAUTH2_PROXY_EMAIL_DOMAINS: "*"` ของ `oauth2-proxy-dp` เป็น `AUTHENTICATED_EMAILS_FILE` แบบตัวแรก
 - ทางเข้าเว็บ deals. จาก Home Console (26 ก.ย. 69): การ์ด **"เว็บดีลสาธารณะ"** ใน `index.html` (TILES) · ปุ่ม **🌐 เปิดเว็บดีล** บนหัวหน้า `dealposter.html` · ลิงก์ **เว็บ ↗** รายแถว (โพสต์แล้ว+ไม่ซ่อน) ไป `/d/<id ไม่มีขีด>` — ไฟล์ทั้งสองอยู่ใน repo `home-console` ซึ่ง **clone ไว้บน VPS แล้วที่ `/srv/claude/home-console`** (26 ก.ย. 69 · GitLab เท่านั้น ไม่มี GitHub mirror) แก้ live แล้ว `bash /srv/claude/home-console/sync.sh pull` → commit → push
 
-**แถบ 💰 บัญชีรายรับรายจ่ายบนสุดของ Home Console (11 ต.ค. 69)** — การ์ดน้ำตาลกว้างเหนือ "สถานะตอนนี้" โชว์ใช้ไปวันนี้/งบรวม/เดือนนี้ สด 60 วิ กดแล้วไป expense-bot `/app` (หัวเว็บนั้นมีปุ่ม 🏠 กลับ Home Console)
+**การ์ด 💰 รายรับรายจ่ายบน Home Console (11 ต.ค. 69)** — ใบแรกของแถว "สถานะตอนนี้" แบบเดียวกับการ์ดอื่น กว้าง 1.25 เท่า (user ให้ย่อจากแถบใหญ่เต็มแนว — "ใหญ่ไป") โชว์ใช้ไปวันนี้/งบรวม/เดือนนี้ สด 60 วิ กดแล้วไป expense-bot `/app` (หัวเว็บนั้นมีปุ่ม 🏠 กลับ Home Console)
 · ข้อมูล: home-metrics `/api/expense` → ยิง `https://expense.srv1277799.hstgr.cloud/app/api/home-summary` header `x-summary-token` · ค่า `EXPENSE_SUMMARY_TOKEN` ใน `/root/home-metrics/.env` **ต้องเท่ากับ** `HOME_SUMMARY_TOKEN` ใน `/docker/expense-bot/.env` (เปลี่ยนต้องแก้ทั้งคู่ + recreate ทั้งสอง container)
 · `/api/expense` ตั้งใจไม่ขึ้นต้นด้วย `/api/dealposter` → dp. (คนอื่น) เข้าไม่ได้ ตอบ 404 · login เว็บ expense ใช้ WEB_TOKEN ที่หน้า Notion Config หัวข้อ "💰 expense-bot"
 
