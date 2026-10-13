@@ -443,6 +443,7 @@ def llm_script(d, pct, recent):
         if isinstance(e, (urllib.error.URLError, TimeoutError, OSError)):   # API ล่ม/ช้า/429 → พัก 10 นาที · บั๊ก parse ไม่ต้องพัก
             LLM_SCRIPT_COOLDOWN_UNTIL = time.time() + 600
         print('[script] llm failed %s -> pool%s' % (str(e)[:100], ' (cooldown 10m)' if LLM_SCRIPT_COOLDOWN_UNTIL > time.time() else ''), flush=True)
+        credit_alert('llm script', e, 'anthropic')
         return None
 
 def script_for(d):
@@ -679,6 +680,40 @@ def dc_post(channel, text, data=None, fname=None, mention=False):
     except Exception as e:
         print('[discord] post failed: %s' % str(e)[:160], flush=True)
         return False, str(e)[:120]
+
+# 13 ต.ค. 69 (user: 'ต่อไปหากเครดิตหมด บอกว่าเครดิตอะไรหมดพร้อมลิงก์') — เจอ 402/RESOURCE_EXHAUSTED/depleted จาก Google หรือ Anthropic
+# → แจ้ง #ops ครั้งเดียวต่อ 6 ชม. (กันสแปม: TTS ล้มทุกท่อนทุกคลิป) · บอท discord-ops-bot เติมลิงก์ให้อีกชั้นกับข้อความจากโปรเจกต์อื่น (lofi)
+CREDIT_ALERT_FILE = os.environ.get('CREDIT_ALERT_FILE', '/tiktok/credit_alert.json')
+CREDIT_LINKS = {
+    'google': ('Google AI Studio (Gemini TTS / Veo / storyboard / Lyria ใช้บัญชีเดียวกัน)', 'https://ai.studio/projects → Billing'),
+    'anthropic': ('Anthropic API (บทพูด LLM)', 'https://console.anthropic.com/settings/billing'),
+}
+def credit_alert(where, err, vendor='google'):
+    t = str(err or '')
+    if not re.search(r'\b402\b|Payment Required|RESOURCE_EXHAUSTED|depleted|credit balance is too low', t, re.I):
+        return False
+    try:
+        last = json.load(open(CREDIT_ALERT_FILE)).get(vendor, 0)
+    except Exception:
+        last = 0
+    if time.time() - last < 6 * 3600:
+        return False
+    try:
+        d = json.load(open(CREDIT_ALERT_FILE))
+    except Exception:
+        d = {}
+    d[vendor] = time.time()
+    try:
+        with open(CREDIT_ALERT_FILE + '.new', 'w') as f:
+            json.dump(d, f)
+        os.replace(CREDIT_ALERT_FILE + '.new', CREDIT_ALERT_FILE)
+    except Exception:
+        pass
+    name, link = CREDIT_LINKS.get(vendor, (vendor, ''))
+    msg = '💳 เครดิต %s หมด → เติมที่ %s\n(deal-video: %s ตอบ %s · ระหว่างนี้คลิปยังออกด้วยเสียง Azure/รูปร้านแบบเดิม · แจ้งซ้ำทุก 6 ชม. จนกว่าจะเติม)' % (name, link, where, t[:80])
+    print('[credit] ' + msg.replace('\n', ' '), flush=True)
+    dc_post('ops', msg, mention=True)
+    return True
 
 def _out(tg, tg_fn, text, data, fname, mention):
     """ส่ง Telegram (ถ้ามี url และไม่ปิด) + Discord · คืน (ส่งได้อย่างน้อยหนึ่งที่, message_id ของ Telegram ถ้ามี ไม่งั้นของ Discord)"""
@@ -984,6 +1019,7 @@ async def _tts(segs, W, seed, vkey='niwat'):
                     await asyncio.sleep(2 * (k + 1))
             if failed:
                 print('gemini tts failed seg %d (%s): %s -> fallback azure niwat' % (i, voice, failed), flush=True)
+                credit_alert('gemini tts', failed)
                 break
             print('tts seg %d ok (gemini %s %s)' % (i, voice, model), flush=True)
         if failed is None:
@@ -1153,6 +1189,7 @@ def make_voice(segs, W, seed, vkey='niwat'):
             return voice_oneshot(segs, W, vkey), True
         except Exception as e:
             print('tts oneshot failed (%s) -> per-segment' % str(e)[:100], flush=True)
+            credit_alert('gemini tts oneshot', e)
     asyncio.run(asyncio.wait_for(_tts(segs, W, seed, vkey), timeout=150))
     wavs = []
     for i in range(len(segs)):
@@ -1518,6 +1555,7 @@ def storyboard_panels(W, d):
                  'crop=%d:%d:%d:%d,scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280' % (pw, ph, col * (w // 2) + ins, row * (h // 2) + ins), W + '/sb%d.png' % (i + 1)])
         return {'ok': True, 'gen_s': round(time.time() - t0, 1), 'model': STORYBOARD_MODEL, 'tokens': (r.get('usageMetadata') or {}).get('totalTokenCount'), 'size': '%dx%d' % (w, h), 'same': same, 'note': note}
     except urllib.error.HTTPError as e:
+        credit_alert('veo', 'http %s' % e.code)
         return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:160]), 'gen_s': round(time.time() - t0, 1)}
     except Exception as e:
         return {'ok': False, 'error': str(e)[:200], 'gen_s': round(time.time() - t0, 1)}
@@ -1618,6 +1656,7 @@ def veo_keyframes(W, d):
         out['shot'] = 'keyframes'
         return out
     except urllib.error.HTTPError as e:
+        credit_alert('veo keyframes', 'http %s' % e.code)
         return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:200]), 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
     except Exception as e:
         return {'ok': False, 'error': str(e)[:200], 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
@@ -1722,6 +1761,7 @@ def veo_clip(W, d):
             return out
         return {'ok': False, 'error': last_err, 'gen_s': round(time.time() - t0, 1)}
     except urllib.error.HTTPError as e:
+        credit_alert('storyboard', 'http %s' % e.code)
         return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:200]), 'gen_s': round(time.time() - t0, 1)}
     except Exception as e:
         return {'ok': False, 'error': str(e)[:200], 'gen_s': round(time.time() - t0, 1)}
