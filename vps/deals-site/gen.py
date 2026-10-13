@@ -3,7 +3,7 @@
 
 Runs on the VPS host from cron every 10 minutes (see deploy.sh). stdlib only.
   python3 gen.py            build site into $OUT (default /root/deals-site/html)
-  python3 gen.py stats      print click counts parsed from nginx go.log
+  python3 gen.py stats      real (non-bot) click counts from nginx go.log · add --raw to also list raw counts
 
 Secrets: Notion token from $NOTION_TOKEN or DP_NOTION in /root/home-metrics/.env. Never printed.
 """
@@ -29,6 +29,7 @@ CATS = [  # (notion name, slug, label)
 CAT_SLUG = {n: s for n, s, _ in CATS}
 CAT_LABEL = {s: l for _, s, l in CATS}
 TZ = datetime.timezone(datetime.timedelta(hours=7))
+NOTION_API = 'https://' + 'api.notion.com'
 TH_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 
 
@@ -463,32 +464,140 @@ def main():
         for f in os.listdir(ddir):
             if f not in keep:
                 os.remove(os.path.join(ddir, f))
+    try:
+        st = write_clicks({d['id']: d['name'] for d in deals})
+        print('clicks: real %d (7d %d) of raw %d' % (st['total'], st['d7'], st['raw_total']))
+    except Exception as e:
+        print('clicks.json failed:', e)
     print('%s built %d deals (%d rows, hidden/dup removed %d) -> %s' % (now.strftime('%Y-%m-%d %H:%M'), len(deals), len(rows), len(rows) - len(deals), OUT))
 
 
-def stats():
+# 13 ต.ค. 69: คัดบอทออกจาก go.log — ตัวเลขดิบ 1,566 คลิกเป็นคนจริงแค่ ~7 (ที่เหลือ: health check ของ VPS เอง 899 ·
+# Alibaba Cloud 47.79/47.82 ไม่มี referer ~640 · OVH 51.79 ยิงรัว 270) · คนจริงกดจากหน้าเว็บเสมอ → referer ต้องเป็นโดเมนเรา
+OWN_IPS = {'72.62.248.226', '127.0.0.1'}
+BOT_NETS = ('47.79.', '47.82.', '51.79.', '47.76.', '47.237.', '8.209.', '8.210.', '8.212.', '8.213.', '8.218.')
+BOT_UA = re.compile(r'bot|crawl|spider|curl|wget|python|go-http|java|okhttp|httpclient|headless|facebookexternalhit|scrapy|axios|node-fetch', re.I)
+OUR_REF = re.compile(r'^https?://(www\.)?(paiyaadeals\.com|deals\.srv1277799\.hstgr\.cloud)(/|$)')
+
+
+def click_rows():
+    """อ่าน go.log → [{t,id,ip,ref,ua,why}] · why = '' (คนจริง) หรือเหตุที่คัดออก (own/bot_ua/net/noref)"""
     log = os.path.join(ROOT, 'log', 'go.log')
     if not os.path.exists(log):
-        return print('no clicks yet')
+        return []
+    rows = []
+    for line in open(log, encoding='utf-8', errors='replace'):
+        m = re.match(r'(\S+) (\S+) (\S+) "([^"]*)" "([^"]*)"', line)
+        if not m:
+            parts = line.split(' ', 2)
+            if len(parts) < 2:
+                continue
+            m = (parts[0], parts[1], '', '-', '')
+        else:
+            m = m.groups()
+        t, i, ip, ref, ua = m
+        ip = ip.split(',')[0].strip()
+        why = ''
+        if ip in OWN_IPS:
+            why = 'own'
+        elif BOT_UA.search(ua):
+            why = 'bot_ua'
+        elif ip.startswith(BOT_NETS):
+            why = 'net'
+        elif not OUR_REF.match(ref):
+            why = 'noref'
+        rows.append({'t': t, 'id': i.replace('-', ''), 'ip': ip, 'ref': ref, 'ua': ua, 'why': why})
+    return rows
+
+
+def click_stats(names):
+    now = datetime.datetime.now(TZ)
+    cut7 = (now - datetime.timedelta(days=7)).isoformat()
+    cut1 = (now - datetime.timedelta(days=1)).isoformat()
+    rows = click_rows()
+    excl = collections.Counter(r['why'] for r in rows if r['why'])
+    real = [r for r in rows if not r['why']]
+    per = {}
+    for r in real:
+        d = per.setdefault(r['id'], {'id': r['id'], 'name': names.get(r['id'], r['id']), 'n': 0, 'd7': 0, 'last': ''})
+        d['n'] += 1
+        if r['t'] >= cut7:
+            d['d7'] += 1
+        d['last'] = max(d['last'], r['t'])
+    def dev(ua):
+        return 'iPhone' if 'iPhone' in ua else 'Android' if 'Android' in ua else 'iPad' if 'iPad' in ua else 'PC'
+    recent = [{'t': r['t'], 'id': r['id'], 'name': names.get(r['id'], r['id']), 'dev': dev(r['ua']),
+               'ip': '.'.join(r['ip'].split('.')[:2]) + '.x' if r['ip'].count('.') == 3 else r['ip']} for r in real[-30:]][::-1]
+    return {'updated': now.isoformat(timespec='seconds'), 'raw_total': len(rows), 'excluded': dict(excl),
+            'total': len(real), 'd7': sum(1 for r in real if r['t'] >= cut7), 'd1': sum(1 for r in real if r['t'] >= cut1),
+            'deals': sorted(per.values(), key=lambda d: (-d['d7'], -d['n'], d['last']))[:40], 'recent': recent}
+
+
+def names_from_site():
     names = {}
     try:
         for d in json.load(open(os.path.join(OUT, 'deals.json'), encoding='utf-8')):
             names[d['id']] = d['n']
     except Exception:
         pass
-    c, week = collections.Counter(), collections.Counter()
-    cutoff = (datetime.datetime.now(TZ) - datetime.timedelta(days=7)).isoformat()
-    for line in open(log, encoding='utf-8', errors='replace'):
-        parts = line.split(' ', 2)
-        if len(parts) < 2:
-            continue
-        i = parts[1].replace('-', '')
-        c[i] += 1
-        if parts[0] >= cutoff:
-            week[i] += 1
-    print('clicks total %d · 7 days %d · deals clicked %d' % (sum(c.values()), sum(week.values()), len(c)))
-    for i, n in c.most_common(40):
-        print('%5d  %4d  %s' % (n, week[i], names.get(i, i)[:70]))
+    return names
+
+
+def write_clicks(names):
+    # ไฟล์สถิติที่ Home Console อ่าน (/api/dealsite ของ home-metrics mount /root/deals-site เป็น /dealsite) — เขียนทุกรอบ build
+    # names.json = ชื่อสะสมของทุกดีลที่เคยขึ้นเว็บ (ดีลที่หลุดจากเว็บแล้วยังมีชื่อในสถิติ) · id ที่ไม่รู้จักเลย ถาม Notion ครั้งเดียวแล้วจำ
+    np_ = os.path.join(ROOT, 'names.json')
+    try:
+        known = json.load(open(np_, encoding='utf-8'))
+    except Exception:
+        known = {}
+    known.update(names)
+    missing = {r['id'] for r in click_rows() if not r['why'] and r['id'] not in known}
+    for i in list(missing)[:20]:
+        try:
+            req = urllib.request.Request(NOTION_API + '/v1/pages/' + i,
+                                         headers={'Authorization': 'Bearer ' + token(), 'Notion-Version': '2022-06-28'})
+            pg = json.loads(urllib.request.urlopen(req, timeout=15).read())
+            t = ''.join(x.get('plain_text', '') for x in pg.get('properties', {}).get('สินค้า', {}).get('title', [])).strip()
+            known[i] = t or '(ดีลถูกลบ)'
+        except Exception:
+            pass
+    if known != names:
+        with open(np_ + '.tmp', 'w', encoding='utf-8') as f:
+            json.dump(known, f, ensure_ascii=False)
+        os.replace(np_ + '.tmp', np_)
+    st = click_stats(known)
+    p = os.path.join(ROOT, 'clicks.json')
+    with open(p + '.tmp', 'w', encoding='utf-8') as f:
+        json.dump(st, f, ensure_ascii=False)
+    os.replace(p + '.tmp', p)
+    return st
+
+
+def stats():
+    raw = '--raw' in sys.argv
+    names = names_from_site()
+    try:
+        names = dict(json.load(open(os.path.join(ROOT, 'names.json'), encoding='utf-8')), **names)
+    except Exception:
+        pass
+    st = click_stats(names)
+    if not st['raw_total']:
+        return print('no clicks yet')
+    ex = ' · '.join('%s %d' % kv for kv in sorted(st['excluded'].items()))
+    print('raw %d · excluded (%s)' % (st['raw_total'], ex))
+    print('REAL clicks total %d · 7 days %d · 24 h %d · deals %d' % (st['total'], st['d7'], st['d1'], len(st['deals'])))
+    for d in st['deals']:
+        print('%5d  %4d  %s  %s' % (d['n'], d['d7'], d['last'][:16], d['name'][:60]))
+    if st['recent']:
+        print('--- recent real clicks ---')
+        for r in st['recent']:
+            print('%s  %-7s %-10s %s' % (r['t'][:16], r['dev'], r['ip'], r['name'][:50]))
+    if raw:
+        c = collections.Counter(r['id'] for r in click_rows())
+        print('--- raw (incl. bots) top 20 ---')
+        for i, n in c.most_common(20):
+            print('%5d  %s' % (n, names.get(i, i)[:70]))
 
 
 if __name__ == '__main__':
