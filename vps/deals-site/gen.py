@@ -526,11 +526,159 @@ def click_stats(names):
         d['last'] = max(d['last'], r['t'])
     def dev(ua):
         return 'iPhone' if 'iPhone' in ua else 'Android' if 'Android' in ua else 'iPad' if 'iPad' in ua else 'PC'
-    recent = [{'t': r['t'], 'id': r['id'], 'name': names.get(r['id'], r['id']), 'dev': dev(r['ua']),
-               'ip': '.'.join(r['ip'].split('.')[:2]) + '.x' if r['ip'].count('.') == 3 else r['ip']} for r in real[-30:]][::-1]
+    geo = geo_lookup(sorted({r['ip'] for r in real}))
+    def g(ip):
+        x = geo.get(ip) or {}
+        return {'country': x.get('country', ''), 'cc': x.get('cc', ''), 'city': x.get('city', ''), 'isp': x.get('isp', '')}
+    recent = [{'t': r['t'], 'id': r['id'], 'name': names.get(r['id'], r['id']), 'dev': dev(r['ua']), 'ref': r['ref'][:80],
+               'ip': '.'.join(r['ip'].split('.')[:2]) + '.x' if r['ip'].count('.') == 3 else r['ip'], **g(r['ip'])} for r in real[-50:]][::-1]
     return {'updated': now.isoformat(timespec='seconds'), 'raw_total': len(rows), 'excluded': dict(excl),
             'total': len(real), 'd7': sum(1 for r in real if r['t'] >= cut7), 'd1': sum(1 for r in real if r['t'] >= cut1),
             'deals': sorted(per.values(), key=lambda d: (-d['d7'], -d['n'], d['last']))[:40], 'recent': recent}
+
+
+# 13 ต.ค. 69 (user: 'อยากเห็นว่าเป็นคนมาจากไหน กดด้วย iPhone') — วิเคราะห์ access.log 14 วัน + หาเมือง/ISP ของ IP คนจริงจาก ip-api.com
+# (ฟรี · batch 100 IP/คำขอ · จำไว้ใน geo.json ไม่ถามซ้ำ) · 'คนจริง' ที่นี่ = ไม่ใช่ UA บอท / IP เรา / เครือข่ายบอท และ IP นั้นไม่ได้ยิงเกิน HEAVY_HITS ครั้งใน 14 วัน
+HEAVY_HITS = 150
+HOSTING_ISP = re.compile(r'hosting|server|data ?cent|cloud|cdn|leaseweb|limestone|datacamp|m247|vultr|linode|contabo|hetzner|ovh|digitalocean|choopa|colocation|dedicated|vps|amazon|microsoft|google llc|oracle|alibaba|tencent|akamai|fastly|zenlayer|psychz|quadranet|hostpapa|servermania|ace data|packet|scaleway|upcloud|kamatera|ionos|godaddy|namecheap|hostinger|ucloud|huawei', re.I)
+ACCESS_RE = re.compile(r'\S+ - - \[([^\]]+)\] "(\S+) (\S+) [^"]*" (\d+) \d+ "([^"]*)" "([^"]*)" "([^"]*)"')
+BOT_NAME = re.compile(r'(ClaudeBot|GPTBot|AhrefsBot|Googlebot|facebookexternalhit|meta-externalagent|Applebot|bingbot|PetalBot|SemrushBot|DotBot|YandexBot|Bytespider|Amazonbot|DuckDuckBot|MJ12bot|TikTokSpider|Twitterbot|LinkedInBot|Discordbot|Line/|NetcraftSurveyAgent|CCBot|ImagesiftBot|Barkrowler|DataForSeoBot)', re.I)
+SOURCES = [('google', r'google\.'), ('facebook', r'facebook\.com|fb\.com|fbcdn'), ('instagram', r'instagram\.com'), ('tiktok', r'tiktok\.com'),
+           ('threads', r'threads\.(net|com)'), ('line', r'line\.me|linecorp'), ('discord', r'discord'), ('x/twitter', r't\.co|twitter\.com|x\.com'),
+           ('telegram', r't\.me|telegram'), ('bing', r'bing\.com'), ('home-console', r'srv1277799\.hstgr\.cloud')]
+MON = {m: i + 1 for i, m in enumerate(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])}
+
+
+def source_of(ref):
+    if not ref or ref == '-':
+        return 'direct'
+    if OUR_REF.match(ref):
+        return 'site'
+    for k, rx in SOURCES:
+        if re.search(rx, ref, re.I):
+            return k
+    return 'other'
+
+
+def dev_of(ua):
+    return 'iPhone' if 'iPhone' in ua else 'iPad' if 'iPad' in ua else 'Android' if 'Android' in ua else 'Mac' if 'Macintosh' in ua else 'Windows' if 'Windows' in ua else 'Linux' if 'Linux' in ua else 'อื่น'
+
+
+def geo_lookup(ips):
+    """คืน {ip: {country, city, isp}} — อ่าน geo.json ก่อน ถามเฉพาะที่ยังไม่รู้ (≤ 200 IP/รอบ)"""
+    gp = os.path.join(ROOT, 'geo.json')
+    try:
+        geo = json.load(open(gp, encoding='utf-8'))
+    except Exception:
+        geo = {}
+    todo = [ip for ip in ips if (ip not in geo or 'hosting' not in geo[ip]) and ip.count('.') == 3][:200]
+    for k in range(0, len(todo), 100):
+        chunk = todo[k:k + 100]
+        try:
+            req = urllib.request.Request('http://ip-api.com/batch', data=json.dumps([{'query': ip, 'fields': 'status,country,countryCode,city,isp,hosting,query'} for ip in chunk]).encode(),
+                                         headers={'Content-Type': 'application/json'})
+            for r in json.loads(urllib.request.urlopen(req, timeout=20).read()):
+                ip = r.get('query')
+                if ip:
+                    geo[ip] = {'country': r.get('country', ''), 'cc': r.get('countryCode', ''), 'city': r.get('city', ''), 'isp': r.get('isp', ''), 'hosting': bool(r.get('hosting'))} if r.get('status') == 'success' else {'hosting': None}
+        except Exception as e:
+            print('geo lookup failed:', str(e)[:120])
+            break
+    if todo:
+        with open(gp + '.tmp', 'w', encoding='utf-8') as f:
+            json.dump(geo, f, ensure_ascii=False)
+        os.replace(gp + '.tmp', gp)
+    return geo
+
+
+def visit_stats(names, days=14):
+    log = os.path.join(ROOT, 'log', 'access.log')
+    if not os.path.exists(log):
+        return None
+    now = datetime.datetime.now(TZ)
+    cut = now - datetime.timedelta(days=days)
+    cut7 = now - datetime.timedelta(days=7)
+    rows = []
+    for line in open(log, encoding='utf-8', errors='replace'):
+        m = ACCESS_RE.match(line)
+        if not m:
+            continue
+        ts, meth, path, status, ref, ua, ip = m.groups()
+        ip = ip.split(',')[0].strip()
+        try:
+            t = datetime.datetime(int(ts[7:11]), MON[ts[3:6]], int(ts[0:2]), int(ts[12:14]), int(ts[15:17]), int(ts[18:20]), tzinfo=datetime.timezone.utc).astimezone(TZ)
+        except Exception:
+            continue
+        if t < cut:
+            continue
+        rows.append((t, path, status, ref, ua, ip))
+    hits = collections.Counter(r[5] for r in rows)
+    bots = collections.Counter()
+    excl = collections.Counter()
+    human = []
+    for t, path, status, ref, ua, ip in rows:
+        b = BOT_NAME.search(ua)
+        if b:
+            bots[b.group(1)] += 1; continue
+        if ip in OWN_IPS:
+            excl['own'] += 1; continue
+        if BOT_UA.search(ua) or not ua.startswith('Mozilla'):
+            excl['bot_ua'] += 1; continue
+        if ip.startswith(BOT_NETS):
+            excl['net'] += 1; continue
+        if hits[ip] > HEAVY_HITS:
+            excl['heavy'] += 1; continue
+        if re.search(r'\.(css|js|json|xml|png|jpg|ico|txt|webp|svg)(\?|$)|^/img/|^/go\?|^/\.well-known', path):
+            continue   # ไฟล์ประกอบ ไม่ใช่การเปิดหน้า
+        if not status.startswith(('2', '3')) or re.search(r'wp-|\.env|\.git|xmlrpc|phpmyadmin|/admin|\.php|/cgi-|/vendor/|/\.aws', path, re.I):
+            excl['scan'] += 1; continue   # 404 หรือ path สแกนหาช่องโหว่ (wp-login/.env/.git) ไม่ใช่คนเปิดเว็บ
+        human.append((t, path, status, ref, ua, ip))
+    geo = geo_lookup(sorted({r[5] for r in human}))
+    # ip-api ติดป้าย hosting ไม่ครบ → เสริมด้วยชื่อ ISP ที่เป็นผู้ให้เช่าเซิร์ฟเวอร์ (Leaseweb/Limestone/Datacamp/… ที่โผล่ใน log จริง)
+    dc = {ip for ip in {r[5] for r in human} if (geo.get(ip) or {}).get('hosting') or HOSTING_ISP.search((geo.get(ip) or {}).get('isp', ''))}
+    excl['datacenter'] = sum(1 for r in human if r[5] in dc)
+    human = [r for r in human if r[5] not in dc]   # IP ของ cloud/datacenter = บอทที่ปลอม UA เบราว์เซอร์
+    def g(ip):
+        x = geo.get(ip) or {}
+        return {'country': x.get('country', ''), 'cc': x.get('cc', ''), 'city': x.get('city', ''), 'isp': x.get('isp', '')}
+    by_day = collections.Counter(r[0].strftime('%Y-%m-%d') for r in human)
+    days_list = [(cut + datetime.timedelta(days=i + 1)).strftime('%Y-%m-%d') for i in range(days)]
+    ips_day = collections.defaultdict(set)
+    for r in human:
+        ips_day[r[0].strftime('%Y-%m-%d')].add(r[5])
+    src = collections.Counter(source_of(r[3]) for r in human)
+    dev = collections.Counter(dev_of(r[4]) for r in human)
+    country = collections.Counter((g(r[5])['country'] or '?') for r in human)
+    uniq = {r[5] for r in human}
+    uniq_c = collections.Counter((g(ip)['country'] or '?') for ip in uniq)
+    pages = collections.Counter()
+    for r in human:
+        pth = r[1].split('?')[0]
+        dm = re.match(r'^/d/([0-9a-f]{32})', pth)
+        pages[('ดีล: ' + names.get(dm.group(1), dm.group(1))) if dm else pth] += 1
+    # ผู้เข้าชมล่าสุด: รวมเป็นราย session (IP เดียวกันภายใน 30 นาที = ครั้งเดียว) แสดง 40 รายการ
+    sessions = []
+    last = {}
+    for r in human:
+        t, path, status, ref, ua, ip = r
+        k = ip
+        if k in last and (t - last[k]['end']).total_seconds() < 1800:
+            last[k]['end'] = t; last[k]['pages'] += 1
+            continue
+        s_ = {'t': t.isoformat(timespec='minutes'), 'end': t, 'ip': ip, 'dev': dev_of(ua), 'src': source_of(ref), 'ref': ref if source_of(ref) not in ('site', 'direct') else '',
+              'page': path.split('?')[0], 'pages': 1}
+        last[k] = s_
+        sessions.append(s_)
+    recent = []
+    for s_ in sessions[-40:][::-1]:
+        dm = re.match(r'^/d/([0-9a-f]{32})', s_['page'])
+        recent.append({'t': s_['t'], 'ip': '.'.join(s_['ip'].split('.')[:2]) + '.x', 'dev': s_['dev'], 'src': s_['src'], 'ref': s_['ref'][:80],
+                       'page': ('ดีล: ' + names.get(dm.group(1), dm.group(1))) if dm else s_['page'], 'pages': s_['pages'], **g(s_['ip'])})
+    return {'days': days, 'views': len(human), 'views7': sum(1 for r in human if r[0] >= cut7), 'visitors': len(uniq),
+            'visitors7': len({r[5] for r in human if r[0] >= cut7}), 'sessions': len(sessions),
+            'by_day': [{'d': d, 'views': by_day.get(d, 0), 'visitors': len(ips_day.get(d, ()))} for d in days_list],
+            'source': src.most_common(), 'device': dev.most_common(), 'country': country.most_common(12), 'visitor_country': uniq_c.most_common(12),
+            'pages': [{'p': k, 'n': v} for k, v in pages.most_common(15)], 'bots': bots.most_common(15), 'excluded': dict(excl), 'recent': recent}
 
 
 def names_from_site():
@@ -567,6 +715,11 @@ def write_clicks(names):
             json.dump(known, f, ensure_ascii=False)
         os.replace(np_ + '.tmp', np_)
     st = click_stats(known)
+    try:
+        st['visits'] = visit_stats(known)
+    except Exception as e:
+        st['visits'] = None
+        print('visit stats failed:', str(e)[:200])
     p = os.path.join(ROOT, 'clicks.json')
     with open(p + '.tmp', 'w', encoding='utf-8') as f:
         json.dump(st, f, ensure_ascii=False)
@@ -592,7 +745,16 @@ def stats():
     if st['recent']:
         print('--- recent real clicks ---')
         for r in st['recent']:
-            print('%s  %-7s %-10s %s' % (r['t'][:16], r['dev'], r['ip'], r['name'][:50]))
+            print('%s  %-7s %-10s %-22s %s' % (r['t'][:16], r['dev'], r['ip'], (r.get('city', '') + ' ' + r.get('isp', ''))[:22], r['name'][:50]))
+    v = visit_stats(names)
+    if v:
+        print('--- page views (humans, %d days) --- views %d (7d %d) · visitors %d (7d %d)' % (v['days'], v['views'], v['views7'], v['visitors'], v['visitors7']))
+        print('source:', ', '.join('%s %d' % kv for kv in v['source']))
+        print('device:', ', '.join('%s %d' % kv for kv in v['device']))
+        print('country:', ', '.join('%s %d' % kv for kv in v['country']))
+        print('bots:', ', '.join('%s %d' % kv for kv in v['bots'][:8]))
+        for r in v['recent'][:15]:
+            print('%s  %-7s %-10s %-10s %-20s %s' % (r['t'][:16], r['dev'], r['src'], r['ip'], (r.get('city', '') + ' ' + r.get('isp', ''))[:20], r['page'][:40]))
     if raw:
         c = collections.Counter(r['id'] for r in click_rows())
         print('--- raw (incl. bots) top 20 ---')
