@@ -187,7 +187,8 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {}
-      }
+      },
+      "disabled": true
     },
     {
       "id": "hp",
@@ -228,7 +229,8 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {}
-      }
+      },
+      "disabled": true
     },
     {
       "id": "fo",
