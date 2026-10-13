@@ -205,15 +205,19 @@ CTAS = ['ดูดีลนี้ได้ที่ ป้ายยาดีล 
 #    (รอบแรกให้น้ำหนักเท่ากัน 4 ช่อง แล้วลองรันกับดีลจริง 12 ตัว คำเชื่อมโผล่ 11/12 ฟังแล้วจะจำเจกว่าเดิม)
 DESC_LEADS = ['%s', '%s', '%s', 'คือ | %s', 'ตัวนี้ | %s']
 OLD_LINES = ['ปกติขายตั้ง%sบาท', 'คือปกติ | ขายตั้ง%sบาทนะครับ', 'ราคาเต็ม | ตั้ง%sบาทแน่ะ',
-             'ปกติเห็นอยู่%sบาทนะครับ', 'ราคาป้าย | %sบาทครับ']   # รอบ #9
+             'ปกติเห็นอยู่%sบาทนะครับ', 'ราคาป้าย | %sบาทครับ',   # รอบ #9
+             'ราคาปกติ | %sบาทครับ', 'จากเดิม | %sบาท', 'ปกติต้องจ่าย | %sบาทนะครับ']   # 13 ต.ค. 69
 # 'บาทเอง' ติดกันไม่มีตัวคั่น — 26 ก.ย. 69 #14 user: "บาท,เอง ยังไม่ติดกัน แก้ให้ติดกันเลย" (ผ่านมา: '…' 0.14 → '… ' 1.3 → ', ' 0.33 → ไม่มี) · 'บาท, ฉ่ำมาก'/'บาท, เท่านั้น' คงลูกน้ำ
 NEW_LINES = ['ตอนนี้เหลือแค่ | %sบาทเองครับ', 'แต่ตอนนี้ | เหลือแค่%sบาทเองครับ',
              'ลดมาเหลือ | %sบาทเอง',
              # รอบ #9 — ศัพท์ 2569 ในท่อนตื่นเต้น
-             'ตอนนี้ | %sบาท, ฉ่ำมากครับ', '%sบาท, เท่านั้นครับตอนนี้']   # ถอด 'ชีเสิร์ฟ' 26 ก.ย. 69 — Azure อ่านเพี้ยน
+             'ตอนนี้ | %sบาท, ฉ่ำมากครับ', '%sบาท, เท่านั้นครับตอนนี้',
+             'ลดลงมาเหลือแค่ | %sบาทครับ', 'ตอนนี้จ่ายแค่ | %sบาทเอง', 'กลายเป็น | %sบาทครับ', 'เหลือ | %sบาทครับ']   # 13 ต.ค. 69   # ถอด 'ชีเสิร์ฟ' 26 ก.ย. 69 — Azure อ่านเพี้ยน
 # 'เองน้า' → 'เอง' 26 ก.ย. 69 #13: user ฟังแล้ว 'น้า' ท้าย 'เอง' ออกเสียงเป็น "เอง..นะ" แยกคำ → ตัดทิ้ง ('เองค่ะ' คงเดิม)
-SALE_LINES = ['ตอนนี้ราคาแค่ | %sบาทเองครับ', 'ราคาแค่ | %sบาทเอง']
-FULL_LINES = ['ราคา%sบาทครับ', 'ราคาอยู่ที่ | %sบาทครับ']
+SALE_LINES = ['ตอนนี้ราคาแค่ | %sบาทเองครับ', 'ราคาแค่ | %sบาทเอง',
+              'ตอนนี้อยู่ที่ | %sบาทครับ', 'จ่ายแค่ | %sบาทเองครับ', 'ราคาตอนนี้ | %sบาทครับ', 'ได้ไปในราคา | %sบาทเอง',
+              'งบแค่ | %sบาทก็ได้แล้วครับ', 'ราคาที่เห็นตอนนี้คือ | %sบาทครับ', 'ทั้งหมดนี้ | %sบาทครับ']   # 13 ต.ค. 69 (เดิม 2 ประโยค)
+FULL_LINES = ['ราคา%sบาทครับ', 'ราคาอยู่ที่ | %sบาทครับ', 'ราคาตอนนี้ | %sบาทครับ', 'ตัวนี้อยู่ที่ | %sบาทครับ', 'ราคาของมันคือ | %sบาทครับ']
 # ดีลที่ไม่มีราคาเลย: ใส่ท่อนกลางไว้ไม่ให้คลิปโล่ง (ห้ามอ้างว่าถูก/ใกล้หมด — เราไม่รู้ราคาด้วยซ้ำ)
 NOPRICE = ['เดี๋ยวพาไปดูใกล้ ๆ นะครับ', 'ลองดูกันนะครับ | ว่าเป็นยังไง',
            'คือ | อยากให้ลองดูกันเอง', 'ตัวนี้ | ไปดูรายละเอียดกันนะ']
@@ -224,9 +228,11 @@ NOPRICE = ['เดี๋ยวพาไปดูใกล้ ๆ นะครั
 # ⛔ ห้ามใช้ SSML <break> — Azure เสียงไทยเติมหยุด ~1.4 วิต่อจุดไม่ว่า time= เท่าไร (วัดแล้ว: 5 จุด → ท่อน 4.5 วิกลายเป็น 12 วิ)
 #    ', ' ≈ +0.33 วิเท่ากับ '… ' · '. ' ไม่หยุดเลย
 # 3 ต.ค. 69 โครง Hook → Promise → Body → Open loop → ราคา → CTA (จากคลิป @itshowardwang 'โครงสร้างคลิปล้านวิว' user: 'ลองปรับใช้กับดีลใหม่')
-PROMISES = ['เดี๋ยวบอกราคาท้ายคลิปนะครับ | ถูกกว่าที่คิด', 'ดูให้จบนะครับ | ราคาอยู่ท้ายคลิป', 'สั้น ๆ ครับ | พาดูของแล้วบอกราคาเลย', 'สิบวิพอครับ | เดี๋ยวรู้ว่าคุ้มมั้ย']
+PROMISES = ['เดี๋ยวบอกราคาท้ายคลิปนะครับ | ถูกกว่าที่คิด', 'ดูให้จบนะครับ | ราคาอยู่ท้ายคลิป', 'สั้น ๆ ครับ | พาดูของแล้วบอกราคาเลย', 'สิบวิพอครับ | เดี๋ยวรู้ว่าคุ้มมั้ย',
+            'อยู่ดูราคาก่อนนะครับ', 'เดี๋ยวท้ายคลิปมีราคามาให้ดู', 'รอดูราคาก่อน | ค่อยตัดสินใจนะครับ', 'ดูต่ออีกนิดครับ | ราคาอยู่ข้างล่าง']
 PROMISES_NOPRICE = ['สั้น ๆ ครับ | ดูให้จบนะ', 'เดี๋ยวพาดูใกล้ ๆ นะครับ', 'ขอสิบวิครับ | เดี๋ยวเล่าให้ฟัง']
-LOOPS = ['แต่ที่ทำให้เราหยุดดู | คือราคาครับ', 'ของดูดีแล้ว | แต่ราคานี่แหละครับ', 'ที่เด็ดจริง | อยู่ตรงราคาครับ', 'แล้วราคาเนี่ย | ไม่คิดว่าจะเท่านี้', 'ยังไม่ถึงจุดพีคนะครับ | ดูราคาก่อน']
+LOOPS = ['แต่ที่ทำให้เราหยุดดู | คือราคาครับ', 'ของดูดีแล้ว | แต่ราคานี่แหละครับ', 'ที่เด็ดจริง | อยู่ตรงราคาครับ', 'แล้วราคาเนี่ย | ไม่คิดว่าจะเท่านี้', 'ยังไม่ถึงจุดพีคนะครับ | ดูราคาก่อน',
+         'มาถึงตรงที่ทุกคนรอ | ราคาครับ', 'ทีนี้มาดูราคากัน', 'แล้วราคาล่ะ | เท่าไหร่', 'ส่วนเรื่องราคา | ฟังดี ๆ นะครับ']
 PAUSE_MARK = '… '
 # 'บาท, เองค่ะ' — ช่วง บาท→เอง วัดจริงด้วย ffprobe 26 ก.ย. 69 (Azure Premwadee): 'บาท…เอง' +0.14 วิ (user: ติดกันเกิน) · 'บาท… เอง' +1.3 วิ (user: ห่างเกิน
 #   — หลัง 'บาท' Azure ถือ '… ' เป็นจบประโยค) · 'บาท, เอง' +0.33 วิ ← ใช้อันนี้ · ⚠️ ' | ' (= '… ') ที่อื่นในบทได้แค่ 0.17–0.31 วิ แต่ต่อท้าย 'บาท' เป็น 1.3 วิ อย่าใช้หลังหน่วยเงิน
@@ -374,13 +380,18 @@ def llm_script(d, pct, recent):
         name = (d.get('name') or '')[:120]
         desc = clean_desc(d.get('desc')) or ''
         avoid = [r.get('hook_t') for r in recent if r.get('hook_t')][-25:] + [r.get('cta_t') for r in recent if r.get('cta_t')][-12:]
+        # 13 ต.ค. 69 user: 'บทพูดซ้ำบ่อย ดูแล้วไม่น่าสนใจ' — วัด 120 คลิป: promise ประโยคเดียว 20% · loop 24% · ราคา 2 แบบ 53% → ส่งของที่ใช้ล่าสุดให้เลี่ยงทุกท่อน
+        avoid_more = {k: [r.get(k) for r in recent if r.get(k)][-15:] for k in ('promise_t', 'loop_t', 'new_t')}
+        has_price = bool(d.get('sale') or d.get('full'))
         sys_p = ('คุณเขียนบทพูด (voice-over เสียงผู้ชาย ลงท้าย ครับ/นะครับ แบบธรรมชาติ ไม่ทุกประโยค) สำหรับคลิป TikTok แนะนำดีลสินค้า ยาว ~15 วินาที '
                  'ผู้พูดคือคนชอบแชร์ดีล ไม่ใช่คนขาย และยังไม่เคยใช้สินค้า\n'
-                 'ตอบเป็น JSON อย่างเดียว: {"hook": "...", "promise": "...", "desc": "...", "loop": "...", "cta": "..."}\n'
+                 'ตอบเป็น JSON อย่างเดียว: {"hook": "...", "promise": "...", "desc": "...", "loop": "...", "price": "...", "cta": "..."}\n'
                  '- hook: 1 ประโยค 4–12 คำ ดึงให้หยุดดูใน 2 วินาที ผูกกับสินค้า/หมวด/สถานการณ์ใช้งาน สลับสไตล์ไม่ซ้ำกับรายการ avoid\n'
                  '- promise: 1 ประโยคสั้น 4–10 คำ บอกว่าดูจบแล้วจะได้อะไร (เช่น จะรู้ราคาท้ายคลิป / จะรู้ว่าคุ้มมั้ย) ถ้า has_price เป็น false ห้ามพูดถึงราคา\n'
                  '- desc: 1 ประโยคพูด ไม่เกิน 25 คำ เล่าว่าของคืออะไร ใช้ข้อมูลที่ให้เท่านั้น ห้ามเดาสเปก ถ้าข้อมูลไม่พอให้ส่งสตริงว่าง\n'
                  '- loop: 1 ประโยคสั้น 4–10 คำ พูดก่อนเปิดราคา ทำให้อยากดูต่อ (open loop เช่น "แต่ที่ทำให้เราหยุดดูคือราคาครับ") ห้ามบอกตัวเลข ถ้า has_price เป็น false ให้ส่งสตริงว่าง\n'
+                 '- price: 1 ประโยคสั้น 4–12 คำ บอกราคาปัจจุบัน ต้องมีข้อความ "{ราคา} บาท" ตรงตัว 1 ครั้ง (ระบบแทน {ราคา} ด้วยคำอ่านตัวเลขเอง) ห้ามเขียนตัวเลข ห้ามพูดเปอร์เซ็นต์หรือราคาเดิม เช่น "ตอนนี้จ่ายแค่ {ราคา} บาทเองครับ" ถ้า has_price เป็น false ให้ส่งสตริงว่าง\n'
+                 '- ทุกท่อนต้องไม่ซ้ำหรือคล้ายประโยคใน avoid / avoid_promise / avoid_loop / avoid_price ทั้งคำและโครงประโยค (ผู้ชมเห็นหลายคลิปต่อวัน ประโยคเดิมซ้ำ = น่าเบื่อ) ลองเปลี่ยนมุม เช่น ถามคนดู เล่าสถานการณ์ เทียบกับของที่ใช้อยู่\n'
                  '- cta: 1 ประโยค ต้องมีคำว่า "ป้ายยาดีล ดอทคอม" (ชื่อเว็บแบบอ่าน) ตรงตามนี้ 1 ครั้ง และบอกว่าไปแล้วได้อะไร (รวมดีลไว้ให้/ไม่ต้องหาเอง) สำนวนไม่ซ้ำกับ avoid\n'
                  'สรรพนามผู้พูดใช้ "เรา" เท่านั้น ห้ามใช้ "ผม" หรือ "ดิฉัน" (เสียงพากย์สุ่มเป็นชายหรือหญิง คำลงท้าย ครับ จะถูกแปลงเป็น ค่ะ ให้เองเมื่อเป็นเสียงหญิง) · '
                  'กติกาเสียง: ภาษาไทยล้วน · คำอังกฤษใช้ได้เฉพาะคำที่อยู่ในชื่อสินค้า และต้องสะกดอังกฤษตามเดิม ห้ามถอดเสียงเป็นไทย · '
@@ -388,7 +399,8 @@ def llm_script(d, pct, recent):
                  'ห้ามอ้างว่าใช้แล้วดี ถูกสุด ใกล้หมด ของแท้ · ห้ามเติมสรรพคุณหรือผลลัพธ์ที่ไม่อยู่ในข้อมูล (เช่น ผ่อนคลายกล้ามเนื้อ อุ่นใจทั้งวัน ช่วยได้จริง) · ห้ามพูดถึงลิงก์หรือไบโอ · ทุกประโยคต้องสมบูรณ์ อ่านออกเสียงแล้วไม่สะดุด\n'
                  'แนวทางสไตล์ปัจจุบัน:\n' + style)
         user = json.dumps({'name': name, 'cat': d.get('cat') or '', 'desc': desc, 'has_discount': bool(pct),
-                           'has_price': bool(d.get('sale') or d.get('full')), 'avoid': avoid}, ensure_ascii=False)
+                           'has_price': has_price, 'avoid': avoid, 'avoid_promise': avoid_more['promise_t'],
+                           'avoid_loop': avoid_more['loop_t'], 'avoid_price': avoid_more['new_t']}, ensure_ascii=False)
         body = {'model': LLM_SCRIPT_MODEL, 'max_tokens': 1500, 'system': sys_p, 'thinking': {'type': 'disabled'},   # Sonnet 5 กับ prompt ยาวเคยคิด (thinking) จน max_tokens 300 หมดโดยไม่มี text (stop=max_tokens len=0) → ปิด thinking + เพดานกว้าง
                 'messages': [{'role': 'user', 'content': user}]}
         req = urllib.request.Request('https://api.anthropic.com/v1/messages', json.dumps(body).encode('utf-8'),
@@ -407,20 +419,23 @@ def llm_script(d, pct, recent):
         if j is None:
             return None
         out = {}
-        for k_, lo, hi in (('hook', 6, 70), ('cta', 12, 90), ('desc', 8, 120), ('promise', 6, 70), ('loop', 6, 70)):
+        for k_, lo, hi in (('hook', 6, 70), ('cta', 12, 120), ('desc', 8, 120), ('promise', 6, 70), ('loop', 6, 70)):
             v = re.sub(r'\s+', ' ', str(j.get(k_) or '')).replace('?', '').strip()
             good = bool(v) and lo <= len(v) <= hi and script_ok(v, name, desc)
-            if k_ in ('desc', 'promise', 'loop'):   # ท่อนเสริม: ไม่ผ่าน = ใช้ pool/ไม่มี ไม่ทิ้งทั้งบท
-                out[k_] = v if good else None
-                if v and not good:
-                    print('[script] llm %s dropped (len %d)' % (k_, len(v)), flush=True)
-            elif good:
-                out[k_] = v
-            else:
-                print('[script] llm reject %s=%r' % (k_, v[:60]), flush=True)
-                return None
-        if out['cta'].count('ป้ายยาดีล ดอทคอม') != 1:
-            print('[script] llm reject cta (no site)', flush=True)
+            # 13 ต.ค. 69: ท่อนไหนไม่ผ่าน ถอยไป pool เฉพาะท่อนนั้น (เดิม hook/cta ไม่ผ่าน = ทิ้งทั้งบท → 1/3 ของคลิปได้แต่ประโยคสำเร็จรูป)
+            out[k_] = v if good else None
+            if v and not good:
+                print('[script] llm %s dropped (len %d): %r' % (k_, len(v), v[:100]), flush=True)
+        v = re.sub(r'\s+', ' ', str(j.get('price') or '')).replace('?', '').strip()
+        bare = v.replace('{ราคา}', '')
+        out['price'] = v if (has_price and v.count('{ราคา}') == 1 and re.search(r'\{ราคา\}\s*บาท', v)
+                             and 6 <= len(bare) <= 70 and script_ok(bare, name, desc)) else None
+        if v and not out['price']:
+            print('[script] llm price dropped %r' % v[:60], flush=True)
+        if out['cta'] and out['cta'].count('ป้ายยาดีล ดอทคอม') != 1:
+            print('[script] llm cta dropped (no site)', flush=True)
+            out['cta'] = None
+        if not any(out.values()):
             return None
         print('[script] llm ok %.1fs' % (time.time() - t0), flush=True)
         return out
@@ -454,7 +469,7 @@ def script_for(d):
     else:
         hook = hook_t = pick(HOOKS, h, rh)
     L = llm_script(d, pct, recent)
-    if L and not pct_hook:
+    if L and L.get('hook') and not pct_hook:
         hook = hook_t = L['hook']
     segs = [('hook', hook)]
     has_price = bool(sale or full)
@@ -481,21 +496,30 @@ def script_for(d):
             tail = ' | ลดไปเกินครึ่งเลยนะ'
         elif pct >= 15:
             tail = ' | ลดไปตั้ง%sเปอร์เซ็นต์แน่ะ' % thai_words(pct)
-        new_t = pick(NEW_LINES, h // 17, rn)
-        line = new_t % thai_words(sale)
+        if L and L.get('price'):
+            new_t = L['price']; line = new_t.replace('{ราคา}', thai_words(sale))
+        else:
+            new_t = pick(NEW_LINES, h // 17, rn)
+            line = new_t % thai_words(sale)
         if tail and line.endswith('เอง'):
             tail = ',' + tail[2:]   # 'เอง | ลด…' → 'เอง, ลด…' — วัด 26 ก.ย. 69: 'เอง… ' Azure ถือจบประโยค หยุด 1.34 วิ · ', ' 0.58 · ('เองน้า… ' 0.43 แต่ user ให้ตัด น้า)
         segs.append(('new', line + tail))
     elif sale:
-        new_t = pick(SALE_LINES, h // 19, rn)
-        segs.append(('new', new_t % thai_words(sale)))
+        if L and L.get('price'):
+            new_t = L['price']; segs.append(('new', new_t.replace('{ราคา}', thai_words(sale))))
+        else:
+            new_t = pick(SALE_LINES, h // 19, rn)
+            segs.append(('new', new_t % thai_words(sale)))
     elif full:
-        new_t = pick(FULL_LINES, h // 23, rn)
-        segs.append(('new', new_t % thai_words(full)))
+        if L and L.get('price'):
+            new_t = L['price']; segs.append(('new', new_t.replace('{ราคา}', thai_words(full))))
+        else:
+            new_t = pick(FULL_LINES, h // 23, rn)
+            segs.append(('new', new_t % thai_words(full)))
     else:
         new_t = pick(NOPRICE, h // 3, rn)
         segs.append(('new', new_t))   # ไม่มีราคาเลย = คลิปจะเหลือแค่ hook+CTA (7 วิ) โล่งไป
-    cta_t = L['cta'] if L else pick(CTAS, h // 7, rc)
+    cta_t = L['cta'] if L and L.get('cta') else pick(CTAS, h // 7, rc)
     segs.append(('cta', cta_t))
     script_log({'name': name[:40], 'src': 'llm' if L else 'pool', 'hook_t': hook_t, 'cta_t': cta_t, 'old_t': old_t, 'new_t': new_t, 'promise_t': promise_t, 'loop_t': loop_t})
     print('[script] src=%s hook=%s' % ('llm' if L else 'pool', hook[:50]), flush=True)
