@@ -537,9 +537,9 @@ def click_stats(names):
             'deals': sorted(per.values(), key=lambda d: (-d['d7'], -d['n'], d['last']))[:40], 'recent': recent}
 
 
-# 13 ต.ค. 69 (user: 'อยากเห็นว่าเป็นคนมาจากไหน กดด้วย iPhone') — วิเคราะห์ access.log 14 วัน + หาเมือง/ISP ของ IP คนจริงจาก ip-api.com
-# (ฟรี · batch 100 IP/คำขอ · จำไว้ใน geo.json ไม่ถามซ้ำ) · 'คนจริง' ที่นี่ = ไม่ใช่ UA บอท / IP เรา / เครือข่ายบอท และ IP นั้นไม่ได้ยิงเกิน HEAVY_HITS ครั้งใน 14 วัน
-HEAVY_HITS = 150
+# 13 ต.ค. 69 (user: 'อยากเห็นว่าเป็นคนมาจากไหน กดด้วย iPhone') — วิเคราะห์ access.log 30 วัน + หาเมือง/ISP ของ IP คนจริงจาก ip-api.com
+# (ฟรี · batch 100 IP/คำขอ · จำไว้ใน geo.json ไม่ถามซ้ำ) · 'คนจริง' ที่นี่ = ไม่ใช่ UA บอท / IP เรา / เครือข่ายบอท และ IP นั้นไม่ได้ยิงเกิน HEAVY_HITS ครั้งใน 30 วัน
+HEAVY_HITS = 300   # ต่อ 30 วัน (เดิม 150/14 วัน)
 HOSTING_ISP = re.compile(r'hosting|server|data ?cent|cloud|cdn|leaseweb|limestone|datacamp|m247|vultr|linode|contabo|hetzner|ovh|digitalocean|choopa|colocation|dedicated|vps|amazon|microsoft|google llc|oracle|alibaba|tencent|akamai|fastly|zenlayer|psychz|quadranet|hostpapa|servermania|ace data|packet|scaleway|upcloud|kamatera|ionos|godaddy|namecheap|hostinger|ucloud|huawei', re.I)
 ACCESS_RE = re.compile(r'\S+ - - \[([^\]]+)\] "(\S+) (\S+) [^"]*" (\d+) \d+ "([^"]*)" "([^"]*)" "([^"]*)"')
 BOT_NAME = re.compile(r'(ClaudeBot|GPTBot|AhrefsBot|Googlebot|facebookexternalhit|meta-externalagent|Applebot|bingbot|PetalBot|SemrushBot|DotBot|YandexBot|Bytespider|Amazonbot|DuckDuckBot|MJ12bot|TikTokSpider|Twitterbot|LinkedInBot|Discordbot|Line/|NetcraftSurveyAgent|CCBot|ImagesiftBot|Barkrowler|DataForSeoBot)', re.I)
@@ -591,7 +591,7 @@ def geo_lookup(ips):
     return geo
 
 
-def visit_stats(names, days=14):
+def visit_stats(names, days=30):   # 13 ต.ค. 69 user: 'ขอย้อนหลัง 1 เดือน'
     log = os.path.join(ROOT, 'log', 'access.log')
     if not os.path.exists(log):
         return None
