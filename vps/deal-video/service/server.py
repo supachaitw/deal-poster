@@ -1193,6 +1193,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 # ⚠️ ใช้เวลา ~1–3 นาที/คลิป (service เรนเดอร์ทีละคลิป → บล็อกคำขอถัดไป) ใส่ veo เฉพาะดีลเด่น 1 ตัว/รอบเท่านั้น
 VEO_MODEL = os.environ.get('VEO_MODEL', 'veo-3.1-fast-generate-preview')   # 2 ต.ค. 69 user: 'ใช้ Fast' (Lite วาดของทรงเฉพาะผิดรุ่น) ≈ $0.80/คลิป
 VEO_TIMEOUT = int(os.environ.get('VEO_TIMEOUT', '240'))
+VEO_BOOM_MAX = float(os.environ.get('VEO_BOOM_MAX', '7'))   # 13 ต.ค. 69: ช่วงต้นทางที่ใช้ทำ boomerang (วิ) — reverse บัฟเฟอร์ทุกเฟรมในแรม คลิป user 10 วิ 720p ทำ ffmpeg โดน OOM kill (rc -9) ที่ลิมิต 700m · 7 วิ ≈ 170 เฟรม ≈ 230MB ผ่าน
 VEO_TRIM = float(os.environ.get('VEO_TRIM', '1.0'))   # วินาทีที่ตัดทิ้งจากหัวคลิป Veo (เฟรมแรก = รูปนิ่งต้นทาง)
 # 2 ต.ค. 69 user: "ส่งให้ดูก่อนโพสต์ แล้วค่อยเปิดอัตโนมัติ" → /render {review:{url,chat_id,caption}} + veo:true
 # Veo สำเร็จ = เก็บคลิปไว้ PENDING_DIR (mount /tiktok = /root/deal-video/tiktok บน host) + ส่งเข้า Telegram พร้อม '#veo <id>' บรรทัดแรก
@@ -1650,7 +1651,7 @@ def _boomerang(W, mp4, gen_s, model, demo=False, trim=None):
     print('[render] veo crop=%s' % (pre or 'none'), flush=True)
     graph = (f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,setpts=1.4*PTS[v]' if demo else   # demo (3 ต.ค. 69): เดินหน้า ช้าลง 1.4x (8 วิ → 11 วิ) แล้ว stream_loop · ย้อนกลับไม่ได้ (น้ำ/การกระทำถอยหลัง)
              f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]')
-    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '0' if demo else str(trim), '-i', W + '/veo.mp4', '-filter_complex',
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '0' if demo else str(trim), '-t', str(VEO_BOOM_MAX), '-i', W + '/veo.mp4', '-filter_complex',
          # 2 ต.ค. 69: boom.mp4 = 'ช่องบน' 720x790 โดยตรง — แนวนอน (aipass 16:9) ย่อให้สูง 790 พอดี (ตัดแค่ข้าง สินค้าเห็นเต็มตัว) · แนวตั้ง 9:16 (API) ย่อกว้าง 720 แล้วตัดเอาส่วนบน y 40 (สินค้าอยู่ครึ่งบนตาม prompt)
          # เดิมย่อเป็น 720x1280 แล้วค่อยตัด 790 → คลิปแนวนอนของ user ถูกซูม 1.78x สินค้าโดนตัดครึ่งใต้แถบมืด (user: 'แถบสีดำบังสินค้าหมดเลย')
          # 2 ต.ค. 69 (รอบ 3) user: 'เอาตัวหนังสือลง เอาสีดำออก ไม่ลดขนาดภาพ' → กลับเป็นเต็มเฟรม 720x1280 (scale increase + crop กลาง = เห็นสินค้าเต็มความสูงเสมอ) ตัวหนังสือย้ายลงล่าง+ขอบดำ ไม่มีแถบ
