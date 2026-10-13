@@ -401,7 +401,10 @@ def build(deals, now):
     write('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + ''.join(
         '<url><loc>%s%s</loc>%s<changefreq>%s</changefreq><priority>%s</priority></url>' % (SITE, u, '<lastmod>%s</lastmod>' % lm if lm else '', cf, pr)
         for u, lm, cf, pr in urls) + '</urlset>')
-    write('robots.txt', 'User-agent: *\nAllow: /\nDisallow: /go\nSitemap: %s/sitemap.xml\n' % SITE)
+    # 13 ต.ค. 69: ปิด SEO scraper ที่ไม่พาคนซื้อมา (Ahrefs/Semrush/…) · Google/Bing/FB/AI bot ปล่อยตามเดิม
+    blocked = ['AhrefsBot', 'SemrushBot', 'DotBot', 'MJ12bot', 'Bytespider', 'PetalBot', 'DataForSeoBot', 'Barkrowler', 'ImagesiftBot']
+    write('robots.txt', ''.join('User-agent: %s\nDisallow: /\n\n' % b for b in blocked)
+          + 'User-agent: *\nAllow: /\nDisallow: /go\nCrawl-delay: 5\nSitemap: %s/sitemap.xml\n' % SITE)
     write('rss.xml', '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>%s</title><link>%s/</link><description>ดีลลดราคา Shopee Lazada คัดแล้ว</description>%s</channel></rss>' % (
         BRAND, SITE, ''.join('<item><title>%s</title><link>%s/d/%s</link><guid>%s/d/%s</guid><description>%s</description>%s</item>' % (
             esc(d['name']), SITE, d['id'], SITE, d['id'], esc(('ลดเหลือ %s ฿ จาก %s ฿ (ลด %d%%)' % (money(d['sale']), money(d['full']), d['off'])) if d['off'] else ('ราคา %s ฿' % money(d['sale'] if d['sale'] is not None else d['full']))),
