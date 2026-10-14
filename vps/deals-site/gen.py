@@ -617,30 +617,35 @@ def visit_stats(names, days=30):   # 13 ต.ค. 69 user: 'ขอย้อนห
         rows.append((t, path, status, ref, ua, ip))
     hits = collections.Counter(r[5] for r in rows)
     bots = collections.Counter()
+    bot_day = collections.Counter()   # 14 ต.ค. 69: บอททุกชนิด (ประกาศตัว + ปลอม UA + สแกน) ต่อวัน ให้ dashboard โชว์ 'วันนี้/เมื่อวาน' แทนยอดสะสม
     excl = collections.Counter()
     human = []
     for t, path, status, ref, ua, ip in rows:
         b = BOT_NAME.search(ua)
         if b:
-            bots[b.group(1)] += 1; continue
+            bot_day[t.strftime('%Y-%m-%d')] += 1; bots[b.group(1)] += 1; continue
         if ip in OWN_IPS:
-            excl['own'] += 1; continue
+            bot_day[t.strftime('%Y-%m-%d')] += 1; excl['own'] += 1; continue
         if BOT_UA.search(ua) or not ua.startswith('Mozilla'):
-            excl['bot_ua'] += 1; continue
+            bot_day[t.strftime('%Y-%m-%d')] += 1; excl['bot_ua'] += 1; continue
         if ip.startswith(BOT_NETS):
-            excl['net'] += 1; continue
+            bot_day[t.strftime('%Y-%m-%d')] += 1; excl['net'] += 1; continue
         if hits[ip] > HEAVY_HITS:
-            excl['heavy'] += 1; continue
+            bot_day[t.strftime('%Y-%m-%d')] += 1; excl['heavy'] += 1; continue
         if re.search(r'\.(css|js|json|xml|png|jpg|ico|txt|webp|svg)(\?|$)|^/img/|^/go\?|^/\.well-known', path):
             continue   # ไฟล์ประกอบ ไม่ใช่การเปิดหน้า
         if not status.startswith(('2', '3')) or re.search(r'wp-|\.env|\.git|xmlrpc|phpmyadmin|/admin|\.php|/cgi-|/vendor/|/\.aws', path, re.I):
-            excl['scan'] += 1; continue   # 404 หรือ path สแกนหาช่องโหว่ (wp-login/.env/.git) ไม่ใช่คนเปิดเว็บ
+            bot_day[t.strftime('%Y-%m-%d')] += 1; excl['scan'] += 1; continue   # 404 หรือ path สแกนหาช่องโหว่ (wp-login/.env/.git) ไม่ใช่คนเปิดเว็บ
         human.append((t, path, status, ref, ua, ip))
     geo = geo_lookup(sorted({r[5] for r in human}))
     # ip-api ติดป้าย hosting ไม่ครบ → เสริมด้วยชื่อ ISP ที่เป็นผู้ให้เช่าเซิร์ฟเวอร์ (Leaseweb/Limestone/Datacamp/… ที่โผล่ใน log จริง)
     dc = {ip for ip in {r[5] for r in human} if (geo.get(ip) or {}).get('hosting') or HOSTING_ISP.search((geo.get(ip) or {}).get('isp', ''))}
     excl['datacenter'] = sum(1 for r in human if r[5] in dc)
+    for r in human:
+        if r[5] in dc:
+            bot_day[r[0].strftime('%Y-%m-%d')] += 1
     human = [r for r in human if r[5] not in dc]   # IP ของ cloud/datacenter = บอทที่ปลอม UA เบราว์เซอร์
+
     def g(ip):
         x = geo.get(ip) or {}
         return {'country': x.get('country', ''), 'cc': x.get('cc', ''), 'city': x.get('city', ''), 'isp': x.get('isp', '')}
@@ -679,7 +684,7 @@ def visit_stats(names, days=30):   # 13 ต.ค. 69 user: 'ขอย้อนห
                        'page': ('ดีล: ' + names.get(dm.group(1), dm.group(1))) if dm else s_['page'], 'pages': s_['pages'], **g(s_['ip'])})
     return {'days': days, 'views': len(human), 'views7': sum(1 for r in human if r[0] >= cut7), 'visitors': len(uniq),
             'visitors7': len({r[5] for r in human if r[0] >= cut7}), 'sessions': len(sessions),
-            'by_day': [{'d': d, 'views': by_day.get(d, 0), 'visitors': len(ips_day.get(d, ()))} for d in days_list],
+            'by_day': [{'d': d, 'views': by_day.get(d, 0), 'visitors': len(ips_day.get(d, ())), 'bots': bot_day.get(d, 0)} for d in days_list],
             'source': src.most_common(), 'device': dev.most_common(), 'country': country.most_common(12), 'visitor_country': uniq_c.most_common(12),
             'pages': [{'p': k, 'n': v} for k, v in pages.most_common(15)], 'bots': bots.most_common(15), 'excluded': dict(excl), 'recent': recent}
 
