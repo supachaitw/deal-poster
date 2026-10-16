@@ -10,7 +10,55 @@ import asyncio, base64, hashlib, json, math, os, re, shutil, subprocess, tempfil
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 FONTS = '/app/fonts'
-MUSIC = '/app/music/Carefree.mp3'
+MUSIC_DIR = '/app/music'
+# 16 ต.ค. 69 (user: 'คลิปแบบนี้ให้เปลี่ยนเพลงอื่นบ้าง') — คลังเพลง Kevin MacLeod (incompetech.com) CC BY 4.0 ทั้งหมด
+# key → (ไฟล์, ชื่อเพลงในเครดิต, วินาทีเริ่ม) · เลือกต่อคลิปแบบ LRU จาก /tiktok/music_log.json (ไม่ซ้ำ ~8 คลิปล่าสุด) · บังคับด้วย "music": "<key>"
+MUSIC_POOL = {
+    'carefree': ('Carefree.mp3', 'Carefree', 0),
+    'wallpaper': ('Wallpaper.mp3', 'Wallpaper', 0),
+    'riley': ('LifeofRiley.mp3', 'Life of Riley', 0),
+    'jaunty': ('JauntyGumption.mp3', 'Jaunty Gumption', 0),
+    'cheery': ('CheeryMonday.mp3', 'Cheery Monday', 0),
+    'beach': ('BeachParty.mp3', 'Beach Party', 0),
+    'upbeat': ('UpbeatForever.mp3', 'Upbeat Forever', 0),
+    'happybee': ('HappyBee.mp3', 'Happy Bee', 0),
+    'funkorama': ('Funkorama.mp3', 'Funkorama', 12),      # 12 วิแรกเบา (-22 dB) ข้ามไปท่อนหลัก
+    'monkeys': ('MonkeysSpinningMonkeys.mp3', 'Monkeys Spinning Monkeys', 0),
+}
+MUSIC_LOG = os.environ.get('MUSIC_LOG', '/tiktok/music_log.json')
+MUSIC = MUSIC_DIR + '/Carefree.mp3'   # สำรองเมื่อ pool ว่าง/ไฟล์หาย
+
+def music_credit(key):
+    t = MUSIC_POOL.get(key)
+    return '🎵 %s — Kevin MacLeod (incompetech.com) · CC BY 4.0' % (t[1] if t else 'Carefree')
+
+def fix_credit(text, key):
+    # แคปชันจาก n8n ใส่เครดิต Carefree ตายตัวมา → แทนด้วยเพลงที่ใช้จริงในคลิปนี้ (CC BY ต้องเครดิตให้ถูกเพลง)
+    return re.sub(r'🎵 [^\n]*?CC BY 4\.0', lambda m: music_credit(key), str(text or ''))
+
+def music_for(d):
+    keys = [k for k, v in MUSIC_POOL.items() if os.path.exists(MUSIC_DIR + '/' + v[0])]
+    forced = str(d.get('music') or '').strip().lower()
+    if forced in MUSIC_POOL and forced in keys:
+        key = forced
+    elif not keys:
+        return None, MUSIC, 0
+    else:
+        try:
+            recent = json.load(open(MUSIC_LOG))
+        except Exception:
+            recent = []
+        last = {k: i for i, k in enumerate(recent)}
+        h = int(hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest(), 16)
+        order = [keys[(h + i) % len(keys)] for i in range(len(keys))]
+        key = min(order, key=lambda k: last.get(k, -1))
+    try:
+        recent = [k for k in (json.load(open(MUSIC_LOG)) if os.path.exists(MUSIC_LOG) else []) if k != key] + [key]
+        tmp = MUSIC_LOG + '.new'; open(tmp, 'w').write(json.dumps(recent[-40:])); os.replace(tmp, MUSIC_LOG)
+    except Exception:
+        pass
+    f, _, start = MUSIC_POOL[key]
+    return key, MUSIC_DIR + '/' + f, start
 FPS = int(os.environ.get('FPS', '24'))   # #18: 30 → 24 (Reels รับได้ · วัด 11.0s → 9.7s)
 # #18 27 ก.ย. 69 วัดบนคลิปเพลง 11.8 วิ (idle): graph เดิม veryfast 14.7s/745KB · graph ใหม่ (bg/fg ทำครั้งเดียว) veryfast 10.9s/715KB · superfast 10.1s/1.4MB · ultrafast 9.3s/4.2MB
 # → คง veryfast (ไฟล์เท่าเดิม อัปโหลดไม่ช้าลง) · preset/crf/fps ตั้งผ่าน env ไว้ทดลอง
@@ -1984,7 +2032,10 @@ fade=t=out:st={D - 0.5:.2f}:d=0.5,format=yuv420p[v];
             cmd += ['-loop', '1', '-framerate', str(FPS), '-t', '0.5' if use_sb else str(D), '-i', W + '/bg.png', '-i', W + '/fg.png']   # โหมด storyboard: bg/fg ถูก nullsink ใส่สั้น ๆ พอ
         for w in wavs:
             cmd += ['-i', w]
-        cmd += ['-i', MUSIC]
+        mkey, mpath, mstart = music_for(d)
+        d['_music'] = mkey
+        print('[render] music=%s start=%ss' % (mkey, mstart), flush=True)
+        cmd += ['-ss', str(mstart), '-i', mpath]
         if use_sb:
             for i in range(4):
                 cmd += ['-i', W + '/sb%d.png' % (i + 1)]
@@ -2109,6 +2160,10 @@ class H(BaseHTTPRequestHandler):
             aigc = bool((veo or {}).get('ok') or (sb or {}).get('ok'))   # ภาพในคลิปสร้างด้วย AI (Veo API / คลิปที่ user gen / storyboard) → ติดป้ายทุกช่องทาง
             print('[timing] render=%.1fs dur=%s voice=%s veo=%s storyboard=%s aigc=%s' % (render_s, D, voiced, (veo or {}).get('ok'), (sb or {}).get('ok'), aigc), flush=True)
             tg = d.get('telegram') or d.get('discord'); tt = d.get('tiktok')
+            if d.get('_music'):   # เครดิตเพลงในทุกแคปชันต้องตรงเพลงที่ใช้จริง (n8n ส่ง Carefree ตายตัวมา)
+                for obj, k in ((tg, 'caption'), (tt, 'title'), (d.get('fb_reel'), 'description'), (d.get('review'), 'caption')):
+                    if isinstance(obj, dict) and obj.get(k):
+                        obj[k] = fix_credit(obj[k], d['_music'])
             if isinstance(tt, dict):
                 tt['aigc'] = aigc   # tt_post → post_info.is_aigc (TikTok ติดป้าย AI-generated ให้ในคำบรรยาย)
             fr = d.get('fb_reel') if (isinstance(d.get('fb_reel'), dict) and d['fb_reel'].get('post', True) and d['fb_reel'].get('token')) else None
@@ -2140,7 +2195,7 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200 if sent else 502, {'review': True, 'pending_id': pid, 'sent': sent, 'message_id': mid, 'bytes': len(mp4), 'voice': voiced,
                                                           'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo})
             if tg or tt or fr:
-                out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo, 'storyboard': sb, 'aigc': aigc}
+                out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo, 'storyboard': sb, 'aigc': aigc, 'music': d.get('_music')}
                 ok = True
                 # 2 ต.ค. 69: ขอ Veo แต่ไม่ได้ (เกินโควตา 4/วัน, ล้ม, รูปแบนเนอร์) และมี review → ส่ง "รูปสินค้า + prompt" ให้ user ทำคลิป Veo เองใน aipass/Flow แล้ว Reply คลิปกลับที่ข้อความรูป (caption มี #d)
                 if tg and rv and d.get('veo') and not (veo or {}).get('ok') and pid_d and 'lazada-creative-center' not in str(d.get('img', '')):
@@ -2211,7 +2266,7 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200 if code == 200 else 502, {
                     'uploaded': code == 200, 'status': code, 'response': body[:800],
                     'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto',
-                    'duration': D, 'lines': lines, 'render_s': render_s, 'upload_s': upload_s, 'veo': veo, 'storyboard': sb, 'aigc': aigc})
+                    'duration': D, 'lines': lines, 'render_s': render_s, 'upload_s': upload_s, 'veo': veo, 'storyboard': sb, 'aigc': aigc, 'music': d.get('_music')})
         except subprocess.CalledProcessError as e:
             return self._json(500, {'error': 'ffmpeg failed', 'detail': (e.stderr or b'')[-800:].decode('utf-8', 'replace')})
         except Exception as e:
@@ -2226,6 +2281,7 @@ class H(BaseHTTPRequestHandler):
         self.send_header('X-Veo', '1' if (veo or {}).get('ok') else '0')
         self.send_header('X-Storyboard', '1' if (sb or {}).get('ok') else '0')
         self.send_header('X-AIGC', '1' if aigc else '0')
+        self.send_header('X-Music', str(d.get('_music') or ''))
         self.end_headers()
         self.wfile.write(mp4)
 
