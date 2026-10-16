@@ -2228,12 +2228,12 @@ class H(BaseHTTPRequestHandler):
                 if tt:
                     t_u = time.time()
                     r = tt_post(tt, mp4)
-                    print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s aigc=%s err=%s' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), tt.get('aigc'), r.get('error')), flush=True)
+                    print('[timing] tiktok=%.1fs ok=%s mode=%s privacy=%s status=%s aigc=%s err=%s publish_id=%s' % (time.time() - t_u, r.get('ok'), r.get('mode'), r.get('privacy'), r.get('status'), tt.get('aigc'), r.get('error'), r.get('publish_id')), flush=True)   # 16 ต.ค. 69: publish_id ไว้ตาม/แจ้ง TikTok เมื่อร่างไม่โผล่ในแอป
                     out['tiktok'] = r; ok = ok and bool(r.get('ok'))
                     if r.get('ok') and d.get('deal_id'):
                         try:
                             os.makedirs('/tiktok/posted', exist_ok=True)
-                            json.dump({'at': time.time(), 'name': d.get('name')}, open(os.path.join('/tiktok/posted', safe_id(d['deal_id']) + '.json'), 'w'), ensure_ascii=False)
+                            json.dump({'at': time.time(), 'name': d.get('name'), 'publish_id': r.get('publish_id'), 'status': r.get('status')}, open(os.path.join('/tiktok/posted', safe_id(d['deal_id']) + '.json'), 'w'), ensure_ascii=False)
                         except Exception:
                             pass
                 if fr:
