@@ -16,7 +16,7 @@ MUSIC_DIR = '/app/music'
 MUSIC_POOL = {
     'carefree': ('Carefree.mp3', 'Carefree', 0),
     'wallpaper': ('Wallpaper.mp3', 'Wallpaper', 0),
-    'riley': ('LifeofRiley.mp3', 'Life of Riley', 0),
+    # 'riley': Life of Riley ถอดออก 16 ต.ค. 69 — TikTok music copyright check ตีว่าเป็น 'Riley'/'Life of Riley'/'Trusting Jesus' (มีคนเอาไปจดเป็นเพลงตัวเอง) · ไฟล์ยังอยู่ใน music/
     'jaunty': ('JauntyGumption.mp3', 'Jaunty Gumption', 0),
     'cheery': ('CheeryMonday.mp3', 'Cheery Monday', 0),
     'beach': ('BeachParty.mp3', 'Beach Party', 0),
