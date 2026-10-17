@@ -87,6 +87,8 @@ def to_deal(p):
         src = 'lazada' if ('lazada' in host or 'lzd.co' in host) else 'tiktok' if 'tiktok' in host else 'shopee'
     full = (pr.get('ราคาเต็ม') or {}).get('number')
     sale = (pr.get('ราคาลด') or {}).get('number')
+    if full is None or sale is None:   # #Supachai 16/10/2569 มีราคาเดียว → ใช้ราคาเดียวกันทั้งสองช่อง
+        full = sale = full if full is not None else sale
     off = round((1 - sale / full) * 100) if (full and sale and full > sale) else 0
     cat = ((pr.get('หมวด') or {}).get('select') or {}).get('name') or 'อื่นๆ'
     when = ((pr.get('โพสต์เมื่อ') or {}).get('date') or {}).get('start') or ''
@@ -269,13 +271,34 @@ if(more){more.addEventListener('click',function(){load(function(j){var have=grid
 DETAIL_JS = r"""<script>(function(){var b=document.getElementById('cp');if(!b)return;b.addEventListener('click',function(){var u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(function(){b.textContent='คัดลอกแล้ว'},function(){prompt('คัดลอกลิงก์',u)})})})();</script>"""
 
 
+def hot_picks(deals, now, n=6):
+    """แถบ 'ลดแรง' — 17 ต.ค. 69 user: เห็นชุดเดิมทุกวัน (เดิม = top 6 ตาม % ใน 14 วัน นิ่งจนกว่าจะหลุดกรอบ)
+    ตอนนี้: (1) ของใหม่ก่อน — ดีลลด >= 20% ที่โพสต์ใน 2 วัน → ไม่ครบค่อยขยาย 7 → 14 วัน
+    (2) หมุนทุกวัน — ในแต่ละช่วง เอา 12 ใบที่ลดเยอะสุดมาสับด้วย seed = วันที่ไทย แล้วหยิบเท่าที่ขาด
+    → ชุดเปลี่ยนทุกวันแม้ไม่มีดีล % ใหม่เข้ามา และดีลใหม่ที่มี % จะขึ้นก่อนเสมอ · ไม่พอ 3 ใบ = ใช้ดีลที่มี % ทั้งหมด"""
+    import random
+    day = now.date().isoformat()
+    pool = [d for d in deals if d['off'] >= 20]
+    picks, seen = [], set()
+    for days in (2, 7, 14):
+        cut = (now - datetime.timedelta(days=days)).date().isoformat()
+        cand = sorted([d for d in pool if d['when'] >= cut and d['id'] not in seen], key=lambda d: -d['off'])[:12]
+        random.Random(day + str(days)).shuffle(cand)
+        for d in cand[:n - len(picks)]:
+            picks.append(d); seen.add(d['id'])
+        if len(picks) >= n:
+            break
+    if len(picks) < 3:
+        cand = sorted([d for d in deals if d['off'] and d['id'] not in seen], key=lambda d: -d['off'])[:12]
+        random.Random(day).shuffle(cand)
+        picks += cand[:n - len(picks)]
+    return picks
+
+
 def build(deals, now):
     counts = collections.Counter(d['cat'] for d in deals)
     upd = '%02d:%02d น.' % (now.hour, now.minute)
-    recent = [d for d in deals if d['off'] >= 20 and d['when'] >= (now - datetime.timedelta(days=14)).date().isoformat()]
-    hot = sorted(recent, key=lambda d: -d['off'])[:6]
-    if len(hot) < 3:
-        hot = sorted([d for d in deals if d['off']], key=lambda d: -d['off'])[:6]
+    hot = hot_picks(deals, now)
     hot_ids = {d['id'] for d in hot}
 
     # ----- index -----
@@ -286,7 +309,7 @@ def build(deals, now):
              ) % (len(deals), DAYS)
     body += chips(counts)
     if hot:
-        body += ('<section class="hot"><div class="sh"><h2>%s ลดแรงวันนี้</h2><a href="#latest">ดูทั้งหมด</a></div><div class="row">%s</div></section>'
+        body += ('<section class="hot"><div class="sh"><h2>%s ลดแรง · คัดใหม่ทุกวัน</h2><a href="#latest">ดูทั้งหมด</a></div><div class="row">%s</div></section>'
                  ) % (svg('bolt', '#C63F1E', 20), ''.join(card(d, big=True) for d in hot))
     body += ('<section class="latest" id="latest"><div class="sh"><h2>ดีลล่าสุด</h2><span id="info">อัปเดต %s</span></div>'
              '<div class="grid" id="grid">%s</div>%s</section>'
