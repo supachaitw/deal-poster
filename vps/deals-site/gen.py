@@ -220,8 +220,9 @@ def chips(counts, active='all'):
     return ''.join(out)
 
 
-def subscribe():
-    return ('<section class="sub" id="subscribe"><h2>ดีลดีหมดเร็ว<br>รับแจ้งเตือนก่อนใคร</h2>'
+def subscribe(top=False):
+    # 17 ต.ค. 69 user: กล่องรับแจ้งเตือน 'ให้แสดงที่ด้านบนด้วย' → หน้าแรก/หน้าหมวดมีทั้งบน (ใต้ hero) และล่าง
+    return ('<section class="sub%s">' % (' subt' if top else '" id="subscribe') + '<h2>ดีลดีหมดเร็ว<br>รับแจ้งเตือนก่อนใคร</h2>'
             '<p>ส่งเฉพาะดีลที่คัดแล้ว วันละไม่เกิน 7 รอบ ไม่มีสแปม</p>'
             '<a class="btn w" href="%s" rel="noopener">%s Telegram @paiyaa_deals</a>%s'
             '<div class="soc"><a href="%s" rel="noopener">Instagram</a><a href="%s" rel="noopener">Facebook</a><a href="%s" rel="noopener">Threads</a></div></section>'
@@ -310,7 +311,7 @@ def build(deals, now):
     body += ('<section class="hero"><h1>ดีลเด็ดวันนี้<br>คัดแล้วจาก Shopee และ Lazada</h1>'
              '<p>อัปเดตทุก 3 ชั่วโมง · %d ดีลใน %d วันล่าสุด · ราคาที่เห็นคือราคาตอนโพสต์ กดไปเช็คราคาสดที่ร้านได้เลย</p></section>'
              ) % (len(deals), DAYS)
-    body += chips(counts)
+    body += subscribe(top=True) + chips(counts)
     if hot:
         body += ('<section class="hot"><div class="sh"><h2>%s ลดแรง · คัดใหม่ทุกวัน</h2><a href="#latest">ดูทั้งหมด</a></div><div class="row">%s</div></section>'
                  ) % (svg('bolt', '#C63F1E', 20), ''.join(card(d, big=True) for d in hot))
@@ -331,7 +332,7 @@ def build(deals, now):
         if not items:
             continue
         body = header() + '<main class="wrap">' + ('<section class="hero"><h1>ดีล%s</h1><p>%d รายการใน %d วันล่าสุด · อัปเดต %s</p></section>' % (l, len(items), DAYS, upd))
-        body += chips(counts, s)
+        body += subscribe(top=True) + chips(counts, s)
         body += '<section class="latest"><div class="grid" id="grid">%s</div></section>' % ''.join(card(d) for d in items)
         body += subscribe() + '</main>' + footer() + SEARCH_JS
         write('c/%s.html' % s, page('ดีล%s — %s' % (l, BRAND), body, 'ดีลลดราคาหมวด%s จาก Shopee และ Lazada คัดแล้ว %d รายการ' % (l, len(items)), '/c/' + s))

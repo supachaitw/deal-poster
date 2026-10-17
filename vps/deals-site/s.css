@@ -76,6 +76,7 @@ h1,h2,h3,.kn{font-family:Kanit,"Noto Sans Thai",sans-serif;font-weight:600;lette
 @media(min-width:800px){.btn.o{width:auto;padding:0 28px}}
 /* subscribe */
 .sub{margin:20px 0 0;padding:20px 18px;border-radius:18px;background:var(--tl);color:#fff;display:flex;flex-direction:column;gap:12px}
+.subt{margin:4px 0 14px}
 .sub h2{margin:0;font-size:21px;line-height:1.25}
 .sub p{margin:0;font-size:14px;color:#DDEDE8}
 .sub .btn{width:100%}
