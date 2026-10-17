@@ -1700,6 +1700,24 @@ VEO_KF_MODEL = os.environ.get('VEO_KF_MODEL', 'veo-3.1-lite-generate-preview')
 VEO_KF_DAILY_MAX = int(os.environ.get('VEO_KF_DAILY_MAX', '0'))   # 0 = ปิด (user 3 ต.ค. 69: 3/วัน = ฿1,260/เดือน 'เยอะไป' — รอเคาะจำนวน · เปิด = ตั้ง env แล้ว deploy)
 VEO_KF_COUNT_FILE = os.environ.get('VEO_KF_COUNT_FILE', '/tiktok/veo_kf_count.json')
 
+# 17 ต.ค. 69 user: 'ให้ 4 คลิปตกรอบเย็นแทน' → keyframes เฉพาะรอบใน VEO_KF_ROUND_HOURS (ดีลแรกของรอบ) · veo_kf:true ข้ามเงื่อนไขรอบ
+VEO_KF_ROUND_HOURS = [int(x) for x in os.environ.get('VEO_KF_ROUND_HOURS', '12,15,18,21').split(',') if x.strip().isdigit()]
+# 17 ต.ค. 69 user: 'storyboard ยังไม่ได้เอาไปทำต่อ ปิดไว้ก่อน' (ถามอีกทีปลาย ต.ค.) → ดีลที่โพสต์ไม่ได้ storyboard ภาพนิ่งแล้ว
+# ทำ storyboard เฉพาะตอนจะใช้เป็นเฟรมของ keyframes · STORYBOARD_POSTED=1 = กลับไปทำทุกดีลแรกของรอบแบบเดิม
+STORYBOARD_POSTED = os.environ.get('STORYBOARD_POSTED', '0') == '1'
+
+def kf_quota_left():
+    day = time.strftime('%Y-%m-%d', time.gmtime(time.time() + 7 * 3600))
+    try:
+        return int(json.load(open(VEO_KF_COUNT_FILE)).get(day, 0)) < VEO_KF_DAILY_MAX
+    except Exception:
+        return VEO_KF_DAILY_MAX > 0
+
+def kf_wanted(d):
+    if d.get('veo_kf'):
+        return True
+    return bool(d.get('veo')) and current_round() in VEO_KF_ROUND_HOURS and (d.get('veo_test') or kf_quota_left())
+
 def kf_quota_take():
     day = time.strftime('%Y-%m-%d', time.gmtime(time.time() + 7 * 3600))
     try:
@@ -1898,14 +1916,14 @@ def render(d):
         # 4 ต.ค. 69 user 'แพงไป': storyboard (฿1–2/คลิป) เฉพาะคลิปที่ถูกโพสต์จริง (tiktok หรือ fb_reel.post = ดีลแรกของรอบ) หรือสั่งตรง storyboard:true ·
         # คลิปที่ส่งเข้า Telegram อย่างเดียว (IG พัก, user อัปโหลดเองไม่กี่ตัว) ใช้รูปร้านแบบเดิม · STORYBOARD_ALL=1 กลับไปทำทุกคลิป
         posted = bool(d.get('tiktok')) or (isinstance(d.get('fb_reel'), dict) and bool(d['fb_reel'].get('post', True)))
-        sb_wanted = d.get('storyboard') is True or d.get('storyboard_test') or (STORYBOARD_ALL and d.get('storyboard') is not False) or (posted and d.get('storyboard') is not False)
+        sb_wanted = d.get('storyboard') is True or d.get('storyboard_test') or (STORYBOARD_ALL and d.get('storyboard') is not False) or (posted and d.get('storyboard') is not False and (STORYBOARD_POSTED or kf_wanted(d)))
         if not use_veo and STORYBOARD and sb_wanted and GOOGLE_AI_KEY and 'lazada-creative-center' not in str(d.get('img', '')):
             sb = storyboard_panels(W, d)
             print('[render] storyboard ok=%s gen=%ss err=%s' % (sb.get('ok'), sb.get('gen_s'), sb.get('error')), flush=True)
         use_sb = bool(sb and sb.get('ok'))
         # 5 ต.ค. 69: Veo Lite keyframes (2/วัน) ใช้กับดีลที่มี tiktok (= รอบ 18/21) · veo_kf:true บังคับได้
         # 17 ต.ค. 69 user: 'ประกอบคลิปให้เลย ผมจะได้ upload อย่างเดียว' → keyframes ทุกรอบที่ขอ veo (ดีลแรกของทุกรอบ 7/วัน, VEO_KF_DAILY_MAX=7) ไม่ผูกกับ tiktok แล้ว · user โหลดคลิปจาก #clips ไปอัปโหลดเอง
-        if use_sb and (d.get('veo_kf') or d.get('veo')) and str((veo or {}).get('error', '')).startswith('daily cap'):
+        if use_sb and kf_wanted(d) and str((veo or {}).get('error', '')).startswith('daily cap'):
             # 3 ต.ค. 69 B: ขอ Veo แต่โควตา Fast หมด (รอบ 15/18/21) → Veo Lite เชื่อมเฟรม storyboard ช่อง 1→4 (โควตาแยก 3/วัน) · ล้ม = ใช้ storyboard ภาพนิ่งต่อ
             kf = veo_keyframes(W, d)
             print('[render] veo keyframes ok=%s gen=%ss err=%s' % (kf.get('ok'), kf.get('gen_s'), kf.get('error')), flush=True)
