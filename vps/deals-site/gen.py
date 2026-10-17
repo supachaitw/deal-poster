@@ -221,8 +221,13 @@ def chips(counts, active='all'):
 
 
 def subscribe(top=False):
-    # 17 ต.ค. 69 user: กล่องรับแจ้งเตือน 'ให้แสดงที่ด้านบนด้วย' → หน้าแรก/หน้าหมวดมีทั้งบน (ใต้ hero) และล่าง
-    return ('<section class="sub%s">' % (' subt' if top else '" id="subscribe') + '<h2>ดีลดีหมดเร็ว<br>รับแจ้งเตือนก่อนใคร</h2>'
+    # 17 ต.ค. 69 user: กล่องรับแจ้งเตือน 'ให้แสดงที่ด้านบนด้วย' แล้ว 'ใหญ่เกินไปจริง ๆ' → ด้านบนเป็นแถบเตี้ย หัวข้อบรรทัดเดียว + 2 ปุ่มชื่อสั้น
+    if top:
+        return ('<section class="sub subt"><h2>ดีลดีหมดเร็ว รับแจ้งเตือนก่อนใคร</h2>'
+                '<a class="btn w" href="%s" rel="noopener">%s Telegram</a>%s</section>'
+                ) % (TG, svg('send', '#1F6E63', 16),
+                     '<a class="btn dc" href="%s" rel="noopener">%s Discord</a>' % (DC, svg('chat', '#fff', 16)) if DC else '')
+    return ('<section class="sub" id="subscribe"><h2>ดีลดีหมดเร็ว<br>รับแจ้งเตือนก่อนใคร</h2>'
             '<p>ส่งเฉพาะดีลที่คัดแล้ว วันละไม่เกิน 7 รอบ ไม่มีสแปม</p>'
             '<a class="btn w" href="%s" rel="noopener">%s Telegram @paiyaa_deals</a>%s'
             '<div class="soc"><a href="%s" rel="noopener">Instagram</a><a href="%s" rel="noopener">Facebook</a><a href="%s" rel="noopener">Threads</a></div></section>'
