@@ -24,17 +24,28 @@ MUSIC_POOL = {
     'happybee': ('HappyBee.mp3', 'Happy Bee', 0),
     'funkorama': ('Funkorama.mp3', 'Funkorama', 12),      # 12 วิแรกเบา (-22 dB) ข้ามไปท่อนหลัก
     'monkeys': ('MonkeysSpinningMonkeys.mp3', 'Monkeys Spinning Monkeys', 0),
+    # 17 ต.ค. 69 เพลงที่ user gen เองใน aipass (prompt จาก Claude) — ไม่ซ้ำใคร ไม่โดน copyright check · ไม่ต้องใส่เครดิต (ชื่อ None)
+    'ai_acoustic': ('ai_acoustic.mp3', None, 0),
+    'ai_pop': ('ai_pop.mp3', None, 0),
+    'ai_funk': ('ai_funk.mp3', None, 0),
+    'ai_warm': ('ai_warm.mp3', None, 0),
+    'ai_sale': ('ai_sale.mp3', None, 0),
 }
 MUSIC_LOG = os.environ.get('MUSIC_LOG', '/tiktok/music_log.json')
 MUSIC = MUSIC_DIR + '/Carefree.mp3'   # สำรองเมื่อ pool ว่าง/ไฟล์หาย
 
 def music_credit(key):
     t = MUSIC_POOL.get(key)
+    if t and t[1] is None:
+        return ''   # เพลงของเราเอง ไม่มีเครดิต
     return '🎵 %s — Kevin MacLeod (incompetech.com) · CC BY 4.0' % (t[1] if t else 'Carefree')
 
 def fix_credit(text, key):
     # แคปชันจาก n8n ใส่เครดิต Carefree ตายตัวมา → แทนด้วยเพลงที่ใช้จริงในคลิปนี้ (CC BY ต้องเครดิตให้ถูกเพลง)
-    return re.sub(r'🎵 [^\n]*?CC BY 4\.0', lambda m: music_credit(key), str(text or ''))
+    c = music_credit(key)
+    if not c:   # เพลงของเราเอง → ลบบรรทัดเครดิตทิ้งทั้งบรรทัด
+        return re.sub(r'\n?🎵 [^\n]*?CC BY 4\.0[^\n]*', '', str(text or ''))
+    return re.sub(r'🎵 [^\n]*?CC BY 4\.0', lambda m: c, str(text or ''))
 
 def music_for(d):
     keys = [k for k, v in MUSIC_POOL.items() if os.path.exists(MUSIC_DIR + '/' + v[0])]
