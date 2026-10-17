@@ -317,7 +317,12 @@ def gap_for(role, seed):
 # payload ส่ง "voice": true/false มา = บังคับ (เผื่อทดสอบมือ) · ไม่ส่ง = auto ตามรอบ
 ROUND_HOURS = [0, 6, 9, 12, 15, 18, 21]   # ต้องตรงกับ cron ของ Deal Poster v1 — แก้ที่นั่นต้องแก้ที่นี่ด้วย
 
+# 17 ต.ค. 69 user: 'เพลงล้วนที่ผมบอกคือโปรเจค lofi ไม่ใช่ deal-poster' → คลิปดีลมีพากย์ทุกรอบ
+# VOICE_ALTERNATE=1 ใน env = กลับไปสลับรอบพากย์/เพลงล้วนแบบเดิม
+VOICE_ALTERNATE = os.environ.get('VOICE_ALTERNATE', '0') == '1'
 def voice_for_round(now=None):
+    if not VOICE_ALTERNATE:
+        return True
     # Asia/Bangkok = UTC+7 ตลอดปี ไม่มี DST เลยบวกตรง ๆ ไม่ต้องพึ่ง tzdata ในคอนเทนเนอร์
     now = (now if now is not None else time.time()) + 7 * 3600
     hour = time.gmtime(now).tm_hour
