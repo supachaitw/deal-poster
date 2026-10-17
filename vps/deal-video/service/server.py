@@ -344,6 +344,8 @@ def voice_for_round(now=None):
 
 # 5 ต.ค. 69 user: TikTok (ร่าง) เฉพาะรอบ 18:00 และ 21:00 น. — user โพสต์ราว 19:00 / 21:30 · ไม่ใช่รอบนี้ = ตัด tiktok ออกจากคำขอของรอบ (ดีลแรกยังได้ FB Reel + TG)
 # คลิปที่ user Reply ส่งเอง (deal_id) ไม่ถูกจำกัด · env TIKTOK_ROUND_HOURS='18,21' · tiktok.force:true = ข้ามเงื่อนไข (ทดสอบ)
+# 17 ต.ค. 69 user: 'หยุดส่งร่างเข้า tiktok ก่อน ช่วงนี้ผมทำที่ pc' → TIKTOK_DRAFTS=0 ใน .env = ไม่ส่งร่างเลยทุก path (รวม /clip) · คลิปยังเข้า #clips พร้อมแคปชันแยก
+TIKTOK_DRAFTS = os.environ.get('TIKTOK_DRAFTS', '1') != '0'
 TIKTOK_ROUND_HOURS = [int(x) for x in os.environ.get('TIKTOK_ROUND_HOURS', '18,21').split(',') if x.strip().isdigit()]
 
 def current_round(now=None):
@@ -2245,7 +2247,10 @@ class H(BaseHTTPRequestHandler):
                     d[k] = float(d[k]) if d.get(k) not in (None, '', 0) else None
                 except (TypeError, ValueError):
                     d[k] = None
-            if isinstance(d.get('tiktok'), dict) and not d.get('deal_id') and not d['tiktok'].get('force') and current_round() not in TIKTOK_ROUND_HOURS:
+            if isinstance(d.get('tiktok'), dict) and not TIKTOK_DRAFTS and not d['tiktok'].get('force'):
+                print('[render] tiktok skipped (TIKTOK_DRAFTS=0)', flush=True)
+                d.pop('tiktok')
+            elif isinstance(d.get('tiktok'), dict) and not d.get('deal_id') and not d['tiktok'].get('force') and current_round() not in TIKTOK_ROUND_HOURS:
                 print('[render] tiktok skipped (round %02d:00 not in %s)' % (current_round(), TIKTOK_ROUND_HOURS), flush=True)
                 d.pop('tiktok')
             forced = d.get('voice') is not None   # โหมดบังคับ/auto ใช้ตอบ header+JSON ด้านล่าง (เดิมนิยามแค่ใน render() → NameError ทำทุก request ตอบ 500 ตั้งแต่ 22 ก.ย. 69)
