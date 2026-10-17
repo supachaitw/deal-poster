@@ -699,6 +699,8 @@ n8n เข้าถึงภายในได้ที่ `n8n:5678` (alias บ
 
 **⏸ หยุดส่งร่าง TikTok 17 ต.ค. 69 18:26 น. (user: 'หยุดส่งร่างเข้า tiktok ก่อน ช่วงนี้ผมทำที่ pc')** — `.env` ของ service `TIKTOK_DRAFTS=0` → `/render` ตัด `tiktok` ออกทุกคำขอ (รวม /clip และรอบ 18/21) ยกเว้น `tiktok.force:true` · log `[render] tiktok skipped (TIKTOK_DRAFTS=0)` · คลิป+แคปชันแยกยังเข้า #clips ให้ user อัปเองจาก PC · เปิดกลับ = ลบบรรทัดนั้นใน .env แล้ว deploy · backup `server.py.bak.20261017f`
 
+**⏸ หยุดข้อความ 'รูป + prompt ทำคลิป Veo เอง' 17 ต.ค. 69 21:27 น. (user: 'ทำคลิป Veo เอง ก็หยุดไว้ก่อน')** — `.env` ของ service `VEO_MANUAL_PROMPT=0` → ดีลแรกที่ขอ veo แต่ไม่ได้ Veo ไม่ส่งรูป+prompt เข้า #clips แล้ว (คลิปปกติยังส่ง) · Veo Lite keyframes อัตโนมัติ (รอบ 12/15/18/21) ไม่กระทบ · เปิดกลับ = ลบบรรทัดนั้นแล้ว deploy · backup `server.py.bak.20261017g`
+
 **VPS รีบูต 16 ต.ค. 69 ~16:27 UTC (kernel 6.8.0-134 → 6.8.0-147, น่าจะ Hostinger/unattended-upgrades)** — container ทั้ง 30 ตัวกลับมาเอง (restart policy) รอบ 00:00 น. 17 ต.ค. รันปกติ · ผลข้างเคียง: scratchpad ของ session ใน `/tmp` หาย (สคริปต์ชั่วคราวต้องเขียนใหม่) · cache ของ deals-proxy หาย (ปกติ)
 
 ## เมื่อจบงานแต่ละครั้ง

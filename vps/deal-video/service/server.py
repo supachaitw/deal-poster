@@ -346,6 +346,7 @@ def voice_for_round(now=None):
 # คลิปที่ user Reply ส่งเอง (deal_id) ไม่ถูกจำกัด · env TIKTOK_ROUND_HOURS='18,21' · tiktok.force:true = ข้ามเงื่อนไข (ทดสอบ)
 # 17 ต.ค. 69 user: 'หยุดส่งร่างเข้า tiktok ก่อน ช่วงนี้ผมทำที่ pc' → TIKTOK_DRAFTS=0 ใน .env = ไม่ส่งร่างเลยทุก path (รวม /clip) · คลิปยังเข้า #clips พร้อมแคปชันแยก
 TIKTOK_DRAFTS = os.environ.get('TIKTOK_DRAFTS', '1') != '0'
+VEO_MANUAL_PROMPT = os.environ.get('VEO_MANUAL_PROMPT', '1') != '0'   # 17 ต.ค. 69: 0 = ไม่ส่งข้อความรูป+prompt ให้ user ทำคลิป Veo เอง
 TIKTOK_ROUND_HOURS = [int(x) for x in os.environ.get('TIKTOK_ROUND_HOURS', '18,21').split(',') if x.strip().isdigit()]
 
 def current_round(now=None):
@@ -2303,7 +2304,7 @@ class H(BaseHTTPRequestHandler):
                 out = {'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto', 'duration': D, 'lines': lines, 'render_s': render_s, 'veo': veo, 'storyboard': sb, 'aigc': aigc, 'music': d.get('_music')}
                 ok = True
                 # 2 ต.ค. 69: ขอ Veo แต่ไม่ได้ (เกินโควตา 4/วัน, ล้ม, รูปแบนเนอร์) และมี review → ส่ง "รูปสินค้า + prompt" ให้ user ทำคลิป Veo เองใน aipass/Flow แล้ว Reply คลิปกลับที่ข้อความรูป (caption มี #d)
-                if tg and rv and d.get('veo') and not (veo or {}).get('ok') and pid_d and 'lazada-creative-center' not in str(d.get('img', '')):
+                if VEO_MANUAL_PROMPT and tg and rv and d.get('veo') and not (veo or {}).get('ok') and pid_d and 'lazada-creative-center' not in str(d.get('img', '')):
                     try:
                         jpg = urllib.request.urlopen(urllib.request.Request(d['img'], headers={'User-Agent': 'Mozilla/5.0'}), timeout=30).read()
                         shot_u, prompt_u = veo_prompt_for(d)
