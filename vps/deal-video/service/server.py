@@ -802,8 +802,28 @@ def _out(tg, tg_fn, text, data, fname, mention):
     ok_d, did = dc_post(tg.get('channel') or DISCORD_CHANNEL, text + (DC_HINT if '#d ' in text else ''), data, fname, mention)
     return (ok_t or ok_d), (mid if ok_t else did)
 
+DC_MAX_BYTES = int(os.environ.get('DC_MAX_BYTES', str(9_500_000)))   # 17 ต.ค. 69: Discord รับไฟล์ ≤ 10MB (เซิร์ฟเวอร์ไม่บูสต์) — คลิป Veo พากย์ 27 วิ ออกมา 9.97MB เฉียดเพดาน
+
+def shrink_video(mp4):
+    """ไฟล์ใหญ่กว่า DC_MAX_BYTES → encode ซ้ำด้วย crf สูงขึ้น (เสียงคัดลอก) จนพอดี · ล้ม/ยังใหญ่ = คืนของเดิม (บอทจะปฏิเสธเองแล้ว log บอก)"""
+    if len(mp4) <= DC_MAX_BYTES:
+        return mp4
+    try:
+        with tempfile.TemporaryDirectory() as W:
+            open(W + '/in.mp4', 'wb').write(mp4)
+            for crf in (26, 30):
+                subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', W + '/in.mp4', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', str(crf), '-c:a', 'copy', '-movflags', '+faststart', W + '/out.mp4'], check=True, timeout=180)
+                out = open(W + '/out.mp4', 'rb').read()
+                print('[discord] shrink %d -> %d bytes (crf %d)' % (len(mp4), len(out), crf), flush=True)
+                if len(out) <= DC_MAX_BYTES:
+                    return out
+            return out
+    except Exception as e:
+        print('[discord] shrink failed: %s' % str(e)[:120], flush=True)
+        return mp4
+
 def out_video(tg, mp4, caption):
-    return _out(tg, lambda: tg_send_video(tg, mp4, caption), caption or '', mp4, 'deal.mp4', False)
+    return _out(tg, lambda: tg_send_video(tg, mp4, caption), caption or '', shrink_video(mp4), 'deal.mp4', False)
 
 def out_photo(tg, jpg, caption):
     return _out(tg, lambda: tg_send_photo(tg, jpg, caption), caption or '', jpg, 'product.jpg', True)
@@ -1722,6 +1742,18 @@ def veo_keyframes(W, d):
             return {'ok': False, 'error': str(op['error'])[:200], 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
         gv = (op.get('response') or {}).get('generateVideoResponse') or {}
         samples = gv.get('generatedSamples') or []
+        if not samples and not d.get('_kf_retry') and time.time() - t0 < VEO_TIMEOUT / 2:
+            # 17 ต.ค. 69: RAI กรองแบบสุ่ม (ไม่คิดเงิน · 8 ต.ค. ส่งซ้ำครั้งที่ 2 ผ่าน) → ลองใหม่ 1 ครั้งในคำขอเดียว ไม่นับโควตาเพิ่ม
+            print('[render] veo keyframes filtered -> retry once', flush=True)
+            d['_kf_retry'] = True
+            op = json.load(urllib.request.urlopen(urllib.request.Request(base + 'models/%s:predictLongRunning' % model, json.dumps(body).encode(), H), timeout=60))
+            while not op.get('done'):
+                if time.time() - t0 > VEO_TIMEOUT:
+                    return {'ok': False, 'error': 'timeout %ds (retry)' % VEO_TIMEOUT, 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
+                time.sleep(8)
+                op = json.load(urllib.request.urlopen(urllib.request.Request(base + op['name'], headers=H), timeout=30))
+            gv = (op.get('response') or {}).get('generateVideoResponse') or {}
+            samples = gv.get('generatedSamples') or []
         if not samples:
             return {'ok': False, 'error': 'no sample (filtered=%s %s)' % (gv.get('raiMediaFilteredCount'), [str(x)[:100] for x in (gv.get('raiMediaFilteredReasons') or [])]), 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
         mp4 = urllib.request.urlopen(urllib.request.Request(samples[0]['video']['uri'], headers={'x-goog-api-key': GOOGLE_AI_KEY}), timeout=120).read()
@@ -1871,8 +1903,9 @@ def render(d):
             sb = storyboard_panels(W, d)
             print('[render] storyboard ok=%s gen=%ss err=%s' % (sb.get('ok'), sb.get('gen_s'), sb.get('error')), flush=True)
         use_sb = bool(sb and sb.get('ok'))
-        # 5 ต.ค. 69: Veo Lite keyframes (2/วัน) ใช้กับดีลที่มี tiktok (= รอบ 18/21) ให้คลิปเคลื่อนไหวไปอยู่บน TikTok · veo_kf:true บังคับได้
-        if use_sb and (d.get('veo_kf') or (d.get('veo') and d.get('tiktok'))) and str((veo or {}).get('error', '')).startswith('daily cap'):
+        # 5 ต.ค. 69: Veo Lite keyframes (2/วัน) ใช้กับดีลที่มี tiktok (= รอบ 18/21) · veo_kf:true บังคับได้
+        # 17 ต.ค. 69 user: 'ประกอบคลิปให้เลย ผมจะได้ upload อย่างเดียว' → keyframes ทุกรอบที่ขอ veo (ดีลแรกของทุกรอบ 7/วัน, VEO_KF_DAILY_MAX=7) ไม่ผูกกับ tiktok แล้ว · user โหลดคลิปจาก #clips ไปอัปโหลดเอง
+        if use_sb and (d.get('veo_kf') or d.get('veo')) and str((veo or {}).get('error', '')).startswith('daily cap'):
             # 3 ต.ค. 69 B: ขอ Veo แต่โควตา Fast หมด (รอบ 15/18/21) → Veo Lite เชื่อมเฟรม storyboard ช่อง 1→4 (โควตาแยก 3/วัน) · ล้ม = ใช้ storyboard ภาพนิ่งต่อ
             kf = veo_keyframes(W, d)
             print('[render] veo keyframes ok=%s gen=%ss err=%s' % (kf.get('ok'), kf.get('gen_s'), kf.get('error')), flush=True)
@@ -2200,7 +2233,11 @@ class H(BaseHTTPRequestHandler):
             rv = d.get('review')
             pid_d = safe_id(d.get('page_id'))
             # 3 ต.ค. 69: โหมดไม่รอตรวจ — บอกใน caption TG ว่าคลิปนี้เป็น Veo และลง TikTok ให้แล้ว (ต่อหน้า caption ก่อนตัด 960 ตัว ไม่ให้ '#d' ท้ายหาย)
-            pre = ('🎬 คลิป Veo%s (gen %ss)\n' % (' Lite เฟรม storyboard' if (veo or {}).get('shot') == 'keyframes' else '', (veo or {}).get('gen_s', '?'))) if (rv and (veo or {}).get('ok') and not VEO_REVIEW and tt) else ''
+            pre = ('🎬 คลิป Veo%s (gen %ss)\n' % (' Lite เฟรม storyboard' if (veo or {}).get('shot') == 'keyframes' else '', (veo or {}).get('gen_s', '?'))) if (rv and (veo or {}).get('ok') and not VEO_REVIEW) else ''
+            # 17 ต.ค. 69: คลิป Veo อัตโนมัติที่ไม่ได้ส่งร่าง TikTok (รอบนอก 18/21) → user โหลดไปอัปโหลดเอง แคปชันส่งเป็นข้อความถัดไป
+            auto_upload = bool(pre and not tt and tg and not d.get('deal_id'))
+            if auto_upload:
+                pre += '⬆️ โหลดคลิปนี้ไปอัปโหลด TikTok ได้เลย — แคปชันอยู่ข้อความถัดไป · ตั้ง Branded content + ทุกคน · เปิดป้าย AI\n\n'
             if not pre and (sb or {}).get('ok'):
                 pre = '🎨 ฉาก storyboard AI (gen %ss)\n' % sb.get('gen_s', '?')
             if tt and tt_inbox(tt) and not (rv and VEO_REVIEW and (veo or {}).get('ok')):
@@ -2208,6 +2245,7 @@ class H(BaseHTTPRequestHandler):
                 pre += '📥 ร่างเข้ากล่องข้อความ TikTok — แคปชันอยู่ข้อความถัดไป (กดค้าง → คัดลอก) · ตั้ง Branded content + ทุกคน' + (' · เปิดป้าย AI ด้วย' if aigc else '') + '\n\n'
             if pid_d and not d.get('deal_id'):
                 deal_save(pid_d, d, ((tg or {}).get('caption') or (rv or {}).get('caption') or '').split('\n\n', 1)[-1])
+            cap_tt = str((tg or {}).get('caption') or '').split('\n\n', 1)[-1]   # = capT ของ IG Reel (เนื้อหา+CTA+#ad+เครดิตเพลง) ไว้ส่งเป็นข้อความแคปชันแยก
             if tg and tg.get('caption') is not None and (pre or (pid_d and not d.get('deal_id'))):
                 tg['caption'] = pre + str(tg['caption'])[:960 - len(pre)] + (('\n#d ' + pid_d) if (pid_d and not d.get('deal_id')) else '')
             if rv and VEO_REVIEW and (veo or {}).get('ok'):
@@ -2247,10 +2285,10 @@ class H(BaseHTTPRequestHandler):
                         sent, mid = False, str(e)[:200]
                     print('[timing] telegram=%.1fs sent=%s bytes=%d' % (time.time() - t_u, sent, len(mp4)), flush=True)
                     out.update(sent=sent, message_id=mid); ok = ok and sent
-                    if sent and tt and tt_inbox(tt):
-                        # 5 ต.ค. 69: แคปชัน TikTok เป็นข้อความแยก กดค้างคัดลอกได้ทั้งก้อน (ร่าง inbox ส่งแคปชันไปไม่ได้)
+                    if sent and ((tt and tt_inbox(tt)) or auto_upload):
+                        # 5 ต.ค. 69: แคปชัน TikTok เป็นข้อความแยก กดค้างคัดลอกได้ทั้งก้อน (ร่าง inbox ส่งแคปชันไปไม่ได้) · 17 ต.ค. 69: คลิป Veo อัตโนมัติที่ user อัปโหลดเองก็ส่ง
                         try:
-                            out_text(tg, (tt.get('title') or d.get('_saved_title') or '')[:2200] or '(ไม่มีแคปชัน)')
+                            out_text(tg, ((tt or {}).get('title') or d.get('_saved_title') or cap_tt or '')[:2200] or '(ไม่มีแคปชัน)')
                         except Exception as e:
                             print('[telegram] caption text failed: %s' % str(e)[:120], flush=True)
                 if tt:
