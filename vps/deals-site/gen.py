@@ -169,6 +169,17 @@ def write(path, s):
 
 
 # ---------- HTML pieces ----------
+# 17 ต.ค. 69 user: ไอคอนในหัวเว็บ 'หา icon ที่รู้ว่าเป็นอะไร' → โลโก้ Telegram/Discord จริง (simple-icons 13.0.0, CC0)
+BRAND_ICONS = {
+    'telegram': 'M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z',
+    'discord': 'M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z',
+}
+
+
+def brand(name, color='#fff', size=18):
+    return '<svg width="%d" height="%d" viewBox="0 0 24 24" fill="%s" aria-hidden="true"><path d="%s"/></svg>' % (size, size, color, BRAND_ICONS[name])
+
+
 def svg(name, color='currentColor', size=18):
     P = {
         'search': '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
@@ -206,9 +217,9 @@ def header(q=''):
             '<input id="q" name="q" type="search" placeholder="ค้นหา เช่น เคสไอโฟน, วิตามิน" value="%s" autocomplete="off">'
             '<button type="submit" aria-label="ค้นหา">%s</button></form>'
             '<a class="tgb" href="%s" rel="noopener" aria-label="รับดีลทาง Telegram">%s<span>Telegram</span></a>%s</header>'
-            ) % (esc(q), svg('search', '#fff', 18), TG, svg('send', '#fff', 16),
+            ) % (esc(q), svg('search', '#fff', 18), TG, brand('telegram', '#fff', 20),
                  # 17 ต.ค. 69 user: ปุ่มรับแจ้งเตือนให้เห็นตลอด → Discord อยู่ใน header (sticky) คู่กับ Telegram
-                 '<a class="tgb dcb" href="%s" rel="noopener" aria-label="รับดีลทาง Discord">%s<span>Discord</span></a>' % (DC, svg('chat', '#fff', 16)) if DC else '')
+                 '<a class="tgb dcb" href="%s" rel="noopener" aria-label="รับดีลทาง Discord">%s<span>Discord</span></a>' % (DC, brand('discord', '#fff', 20)) if DC else '')
 
 
 def chips(counts, active='all'):
@@ -220,19 +231,14 @@ def chips(counts, active='all'):
     return ''.join(out)
 
 
-def subscribe(top=False):
-    # 17 ต.ค. 69 user: กล่องรับแจ้งเตือน 'ให้แสดงที่ด้านบนด้วย' แล้ว 'ใหญ่เกินไปจริง ๆ' → ด้านบนเป็นแถบเตี้ย หัวข้อบรรทัดเดียว + 2 ปุ่มชื่อสั้น
-    if top:
-        return ('<section class="sub subt"><h2>ดีลดีหมดเร็ว รับแจ้งเตือนก่อนใคร</h2>'
-                '<a class="btn w" href="%s" rel="noopener">%s Telegram</a>%s</section>'
-                ) % (TG, svg('send', '#1F6E63', 16),
-                     '<a class="btn dc" href="%s" rel="noopener">%s Discord</a>' % (DC, svg('chat', '#fff', 16)) if DC else '')
+def subscribe():
+    # 17 ต.ค. 69 ลองใส่กล่องนี้ด้านบนด้วย → user: ใหญ่ไป / ปุ่มซ้ำกับหัวเว็บ → เอาออก เหลือแค่ด้านล่าง (ปุ่มหัวเว็บใช้โลโก้จริงแทน)
     return ('<section class="sub" id="subscribe"><h2>ดีลดีหมดเร็ว<br>รับแจ้งเตือนก่อนใคร</h2>'
             '<p>ส่งเฉพาะดีลที่คัดแล้ว วันละไม่เกิน 7 รอบ ไม่มีสแปม</p>'
             '<a class="btn w" href="%s" rel="noopener">%s Telegram @paiyaa_deals</a>%s'
             '<div class="soc"><a href="%s" rel="noopener">Instagram</a><a href="%s" rel="noopener">Facebook</a><a href="%s" rel="noopener">Threads</a></div></section>'
-            ) % (TG, svg('send', '#1F6E63', 18),
-                 '<a class="btn dc" href="%s" rel="noopener">%s Discord #ดีลเด็ด</a>' % (DC, svg('chat', '#fff', 18)) if DC else '', IG, FB, TH)
+            ) % (TG, brand('telegram', '#1F6E63', 20),
+                 '<a class="btn dc" href="%s" rel="noopener">%s Discord #ดีลเด็ด</a>' % (DC, brand('discord', '#fff', 20)) if DC else '', IG, FB, TH)
 
 
 def trust():
@@ -316,7 +322,7 @@ def build(deals, now):
     body += ('<section class="hero"><h1>ดีลเด็ดวันนี้<br>คัดแล้วจาก Shopee และ Lazada</h1>'
              '<p>อัปเดตทุก 3 ชั่วโมง · %d ดีลใน %d วันล่าสุด · ราคาที่เห็นคือราคาตอนโพสต์ กดไปเช็คราคาสดที่ร้านได้เลย</p></section>'
              ) % (len(deals), DAYS)
-    body += subscribe(top=True) + chips(counts)
+    body += chips(counts)
     if hot:
         body += ('<section class="hot"><div class="sh"><h2>%s ลดแรง · คัดใหม่ทุกวัน</h2><a href="#latest">ดูทั้งหมด</a></div><div class="row">%s</div></section>'
                  ) % (svg('bolt', '#C63F1E', 20), ''.join(card(d, big=True) for d in hot))
@@ -337,7 +343,7 @@ def build(deals, now):
         if not items:
             continue
         body = header() + '<main class="wrap">' + ('<section class="hero"><h1>ดีล%s</h1><p>%d รายการใน %d วันล่าสุด · อัปเดต %s</p></section>' % (l, len(items), DAYS, upd))
-        body += subscribe(top=True) + chips(counts, s)
+        body += chips(counts, s)
         body += '<section class="latest"><div class="grid" id="grid">%s</div></section>' % ''.join(card(d) for d in items)
         body += subscribe() + '</main>' + footer() + SEARCH_JS
         write('c/%s.html' % s, page('ดีล%s — %s' % (l, BRAND), body, 'ดีลลดราคาหมวด%s จาก Shopee และ Lazada คัดแล้ว %d รายการ' % (l, len(items)), '/c/' + s))

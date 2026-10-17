@@ -126,8 +126,3 @@ h1,h2,h3,.kn{font-family:Kanit,"Noto Sans Thai",sans-serif;font-weight:600;lette
 .sticky .btn{flex:1;height:50px}
 @media(min-width:800px){.sticky{display:none}.deal{padding-bottom:40px}}
 @media(prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
-/* แถบรับแจ้งเตือนด้านบน (เตี้ย) — ต้องอยู่ท้ายไฟล์ให้ชนะ .sub ใน media query */
-.subt{margin:4px 0 14px;padding:12px 14px;border-radius:14px;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px}
-.subt h2{flex:1 1 100%;font-size:16px}
-.subt .btn{flex:1 1 0;width:auto;height:40px;padding:0 10px;font-size:14px;border-radius:10px}
-@media(min-width:800px){.subt{padding:12px 20px;gap:10px}.subt h2{flex:1 1 auto;font-size:18px}.subt .btn{flex:0 0 auto;padding:0 18px}}
