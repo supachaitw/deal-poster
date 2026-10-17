@@ -205,7 +205,10 @@ def header(q=''):
             '<form class="srch" action="/" role="search"><label class="sr" for="q">ค้นหาสินค้า</label>'
             '<input id="q" name="q" type="search" placeholder="ค้นหา เช่น เคสไอโฟน, วิตามิน" value="%s" autocomplete="off">'
             '<button type="submit" aria-label="ค้นหา">%s</button></form>'
-            '<a class="tgb" href="%s" rel="noopener">%s<span>รับดีล</span></a></header>') % (esc(q), svg('search', '#fff', 18), TG, svg('send', '#fff', 16))
+            '<a class="tgb" href="%s" rel="noopener" aria-label="รับดีลทาง Telegram">%s<span>Telegram</span></a>%s</header>'
+            ) % (esc(q), svg('search', '#fff', 18), TG, svg('send', '#fff', 16),
+                 # 17 ต.ค. 69 user: ปุ่มรับแจ้งเตือนให้เห็นตลอด → Discord อยู่ใน header (sticky) คู่กับ Telegram
+                 '<a class="tgb dcb" href="%s" rel="noopener" aria-label="รับดีลทาง Discord">%s<span>Discord</span></a>' % (DC, svg('chat', '#fff', 16)) if DC else '')
 
 
 def chips(counts, active='all'):

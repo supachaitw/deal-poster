@@ -17,6 +17,7 @@ h1,h2,h3,.kn{font-family:Kanit,"Noto Sans Thai",sans-serif;font-weight:600;lette
 .srch button{width:44px;height:44px;border:0;border-radius:12px;background:var(--tx);cursor:pointer;display:grid;place-items:center}
 .tgb{height:44px;padding:0 12px;border-radius:12px;background:var(--tl);color:#fff;text-decoration:none;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;white-space:nowrap}
 .tgb:hover{color:#fff;background:#185a51}
+.dcb{background:#5865F2}.dcb:hover{background:#4752C4}
 .top.dt .srch{display:none}.top.dt .logo{margin:0 auto}
 .back{display:flex;align-items:center;gap:4px;height:44px;padding:0 6px;text-decoration:none;color:var(--tx);font-size:14px;font-weight:600;white-space:nowrap}
 @media(max-width:600px){.top .srch{order:3;flex-basis:100%}.top{flex-wrap:wrap}.logo{margin-right:auto}.tgb span{display:none}.tgb{padding:0 13px}}
