@@ -19,7 +19,7 @@ MUSIC_POOL = {
     # 'riley': Life of Riley ถอดออก 16 ต.ค. 69 — TikTok music copyright check ตีว่าเป็น 'Riley'/'Life of Riley'/'Trusting Jesus' (มีคนเอาไปจดเป็นเพลงตัวเอง) · ไฟล์ยังอยู่ใน music/
     'jaunty': ('JauntyGumption.mp3', 'Jaunty Gumption', 0),
     'cheery': ('CheeryMonday.mp3', 'Cheery Monday', 0),
-    'beach': ('BeachParty.mp3', 'Beach Party', 0),
+    # 'beach': Beach Party ถอดออก 17 ต.ค. 69 — TikTok music copyright check ตีว่าเป็น 'Beach Party'/'Rater tara' · ไฟล์ยังอยู่ใน music/
     'upbeat': ('UpbeatForever.mp3', 'Upbeat Forever', 0),
     'happybee': ('HappyBee.mp3', 'Happy Bee', 0),
     'funkorama': ('Funkorama.mp3', 'Funkorama', 12),      # 12 วิแรกเบา (-22 dB) ข้ามไปท่อนหลัก
