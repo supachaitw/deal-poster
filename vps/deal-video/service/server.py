@@ -963,6 +963,82 @@ CLIPS_DIR = os.environ.get('CLIPS_DIR', '/clips')
 CLIPS_KEEP_H = float(os.environ.get('CLIPS_KEEP_H', '72'))
 CLIPS_MAX = int(os.environ.get('CLIPS_MAX', '150'))
 
+# 21 ต.ค. 69: เช็กเองว่าคลิปใน /clips ถูกอัปขึ้น TikTok แล้วหรือยัง — Display API video.list (scope ใหม่ของ Sandbox, ดึงคลิปสาธารณะของ @sup.tw)
+# จับคู่: TikTok โพสต์หลังคลิปถูกสร้าง · ความยาวต่างกัน ≤ 2 วิ · ข้อความ (title) คล้ายชื่อสินค้าหรือแคปชันของเรา → เขียน /clips/tt_auto.json ให้หน้า tiktok.html
+TT_CHECK_MIN = float(os.environ.get('TT_CHECK_MIN', '20'))
+
+def _bigrams(t):
+    t = re.sub(r'[^0-9a-z\u0e00-\u0e7f]+', '', str(t or '').lower())[:120]
+    return set(t[i:i + 2] for i in range(len(t) - 1))
+
+def _sim(a, b):
+    A, B = _bigrams(a), _bigrams(b)
+    return len(A & B) / float(min(len(A), len(B))) if A and B else 0.0
+
+def tt_check_uploads():
+    try:
+        idx = json.load(open(os.path.join(CLIPS_DIR, 'index.json')))
+    except Exception:
+        return
+    items = idx.get('items') or []
+    try:
+        auto = json.load(open(os.path.join(CLIPS_DIR, 'tt_auto.json')))
+    except Exception:
+        auto = {}
+    todo = [it for it in items if it.get('id') not in auto]
+    if not todo:
+        return
+    tok = tt_token('sandbox')
+    tok = tok if isinstance(tok, str) else (tok or {}).get('access_token')
+    vids, cursor = [], None
+    for _ in range(3):
+        body = {'max_count': 20}
+        if cursor:
+            body['cursor'] = cursor
+        req = urllib.request.Request(TT_API + 'video/list/?fields=id,title,video_description,create_time,share_url,duration', data=json.dumps(body).encode(),
+                                     headers={'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json'})
+        j = json.load(urllib.request.urlopen(req, timeout=30))
+        d = j.get('data') or {}
+        vids += d.get('videos') or []
+        oldest = min([v.get('create_time') or 0 for v in vids] or [0])
+        if not d.get('has_more') or oldest < min(float(it.get('at') or 0) for it in todo) - 3600:
+            break
+        cursor = d.get('cursor')
+    used = set(a.get('video_id') for a in auto.values())
+    pairs = []
+    for it in todo:
+        for v in vids:
+            if v.get('id') in used or (v.get('create_time') or 0) < float(it.get('at') or 0) - 60:
+                continue
+            if it.get('duration') and v.get('duration') and abs(float(it['duration']) - float(v['duration'])) > 2.5:
+                continue
+            txt = (v.get('title') or '') + ' ' + (v.get('video_description') or '')
+            sc = max(_sim(txt, it.get('name')), _sim(txt, it.get('caption')))
+            if sc >= 0.7:   # วัด 21 ต.ค. 69: คลิปที่ตรงกันได้ 0.9–1.0 (title ที่ user ใส่ = ชื่อสินค้า) · คนละสินค้าสูงสุด 0.43
+                pairs.append((sc, it['id'], v))
+    n = 0
+    for sc, cid, v in sorted(pairs, key=lambda x: -x[0]):
+        if cid in auto or v.get('id') in used:
+            continue
+        auto[cid] = {'at': int(v.get('create_time') or 0) * 1000, 'by': 'auto', 'url': v.get('share_url'), 'video_id': v.get('id'), 'score': round(sc, 2)}
+        used.add(v.get('id')); n += 1
+    keep = set(it.get('id') for it in items)
+    auto = dict((k, x) for k, x in auto.items() if k in keep)
+    with open(os.path.join(CLIPS_DIR, 'tt_auto.json.new'), 'w') as f:
+        json.dump(auto, f, ensure_ascii=False)
+    os.replace(os.path.join(CLIPS_DIR, 'tt_auto.json.new'), os.path.join(CLIPS_DIR, 'tt_auto.json'))
+    print('[clips] tiktok check: %d videos, %d new matches, %d/%d clips uploaded' % (len(vids), n, len(auto), len(items)), flush=True)
+
+def tt_check_loop():
+    time.sleep(60)
+    while True:
+        try:
+            if os.path.isdir(CLIPS_DIR):
+                tt_check_uploads()
+        except Exception as e:
+            print('[clips] tiktok check failed: %s' % str(e)[:160], flush=True)
+        time.sleep(TT_CHECK_MIN * 60)
+
 def clip_archive(mp4, d, caption, meta):
     if not os.path.isdir(CLIPS_DIR):
         return None
@@ -2549,4 +2625,7 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     print('deal-video listening :8080', flush=True)
+    if TT_CHECK_MIN > 0:
+        import threading
+        threading.Thread(target=tt_check_loop, daemon=True).start()
     HTTPServer(('0.0.0.0', int(os.environ.get('PORT', '8080'))), H).serve_forever()
