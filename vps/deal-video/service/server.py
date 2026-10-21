@@ -956,6 +956,51 @@ def out_photo(tg, jpg, caption):
 def out_text(tg, text):
     return _out(tg, lambda: tg_send_text(tg, text), text or '', None, None, False)
 
+# 21 ต.ค. 69 user: 'upload คลิปและแคปชั่นจาก discord เข้า TikTok Studio ให้' → เลือกข้อ 3 = หน้า home./tiktok.html
+# ทุกคลิปที่ส่งเข้า #clips เก็บสำเนา + แคปชันไว้ที่ /clips (host /root/home-console/html/clips · home. ล็อกอิน Google เฉพาะเจ้าของ)
+# เก็บ CLIPS_KEEP_H ชม. / CLIPS_MAX ไฟล์ · ล้ม = ไม่กระทบการส่ง/โพสต์
+CLIPS_DIR = os.environ.get('CLIPS_DIR', '/clips')
+CLIPS_KEEP_H = float(os.environ.get('CLIPS_KEEP_H', '72'))
+CLIPS_MAX = int(os.environ.get('CLIPS_MAX', '150'))
+
+def clip_archive(mp4, d, caption, meta):
+    if not os.path.isdir(CLIPS_DIR):
+        return None
+    try:
+        now = time.time()
+        cid = time.strftime('%Y%m%d-%H%M%S', time.gmtime(now + 7 * 3600)) + '-' + (safe_id(d.get('deal_id') or d.get('page_id'))[:12] or hashlib.md5((d.get('name') or '').encode('utf-8')).hexdigest()[:8])
+        with open(os.path.join(CLIPS_DIR, cid + '.mp4.new'), 'wb') as f:
+            f.write(mp4)
+        os.replace(os.path.join(CLIPS_DIR, cid + '.mp4.new'), os.path.join(CLIPS_DIR, cid + '.mp4'))
+        m = dict(meta, id=cid, at=now, name=(d.get('name') or '')[:200], caption=caption or '', bytes=len(mp4))
+        with open(os.path.join(CLIPS_DIR, cid + '.json'), 'w') as f:
+            json.dump(m, f, ensure_ascii=False)
+        items = []
+        for fn in sorted(os.listdir(CLIPS_DIR), reverse=True):
+            if not fn.endswith('.json') or fn == 'index.json':
+                continue
+            fp = os.path.join(CLIPS_DIR, fn)
+            try:
+                j = json.load(open(fp))
+            except Exception:
+                j = {}
+            if len(items) >= CLIPS_MAX or now - float(j.get('at') or 0) > CLIPS_KEEP_H * 3600:
+                for x in (fp, fp[:-5] + '.mp4'):
+                    try:
+                        os.remove(x)
+                    except Exception:
+                        pass
+                continue
+            items.append(j)
+        with open(os.path.join(CLIPS_DIR, 'index.json.new'), 'w') as f:
+            json.dump({'updated': now, 'items': items}, f, ensure_ascii=False)
+        os.replace(os.path.join(CLIPS_DIR, 'index.json.new'), os.path.join(CLIPS_DIR, 'index.json'))
+        print('[clips] saved %s (%d bytes, %d in archive)' % (cid, len(mp4), len(items)), flush=True)
+        return cid
+    except Exception as e:
+        print('[clips] archive failed: %s' % str(e)[:120], flush=True)
+        return None
+
 # ---------- TikTok Content Posting API (28 ก.ย. 69) ----------
 # โพสต์คลิปเข้า TikTok ตรงจาก service · client key/secret จาก env (TIKTOK_[SB_]CLIENT_KEY/SECRET) ·
 # access/refresh token อยู่ในไฟล์ที่ mount มา (/tiktok/tokens.json — env ตรึงตอนสร้าง container จึงเก็บ token ที่ refresh ได้ในไฟล์)
@@ -2431,6 +2476,8 @@ class H(BaseHTTPRequestHandler):
                         sent, mid = False, str(e)[:200]
                     print('[timing] telegram=%.1fs sent=%s bytes=%d' % (time.time() - t_u, sent, len(mp4)), flush=True)
                     out.update(sent=sent, message_id=mid); ok = ok and sent
+                    clip_archive(mp4, d, ((tt or {}).get('title') or d.get('_saved_title') or cap_tt or '')[:2200],
+                                 {'aigc': aigc, 'veo': bool((veo or {}).get('ok')), 'draft': bool(tt and tt_inbox(tt)), 'music': d.get('_music'), 'duration': D})
                     if sent and ((tt and tt_inbox(tt)) or auto_upload):
                         # 5 ต.ค. 69: แคปชัน TikTok เป็นข้อความแยก กดค้างคัดลอกได้ทั้งก้อน (ร่าง inbox ส่งแคปชันไปไม่ได้) · 17 ต.ค. 69: คลิป Veo อัตโนมัติที่ user อัปโหลดเองก็ส่ง
                         try:

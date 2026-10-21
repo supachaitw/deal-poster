@@ -702,6 +702,8 @@ n8n เข้าถึงภายในได้ที่ `n8n:5678` (alias บ
 
 **⏸ หยุดข้อความ 'รูป + prompt ทำคลิป Veo เอง' 17 ต.ค. 69 21:27 น. (user: 'ทำคลิป Veo เอง ก็หยุดไว้ก่อน')** — `.env` ของ service `VEO_MANUAL_PROMPT=0` → ดีลแรกที่ขอ veo แต่ไม่ได้ Veo ไม่ส่งรูป+prompt เข้า #clips แล้ว (คลิปปกติยังส่ง) · Veo Lite keyframes อัตโนมัติ (รอบ 12/15/18/21) ไม่กระทบ · เปิดกลับ = ลบบรรทัดนั้นแล้ว deploy · backup `server.py.bak.20261017g`
 
+**หน้า `home./tiktok.html` คลิปรออัป TikTok (21 ต.ค. 69 user: 'ให้คุณ upload คลิปและแคปชั่นจาก discord เข้าหน้า tiktok ให้เลยได้มั้ย' → ผมเสนอ 3 ทาง user เลือกข้อ 3)** — ไม่สั่งเบราว์เซอร์อัปให้ (ต้องย้าย cookie ล็อกอินมา VPS + IP datacenter โดน captcha + เสี่ยงบัญชีโดนจำกัดแบบ IG · Direct Post ติด audit) · `server.py` `clip_archive()`: ทุกคลิปที่ส่งเข้า #clips (`if tg:` หลัง `out_video`) เก็บ `<YYYYmmdd-HHMMSS>-<id12>.mp4` + `.json` (name/caption = ข้อความเดียวกับแคปชันแยก/aigc/veo/draft/duration) และเขียน `index.json` ที่ `/clips` = host **`/root/home-console/html/clips`** (mount ใหม่ใน `deploy.sh`) · เก็บ `CLIPS_KEEP_H`=72 ชม. / `CLIPS_MAX`=150 ไฟล์ · ล้ม = log `[clips] archive failed` ไม่กระทบโพสต์ · หน้าเว็บ: ปุ่ม 'โหลด + คัดลอกแคปชัน' / 'แคปชัน' / '✓ อัปแล้ว' (localStorage เบราว์เซอร์นั้น) + ลิงก์ TikTok Studio · home. = Google login เจ้าของเท่านั้น (ทดสอบไม่ login → 302 · dp. → 404) · ลิงก์จาก Home Console: ปุ่มในการ์ด Deal Poster + tile เครื่องมือ · backup `server.py.bak.20261021`, `index.html.bak-20261021`
+
 **VPS รีบูต 16 ต.ค. 69 ~16:27 UTC (kernel 6.8.0-134 → 6.8.0-147, น่าจะ Hostinger/unattended-upgrades)** — container ทั้ง 30 ตัวกลับมาเอง (restart policy) รอบ 00:00 น. 17 ต.ค. รันปกติ · ผลข้างเคียง: scratchpad ของ session ใน `/tmp` หาย (สคริปต์ชั่วคราวต้องเขียนใหม่) · cache ของ deals-proxy หาย (ปกติ)
 
 ## เมื่อจบงานแต่ละครั้ง
