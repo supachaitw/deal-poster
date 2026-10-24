@@ -383,6 +383,18 @@ CLAIM_RE = re.compile(r'รักษา(?:โรค|อาการ|สิว|�
                       r'ลดริ้วรอย|ลบริ้วรอย|ยกกระชับ|ผิวขาว|ขาวใส|หน้าใส|ผิวใส|ลดสิว|สิวหาย|ฝ้าจาง|ฆ่าเชื้อ|ขจัดเชื้อ|กำจัดเชื้อ|ยับยั้งเชื้อ|แบคทีเรีย|ไวรัส|99\.9|ปกป้องผิว|ปกป้องมือ|'
                       r'ไม่มีผลข้างเคียง|ปลอดภัย ?100|เห็นผล|โปรตีนสูง|แคลเซียมสูง|วิตามินสูง|ผ่อนคลายกล้ามเนื้อ')
 
+# 24 ต.ค. 69 (TikTok ลบคลิป Dr.PONG GLUCOMANNAN ฐาน Community Guidelines → user: พักหมวดสุขภาพ/ลดน้ำหนัก/อาหารเสริม): ดีลที่ชื่อ/คำบรรยายเข้าข่าย
+# = ไม่ส่งร่าง TikTok · ไม่ขึ้นหน้า home./tiktok.html · ไม่ส่งแคปชันแยก · #clips ขึ้นคำเตือนนำหน้า (FB Reel ยังลงตามเดิม) · TIKTOK_HEALTH_OK=1 ใน env = ปิดตัวกรอง
+TT_RISK_RE = re.compile(r'อาหารเสริม|supplement|ลดน้ำหนัก|ลดความอ้วน|ลดพุง|ควบคุมน้ำหนัก|คุมหิว|อิ่มนาน|เผาผลาญ|กลูโคแมนแนน|glucomannan|ดีท็อก|detox|'
+                        r'คอลลาเจน|collagen|กลูต้า|gluta|วิตามิน|vitamin|โพรไบโอติก|probiotic|เวย์โปรตีน|whey|fat ?burn|ไฟเบอร์ (?:ลด|ดีท็อก)', re.I)
+TT_RISK_OFF = os.environ.get('TIKTOK_HEALTH_OK', '0') == '1'
+
+def tt_risk(d):
+    if TT_RISK_OFF:
+        return None
+    m = TT_RISK_RE.search((d.get('name') or '') + ' ' + (d.get('desc') or ''))
+    return m.group(0) if m else None
+
 def clean_desc(s):
     # ข้อความมาจาก Claude ผ่าน Notion — ตัดลิงก์/แฮชแท็ก/อีโมจิออกให้เหลือที่อ่านออกเสียงได้
     s = ' '.join(str(s or '').split())
@@ -2487,6 +2499,10 @@ class H(BaseHTTPRequestHandler):
                     d[k] = float(d[k]) if d.get(k) not in (None, '', 0) else None
                 except (TypeError, ValueError):
                     d[k] = None
+            risk = tt_risk(d)
+            if risk:
+                print('[render] tiktok risk (%r) -> no draft/archive' % risk, flush=True)
+                d.pop('tiktok', None)
             if isinstance(d.get('tiktok'), dict) and not TIKTOK_DRAFTS and not d['tiktok'].get('force'):
                 print('[render] tiktok skipped (TIKTOK_DRAFTS=0)', flush=True)
                 d.pop('tiktok')
@@ -2559,14 +2575,14 @@ class H(BaseHTTPRequestHandler):
                 if tg:
                     t_u = time.time()
                     try:
-                        sent, mid = out_video(tg, mp4, tg.get('caption') or '')
+                        sent, mid = out_video(tg, mp4, (('⛔ หมวดสุขภาพ/อาหารเสริม (%s) — ไม่ลง TikTok ตามที่พักไว้\n\n' % risk) if risk else '') + (tg.get('caption') or ''))
                     except Exception as e:
                         sent, mid = False, str(e)[:200]
                     print('[timing] telegram=%.1fs sent=%s bytes=%d' % (time.time() - t_u, sent, len(mp4)), flush=True)
                     out.update(sent=sent, message_id=mid); ok = ok and sent
-                    clip_archive(mp4, d, ((tt or {}).get('title') or d.get('_saved_title') or cap_tt or '')[:2200],
+                    if not risk: clip_archive(mp4, d, ((tt or {}).get('title') or d.get('_saved_title') or cap_tt or '')[:2200],
                                  {'aigc': aigc, 'veo': bool((veo or {}).get('ok')), 'draft': bool(tt and tt_inbox(tt)), 'music': d.get('_music'), 'duration': D})
-                    if sent and ((tt and tt_inbox(tt)) or auto_upload):
+                    if sent and not risk and ((tt and tt_inbox(tt)) or auto_upload):
                         # 5 ต.ค. 69: แคปชัน TikTok เป็นข้อความแยก กดค้างคัดลอกได้ทั้งก้อน (ร่าง inbox ส่งแคปชันไปไม่ได้) · 17 ต.ค. 69: คลิป Veo อัตโนมัติที่ user อัปโหลดเองก็ส่ง
                         try:
                             out_text(tg, ((tt or {}).get('title') or d.get('_saved_title') or cap_tt or '')[:2200] or '(ไม่มีแคปชัน)')
