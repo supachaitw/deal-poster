@@ -7,5 +7,6 @@ WORKDIR /app
 COPY fonts/ /app/fonts/
 COPY music/ /app/music/
 COPY server.py /app/server.py
+COPY jev.py /app/jev.py
 EXPOSE 8080
 CMD ["python", "-u", "/app/server.py"]

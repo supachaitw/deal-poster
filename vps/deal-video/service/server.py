@@ -8,6 +8,7 @@
 # เรนเดอร์ทีละคลิป (HTTPServer ไม่ใช่ threaded) เพราะ VPS มี 1 core
 import asyncio, base64, hashlib, json, math, os, random, re, shutil, subprocess, tempfile, time, traceback, urllib.error, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import jev   # 24 ต.ค. 69: ด่าน Jev (TikTok risk + อ้างสรรพคุณ) — regex ก่อน, Jev เสริม, ล้ม = regex อย่างเดียว
 
 FONTS = '/app/fonts'
 MUSIC_DIR = '/app/music'
@@ -393,7 +394,13 @@ def tt_risk(d):
     if TT_RISK_OFF:
         return None
     m = TT_RISK_RE.search((d.get('name') or '') + ' ' + (d.get('desc') or ''))
-    return m.group(0) if m else None
+    if m:
+        return m.group(0)
+    # regex ไม่เจอ → ถาม Jev (ครั้งเดียวต่อดีล · ถามเรื่องคำบรรยายอ้างสรรพคุณพ่วงไปด้วยให้ clean_desc ใช้ต่อ) · Jev ใช้ไม่ได้ = ผ่านเหมือนเดิม
+    g = jev.deal_gate(d.get('name') or '', d.get('desc') or '')
+    if g and g['prob'] >= jev.TT_RISK_MIN:
+        return 'jev:%s %.2f' % (g['choice'], g['prob'])
+    return None
 
 def clean_desc(s):
     # ข้อความมาจาก Claude ผ่าน Notion — ตัดลิงก์/แฮชแท็ก/อีโมจิออกให้เหลือที่อ่านออกเสียงได้
@@ -405,6 +412,10 @@ def clean_desc(s):
     m = CLAIM_RE.search(s) if s else None
     if m:
         print('[script] desc dropped (claim %r)' % m.group(0), flush=True)
+        return ''
+    p = jev.claim_prob(s) if s else None   # regex ไม่เจอ → Jev (cache ต่อข้อความ — ถูกเรียกหลายครั้งต่อคลิป)
+    if p is not None and p >= jev.CLAIM_MIN:
+        print('[script] desc dropped (jev claim %.2f)' % p, flush=True)
         return ''
     if len(s) > DESC_MAX:
         s = s[:safe_cut(s, DESC_MAX)].rstrip() + '…'
@@ -554,6 +565,7 @@ def llm_script(d, pct, recent):
             return 'phrase %r' % g if g else None
         def check(j, out, why):
             """เติมท่อนที่ยังว่างใน out จากคำตอบ j · ท่อนที่ซ้ำคลิปก่อน ๆ จดลง why ไว้ขอเขียนใหม่"""
+            fresh = []   # ท่อนที่เพิ่งรับจากคำตอบนี้ → ส่งให้ Jev ตรวจอ้างสรรพคุณรวมกันครั้งเดียวท้ายฟังก์ชัน
             for k_, lo, hi in (('hook', 6, 70), ('cta', 12, 120), ('desc', 8, 120), ('promise', 6, 70), ('loop', 6, 70)):
                 if out.get(k_):
                     continue
@@ -572,6 +584,8 @@ def llm_script(d, pct, recent):
                         print('[script] llm %s dropped (repeat %s): %r' % (k_, rp, v[:60]), flush=True)
                         why[k_] = v; v = None
                 out[k_] = v or None
+                if v:
+                    fresh.append(k_)
             if not out.get('price'):
                 v = re.sub(r'\s+', ' ', str(j.get('price') or '')).replace('?', '').strip()
                 bare = v.replace('{ราคา}', '')
@@ -585,6 +599,14 @@ def llm_script(d, pct, recent):
                         print('[script] llm price dropped (repeat %s): %r' % (rp, v[:60]), flush=True)
                         why['price'] = v; ok = False
                 out['price'] = v if ok else None
+                if ok:
+                    fresh.append('price')
+            # 24 ต.ค. 69: Jev ตรวจอ้างสรรพคุณอีกชั้น (CLAIM_RE จับได้แค่คำตรง ๆ) — request เดียวทุกท่อนที่เพิ่งได้มา · Jev ล้ม = ผ่านตาม regex
+            cand = {k_: (out[k_].replace('{ราคา}', '') if k_ == 'price' else out[k_]) for k_ in fresh if out.get(k_)}
+            for k_, p in jev.claim_probs(cand).items():
+                if p is not None and p >= jev.CLAIM_MIN:
+                    print('[script] llm %s dropped (jev claim %.2f): %r' % (k_, p, out[k_][:60]), flush=True)
+                    out[k_] = None
         j = ask()
         if j is None:
             return None
