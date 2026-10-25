@@ -965,8 +965,21 @@ def credit_alert(where, err, vendor='google'):
     dc_post('ops', msg, mention=True)
     return True
 
+# 25 ต.ค. 69 user: 'ช่วงนี้หยุดส่งคลิป TikTok เข้า discord 7 วัน' → CLIPS_DC_PAUSE_UNTIL=YYYY-MM-DD (วันไทย) ใน .env
+# ก่อนวันนั้น คลิปรอบโพสต์ไม่ส่งเข้า #clips (คลิป/แคปชันแยก/ลิงก์ FB Reel) แต่ถือว่าส่งแล้ว (render ไม่ 502) · ยังเก็บเข้า home./tiktok.html ตามเดิม
+# คำขอจาก /clip ใน Discord (มี tg.channel) ยังตอบเหมือนเดิม · ถึงวันที่ตั้งไว้ = ส่งกลับเองไม่ต้อง deploy
+CLIPS_DC_PAUSE_UNTIL = os.environ.get('CLIPS_DC_PAUSE_UNTIL', '').strip()
+
+def clips_dc_paused(tg):
+    if not CLIPS_DC_PAUSE_UNTIL or (tg or {}).get('channel'):
+        return False
+    return time.strftime('%Y-%m-%d', time.gmtime(time.time() + 7 * 3600)) < CLIPS_DC_PAUSE_UNTIL
+
 def _out(tg, tg_fn, text, data, fname, mention):
     """ส่ง Telegram (ถ้ามี url และไม่ปิด) + Discord · คืน (ส่งได้อย่างน้อยหนึ่งที่, message_id ของ Telegram ถ้ามี ไม่งั้นของ Discord)"""
+    if TELEGRAM_OFF and clips_dc_paused(tg):
+        print('[discord] clips paused until %s (not sent)' % CLIPS_DC_PAUSE_UNTIL, flush=True)
+        return True, 'paused'
     ok_t, mid = False, None
     if tg.get('url') and not TELEGRAM_OFF:
         try:
@@ -2636,7 +2649,7 @@ class H(BaseHTTPRequestHandler):
                     r = fb_reel_post(fr, mp4)
                     print('[timing] fb_reel=%.1fs ok=%s status=%s phase=%s upload=%ss err=%s' % (time.time() - t_u, r.get('ok'), r.get('status'), r.get('phase'), r.get('upload_s'), r.get('error')), flush=True)
                     out['fb_reel'] = r; ok = ok and bool(r.get('ok'))
-                    if r.get('ok') and r.get('video_id') and tg:
+                    if r.get('ok') and r.get('video_id') and tg and not clips_dc_paused(tg):
                         # 5 ต.ค. 69 user: 'ไม่เห็นคลิป reels' → บอกลิงก์ Reel ในห้อง Discord ต่อท้ายคลิปเดียวกัน
                         dc_post((tg or {}).get('channel') or DISCORD_CHANNEL, '🎞 ลง FB Reels แล้ว: https://www.facebook.com/reel/%s' % r['video_id'])
                 return self._json(200 if ok else 502, out)
