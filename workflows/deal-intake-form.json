@@ -134,7 +134,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const f=$input.first().json;\nlet url=String(f['ลิงก์ Affiliate']||'').trim();\nconst name=String(f['สินค้า']||'').trim()||null;\nconst full=Number(f['ราคาเต็ม'])||null;\nconst sale=Number(f['ราคาลด'])||null;\nconst cat=String(f['หมวด']||'').trim()||null;\nconst source=!url?null:(/tiktok\\.com/i.test(url)?'tiktok':(/lazada\\.|lzd\\.co/i.test(url)?'lazada':(/shopee\\.|shp\\.ee/i.test(url)?'shopee':null)));\n\n// 27 ก.ย. 69: ลิงก์ Shopee ธรรมดา (shopee.co.th / th.shp.ee) → ขอลิงก์ affiliate จาก deal-video /afflink (Shopee Affiliate Open API)\n// แปลงไม่ได้/บริการล่ม = ใช้ลิงก์เดิมต่อ (affNote บอกเหตุผล) — ห้ามให้ขั้นนี้ทำ intake ล้ม\nlet affNote = null, origUrl = null;\nif (url && source === 'shopee') {\n  try {\n    const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/afflink', body: { url }, json: true, timeout: 20000 });\n    if (r && r.ok && r.link) { if (r.link !== url) { origUrl = url; url = r.link; } }\n    else affNote = (r && r.reason) || 'afflink failed';\n  } catch (e) { affNote = 'afflink error: ' + String((e && e.message) || e).slice(0, 80); }\n}\n\nconst needParse=!(name&&sale);\nreturn [{json:{url,name,full,sale,cat,source,origUrl,affNote,needParse}}];"
+        "jsCode": "const f=$input.first().json;\nlet url=String(f['ลิงก์ Affiliate']||'').trim();\nconst name=String(f['สินค้า']||'').trim()||null;\nconst full=Number(f['ราคาเต็ม'])||null;\nconst sale=Number(f['ราคาลด'])||null;\nconst cat=String(f['หมวด']||'').trim()||null;\nconst source=!url?null:(/tiktok\\.com/i.test(url)?'tiktok':(/lazada\\.|lzd\\.co/i.test(url)?'lazada':(/shopee\\.|shp\\.ee/i.test(url)?'shopee':null)));\n\n// 27 ก.ย. 69: ลิงก์ Shopee ธรรมดา (shopee.co.th / th.shp.ee) → ขอลิงก์ affiliate จาก deal-video /afflink (Shopee Affiliate Open API)\n// แปลงไม่ได้/บริการล่ม = ใช้ลิงก์เดิมต่อ (affNote บอกเหตุผล) — ห้ามให้ขั้นนี้ทำ intake ล้ม\nlet affNote = null, origUrl = null;\nif (url && source === 'shopee') {\n  try {\n    const r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/afflink', body: { url }, json: true, timeout: 20000 });\n    if (r && r.ok && r.link) { if (r.link !== url) { origUrl = url; url = r.link; } }\n    else affNote = (r && r.reason) || 'afflink failed';\n  } catch (e) { affNote = 'afflink error: ' + String((e && e.message) || e).slice(0, 80); }\n}\n\nconst needParse=!(name&&sale);\n// 25 ต.ค. 69 (user: 'เพิ่มการป้องกันของหน้านี้เหมือน discord'): ลิงก์ Shopee ที่ยังไม่ใช่ affiliate (s.shopee.co.th / shope.ee) หลังลองแปลงแล้ว → ไม่สร้างแถว แสดงหน้าเตือน (node Not Affiliate)\nconst nonAff=source==='shopee'&&!/^https?:\\/\\/(s\\.shopee\\.co\\.th|shope\\.ee)\\//i.test(url);\nreturn [{json:{url,name,full,sale,cat,source,origUrl,affNote,needParse,nonAff}}];"
       },
       "id": "fprep",
       "name": "Prep",
@@ -269,6 +269,70 @@
         1440,
         200
       ]
+    },
+    {
+      "name": "Affiliate OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        100
+      ],
+      "id": "14a8191b-aaf6-41e0-922b-0eeb8fdefb57",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "e28eb497-be0c-461b-900a-90c495660e8a",
+              "leftValue": "={{ $json.nonAff }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Not Affiliate",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        700,
+        -100
+      ],
+      "id": "edd9a635-8eac-4df4-994a-01b8b7fcb5ab",
+      "webhookId": "058e769d-133f-4eaa-8d02-da4e2f4bac88",
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "❌ ลิงก์นี้ยังไม่ใช่ลิงก์ affiliate — ยังไม่ได้บันทึก",
+        "completionMessage": "ลิงก์ shopee.co.th แบบหน้าสินค้าธรรมดา ค่าคอมจะไม่เข้า\nแอป Shopee: หน้าสินค้า → แชร์ → \"แชร์และรับค่าคอม\" → คัดลอกลิงก์ (ได้ s.shopee.co.th/…)\nหรือคอมพ์: affiliate.shopee.co.th → สร้างลิงก์ (Custom Link)\nแล้วกลับไปหน้าเพิ่มดีล วางลิงก์ใหม่อีกครั้ง"
+      }
+    },
+    {
+      "name": "Saved",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        660,
+        0
+      ],
+      "id": "44650d1a-c9ab-4bd0-b5b2-d08ce2c277b0",
+      "webhookId": "71450344-e60c-43df-aadb-a3bf922ae138",
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "redirect",
+        "redirectUrl": "https://n8n.srv1277799.hstgr.cloud/form/deal-intake"
+      }
     }
   ],
   "connections": {
@@ -287,7 +351,7 @@
       "main": [
         [
           {
-            "node": "Need Parse?",
+            "node": "Affiliate OK?",
             "type": "main",
             "index": 0
           }
@@ -361,6 +425,35 @@
         [
           {
             "node": "Create Notion Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Affiliate OK?": {
+      "main": [
+        [
+          {
+            "node": "Not Affiliate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Need Parse?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Notion Row": {
+      "main": [
+        [
+          {
+            "node": "Saved",
             "type": "main",
             "index": 0
           }
