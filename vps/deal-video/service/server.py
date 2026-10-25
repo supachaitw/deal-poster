@@ -8,6 +8,7 @@
 # เรนเดอร์ทีละคลิป (HTTPServer ไม่ใช่ threaded) เพราะ VPS มี 1 core
 import asyncio, base64, hashlib, json, math, os, random, re, shutil, subprocess, tempfile, time, traceback, urllib.error, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import gcost   # 25 ต.ค. 69: ประมาณค่าเครดิต Google AI Studio ต่อรอบ + คงเหลือ → #deals (ดู gcost.py)
 import jev   # 24 ต.ค. 69: ด่าน Jev (TikTok risk + อ้างสรรพคุณ) — regex ก่อน, Jev เสริม, ล้ม = regex อย่างเดียว
 
 FONTS = '/app/fonts'
@@ -124,9 +125,11 @@ def gemini_tts(text, voice, out, model=None):
     import base64
     body = {'contents': [{'parts': [{'text': GEMINI_STYLE + text}]}],
             'generationConfig': {'responseModalities': ['AUDIO'], 'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice}}}}}
-    req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % (model or gemini_model() or GEMINI_MODEL),
+    model = model or gemini_model() or GEMINI_MODEL
+    req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % model,
                                  json.dumps(body).encode('utf-8'), {'Content-Type': 'application/json', 'x-goog-api-key': GOOGLE_AI_KEY})
     r = json.loads(urllib.request.urlopen(req, timeout=60).read().decode('utf-8'))
+    gcost.add_tokens('tts', model, r.get('usageMetadata'))
     part = r['candidates'][0]['content']['parts'][0]['inlineData']
     raw = base64.b64decode(part['data']); mime = part.get('mimeType', '')
     src = out + '.src'
@@ -1526,6 +1529,7 @@ def align_hint(wav, texts):
     req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % ALIGN_MODEL,
                                  json.dumps(body).encode(), {'Content-Type': 'application/json', 'x-goog-api-key': GOOGLE_AI_KEY})
     r = json.loads(urllib.request.urlopen(req, timeout=60).read().decode('utf-8'))
+    gcost.add_tokens('align', ALIGN_MODEL, r.get('usageMetadata'))
     txt = ''.join(p.get('text', '') for p in r['candidates'][0]['content'].get('parts', []))
     st = [float(x) for x in json.loads(txt)['starts']]
     return st if len(st) == len(texts) - 1 and st == sorted(st) else None
@@ -1889,6 +1893,7 @@ def storyboard_check(W):
         req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % STORYBOARD_CHECK_MODEL, json.dumps(body).encode(),
                                      {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'})
         r = json.load(urllib.request.urlopen(req, timeout=40))
+        gcost.add_tokens('sb_check', STORYBOARD_CHECK_MODEL, r.get('usageMetadata'))
         txt = ''.join(p.get('text', '') for p in ((r.get('candidates') or [{}])[0].get('content') or {}).get('parts') or [])
         j = json.loads(txt[txt.find('{'):txt.rfind('}') + 1])
         same = [bool(x.get('same')) for x in (j.get('panels') or []) if isinstance(x, dict)][:4] or [bool(x) for x in (j.get('same') or [])][:4]
@@ -1912,6 +1917,7 @@ def storyboard_panels(W, d):
         req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % STORYBOARD_MODEL, json.dumps(body).encode(),
                                      {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'})
         r = json.load(urllib.request.urlopen(req, timeout=STORYBOARD_TIMEOUT))
+        gcost.add_tokens('storyboard', STORYBOARD_MODEL, r.get('usageMetadata'))
         cand = (r.get('candidates') or [{}])[0]
         data, note = None, ''
         for p in (cand.get('content') or {}).get('parts') or []:
@@ -2203,6 +2209,8 @@ def render(d):
         elif d.get('veo') or d.get('bg_video'):
             veo = veo_clip(W, d)
             print('[render] veo ok=%s gen=%ss err=%s' % (veo.get('ok'), veo.get('gen_s'), veo.get('error')), flush=True)
+            if veo.get('ok') and not d.get('bg_video'):
+                gcost.add_veo(veo.get('model'), VEO_SECONDS)
         use_veo = bool(veo and veo.get('ok'))
         sb = None
         # 4 ต.ค. 69 user 'แพงไป': storyboard (฿1–2/คลิป) เฉพาะคลิปที่ถูกโพสต์จริง (tiktok หรือ fb_reel.post = ดีลแรกของรอบ) หรือสั่งตรง storyboard:true ·
@@ -2219,6 +2227,8 @@ def render(d):
             # 3 ต.ค. 69 B: ขอ Veo แต่โควตา Fast หมด (รอบ 15/18/21) → Veo Lite เชื่อมเฟรม storyboard ช่อง 1→4 (โควตาแยก 3/วัน) · ล้ม = ใช้ storyboard ภาพนิ่งต่อ
             kf = veo_keyframes(W, d)
             print('[render] veo keyframes ok=%s gen=%ss err=%s' % (kf.get('ok'), kf.get('gen_s'), kf.get('error')), flush=True)
+            if kf.get('ok'):
+                gcost.add_veo(kf.get('model') or 'veo-lite', 8)   # keyframes = 8 วิตายตัว
             if kf.get('ok'):
                 veo = kf; use_veo = True
             else:
@@ -2673,8 +2683,39 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print('%s - %s' % (self.address_string(), fmt % args), flush=True)
 
+# 25 ต.ค. 69 (user: 'โพสทุกรอบใช้ไปเท่าไหร่ เหลือเท่าไหร่แจ้งผมด้วย' + รวม lofi): หลังรอบโพสต์แต่ละรอบ (นาที GCOST_REPORT_MIN ของชั่วโมงรอบ)
+# ส่งยอดใช้ตั้งแต่รายงานก่อน + คงเหลือประมาณเข้า Discord (GCOST_CHANNEL, ค่าเริ่มต้น deals) · GCOST_REPORT=0 ปิด
+GCOST_REPORT = os.environ.get('GCOST_REPORT', '1') == '1'
+GCOST_CHANNEL = os.environ.get('GCOST_CHANNEL', 'deals')
+GCOST_REPORT_MIN = int(os.environ.get('GCOST_REPORT_MIN', '40'))
+GCOST_STATE = '/tiktok/gcost_report.json'
+
+def gcost_loop():
+    time.sleep(30)
+    while True:
+        try:
+            now = time.time(); b = time.gmtime(now + 7 * 3600)
+            if b.tm_hour in ROUND_HOURS and b.tm_min >= GCOST_REPORT_MIN:
+                key = time.strftime('%Y-%m-%d %H', b)
+                try:
+                    st = json.load(open(GCOST_STATE))
+                except Exception:
+                    st = {}
+                if st.get('key') != key:
+                    since = st.get('t') or (now - 3 * 3600)
+                    txt = gcost.report_text(since, now, 'รอบ %02d:00 (ตั้งแต่รายงานก่อน รวม lofi)' % b.tm_hour)
+                    ok, _ = dc_post(GCOST_CHANNEL, txt)
+                    print('[gcost] report %s sent=%s' % (key, ok), flush=True)
+                    json.dump({'key': key, 't': now}, open(GCOST_STATE + '.new', 'w')); os.replace(GCOST_STATE + '.new', GCOST_STATE)
+        except Exception as e:
+            print('[gcost] report failed: %s' % str(e)[:160], flush=True)
+        time.sleep(60)
+
 if __name__ == '__main__':
     print('deal-video listening :8080', flush=True)
+    if GCOST_REPORT:
+        import threading
+        threading.Thread(target=gcost_loop, daemon=True).start()
     if TT_CHECK_MIN > 0:
         import threading
         threading.Thread(target=tt_check_loop, daemon=True).start()

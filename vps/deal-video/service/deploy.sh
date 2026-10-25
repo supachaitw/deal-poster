@@ -14,6 +14,7 @@ ENVF=""; [ -f .env ] && ENVF="--env-file .env"
 docker run -d --name deal-video --restart unless-stopped --network n8n_default \
   -v /root/deal-video/tiktok:/tiktok \
   -v /root/home-console/html/clips:/clips \
+  -v /opt/lofi/logs:/lofilogs:ro \
   --cpus 0.8 --memory 700m $ENVF deal-video:latest
 sleep 2
 docker exec n8n-n8n-1 wget -qO- http://deal-video:8080/health && echo
