@@ -176,6 +176,300 @@
         160
       ],
       "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\": {\"property\": \"สถานะ\", \"select\": {\"equals\": \"รอตรวจ\"}}, \"page_size\": 100}",
+        "options": {
+          "timeout": 20000,
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "body",
+                    "name": "start_cursor",
+                    "value": "={{ $response.body.next_cursor }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.has_more }}",
+              "limitPagesFetched": true,
+              "maxRequests": 10
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "rv-querypending",
+      "name": "Query Pending",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      }
+    },
+    {
+      "id": "rv-pendinglist",
+      "name": "Pending List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        420
+      ],
+      "parameters": {
+        "jsCode": "// 29 ต.ค. 69 ด่านตรวจแถว 'รอตรวจ' (แถวที่ Claude ฝั่ง claude.ai สร้างตรงใน Notion เคยค้างตลอดกาล) — รวมทุกหน้าเป็น item เดียว\nconst rows = $('Query Pending').all().flatMap(i => i.json.results || []);\nif (!rows.length) return [];\nreturn [{ json: { pending: rows } }];\n"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\": {\"property\": \"สถานะ\", \"select\": {\"equals\": \"อนุมัติแล้ว\"}}, \"page_size\": 100}",
+        "options": {
+          "timeout": 20000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "rv-queryapproved",
+      "name": "Query Approved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\": {\"property\": \"สถานะ\", \"select\": {\"equals\": \"โพสต์แล้ว\"}}, \"page_size\": 100}",
+        "options": {
+          "timeout": 20000,
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "body",
+                    "name": "start_cursor",
+                    "value": "={{ $response.body.next_cursor }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.has_more }}",
+              "limitPagesFetched": true,
+              "maxRequests": 20
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "rv-queryposted",
+      "name": "Query Posted",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        896,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      }
+    },
+    {
+      "id": "rv-reviewpending",
+      "name": "Review Pending",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        420
+      ],
+      "parameters": {
+        "jsCode": "// ตรวจแถว 'รอตรวจ' ทีละแถว (เก่าก่อน) → ผ่าน = อนุมัติแล้ว แต่เติมคิวแค่ให้ 'อนุมัติแล้ว' รวม ≤ QUEUE_MAX (2 รอบโพสต์)\n// ไม่งั้นดีลใหม่จาก intake ต้องรอหลังของค้างหลายร้อยแถว · ไม่ผ่าน = ค้าง รอตรวจ + แจ้ง #deals (ครั้งเดียวต่อแถว)\nconst QUEUE_MAX = 12;\nconst CLAIM = new RegExp(String.raw`รักษา(?:โรค|อาการ|สิว|ฝ้า|แผล|ผม|หาย)|หายขาด|บำบัด|บรรเทา|แก้ปวด|ป้องกันโรค|ต้านโรค|ภูมิคุ้มกัน|ต้านอนุมูล|ลดน้ำหนัก|ลดความอ้วน|เผาผลาญ|ลดไขมัน|ลดพุง|ลดคอเลส|น้ำตาลในเลือด|ความดัน(?:โลหิต|สูง)|ดีท็อก|ล้างสารพิษ|บำรุงร่างกาย|บำรุงสมอง|เพิ่มสมรรถภาพ|ฟื้นฟูร่างกาย|ชะลอวัย|ต่อต้านริ้วรอย|ลดริ้วรอย|ลบริ้วรอย|ยกกระชับ|ผิวขาว|ขาวใส|หน้าใส|ผิวใส|ลดสิว|สิวหาย|ฝ้าจาง|ฆ่าเชื้อ|ขจัดเชื้อ|กำจัดเชื้อ|ยับยั้งเชื้อ|แบคทีเรีย|ไวรัส|99\\.9|ปกป้องผิว|ปกป้องมือ|ไม่มีผลข้างเคียง|ปลอดภัย ?100|เห็นผล|โปรตีนสูง|แคลเซียมสูง|วิตามินสูง|ผ่อนคลายกล้ามเนื้อ`);   // = CLAIM_RE ใน deal-video server.py (กฎโฆษณา อย.)\nconst AFF = /^https:\\/\\/(s\\.shopee\\.co\\.th|shope\\.ee|s\\.lazada\\.co\\.th|c\\.lazada\\.co\\.th|vt\\.tiktok\\.com|(www\\.)?tiktok\\.com)\\//;\nconst txt = (p, k) => (((p.properties || {})[k] || {})[k === 'สินค้า' ? 'title' : 'rich_text'] || []).map(t => t.plain_text).join('');\nconst norm = s => s.replace(/\\s+/g, ' ').trim().toLowerCase();\nconst pending = $('Pending List').first().json.pending.slice().sort((a, b) => a.created_time < b.created_time ? -1 : 1);\nconst posted = $('Query Posted').all().flatMap(i => i.json.results || []);\nlet room = Math.max(0, QUEUE_MAX - ($('Query Approved').first().json.results || []).length);\nconst pn = new Set(posted.map(p => norm(txt(p, 'สินค้า'))));\nconst pl = new Set(posted.map(p => (p.properties['ลิงก์Affiliate'] || {}).url).filter(Boolean));\nconst seen = new Set();\nconst out = [];\nfor (const p of pending) {\n  const pr = p.properties, name = txt(p, 'สินค้า'), link = (pr['ลิงก์Affiliate'] || {}).url || '';\n  const sale = (pr['ราคาลด'] || {}).number, full = (pr['ราคาเต็ม'] || {}).number;\n  const r = [];\n  if (!AFF.test(link)) r.push('ลิงก์ไม่ใช่ affiliate');\n  if (!name.trim()) r.push('ไม่มีชื่อสินค้า');\n  if (!txt(p, 'แคปชัน').trim()) r.push('ไม่มีแคปชัน');\n  if (sale != null && sale <= 1) r.push('ราคาลด ' + sale + ' บาท');\n  if (sale && full && full < sale) r.push('ราคาเต็มต่ำกว่าราคาลด');\n  const k = norm(name);\n  if (pn.has(k) || pl.has(link)) r.push('ซ้ำกับดีลที่โพสต์แล้ว');\n  else if (seen.has(k) || (link && seen.has(link))) r.push('ซ้ำกับแถวรอตรวจอื่น');\n  const m = (txt(p, 'แคปชัน') + ' ' + txt(p, 'คำบรรยาย')).match(CLAIM);\n  if (m) r.push('อ้างสรรพคุณ \"' + m[0] + '\"');\n  seen.add(k); if (link) seen.add(link);\n  const ok = !r.length;\n  if (ok && room <= 0) continue;   // ผ่านแต่คิวเต็ม → รอบหน้า\n  if (ok) room--;\n  out.push({ json: { id: p.id, name, ok, reasons: r } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "rv-pendingok",
+      "name": "Pending OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        320
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rv-c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"properties\": {\"สถานะ\": {\"select\": {\"name\": \"อนุมัติแล้ว\"}}}}",
+        "options": {
+          "timeout": 20000,
+          "batching": {
+            "batch": {
+              "batchSize": 3,
+              "batchInterval": 1100
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "rv-approve",
+      "name": "Approve Pending",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1568,
+        320
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "rv-reviewreport",
+      "name": "Review Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        520
+      ],
+      "parameters": {
+        "jsCode": "// สรุปเข้า #deals: อนุมัติกี่แถว + แถวไม่ผ่าน (แจ้งครั้งเดียวต่อแถว จำใน staticData 30 วัน)\nconst sd = $getWorkflowStaticData('global'); sd.reviewed = sd.reviewed || {};\nconst all = $('Review Pending').all().map(i => i.json);\nconst ok = all.filter(x => x.ok), bad = all.filter(x => !x.ok && !sd.reviewed[x.id]);\nconst now = Date.now();\nfor (const x of bad) sd.reviewed[x.id] = now;\nfor (const [k, t] of Object.entries(sd.reviewed)) if (now - t > 30 * 864e5) delete sd.reviewed[k];\nif (!ok.length && !bad.length) return [];\nconst left = $('Pending List').first().json.pending.length - ok.length;\nconst L = [];\nif (ok.length) L.push('✅ ด่านตรวจอนุมัติ ' + ok.length + ' ดีลจาก รอตรวจ → เข้าคิวโพสต์ (เหลือรอตรวจ ' + left + ')');\nif (bad.length) {\n  L.push('⚠️ ไม่ผ่านด่านตรวจ ' + bad.length + ' แถว — ค้างที่ รอตรวจ (แก้ใน Notion แล้วรอบหน้าตรวจใหม่เอง):');\n  for (const x of bad.slice(0, 15)) L.push('• ' + x.name.slice(0, 60) + ' — ' + x.reasons.join(', '));\n  if (bad.length > 15) L.push('… อีก ' + (bad.length - 15) + ' แถว');\n}\nreturn [{ json: { text: L.join('\\n') } }];\n"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://discord-bot:3000/notify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: 'deals', text: $json.text, mention: $json.text.includes('⚠️') }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "name": "Discord Review Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1568,
+        520
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jhnQV8hQrNBjwU37",
+          "name": "Discord ops bot alert"
+        }
+      },
+      "id": "rv-discord"
     }
   ],
   "connections": {
@@ -184,6 +478,11 @@
         [
           {
             "node": "Query New Deals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Query Pending",
             "type": "main",
             "index": 0
           }
@@ -243,6 +542,41 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Query Pending": {
+      "main": [
+        []
+      ]
+    },
+    "Pending List": {
+      "main": [
+        []
+      ]
+    },
+    "Query Approved": {
+      "main": [
+        []
+      ]
+    },
+    "Query Posted": {
+      "main": [
+        []
+      ]
+    },
+    "Review Pending": {
+      "main": [
+        []
+      ]
+    },
+    "Pending OK?": {
+      "main": [
+        []
+      ]
+    },
+    "Review Report": {
+      "main": [
+        []
       ]
     }
   },
