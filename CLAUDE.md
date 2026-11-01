@@ -622,6 +622,8 @@ n8n เห็น `render+upload: Request failed with status code 500` → ถอ
 ดูได้จาก `has_more: true` ใน runData ของ `Query Approved Deals` · ถ้าจะเร่ง ต้องคิดเผื่อ `IG Reel` ที่มี
 budget 200 วิ/รอบอยู่แล้ว (ดีลเกินงบถอยไปโพสต์ภาพ) — เพิ่มจำนวนดีล = สัดส่วน Reels ต่อรอบลดลงตาม
 
+**ลดเหลือ 3 ดีล/รอบ (1 พ.ย. 69 user: 'ลด 3 ดีล/รอบ' หลังคุยเรื่อง AI slop)** — `Split Approved` `.slice(0, 3)` = สูงสุด 21 ดีล/วัน (ข้อความด้านบนที่ว่า 6/42 เป็นประวัติ) · Threads ยัง 2/รอบ · ดีลแรกของรอบยังลง FB Reel · `QUEUE_MAX` 12 ใน `Review Pending` ไม่ได้แก้ = คิวตอนนี้เท่ากับ 4 รอบ ดีลใหม่จาก intake รอได้ถึง ~4 รอบ · ย้อนกลับ: แก้เป็น `.slice(0, 6)` (backup `/root/deal-video/backup/poster_v1_20261101.json`) · **ค่าฐานก่อนทดลอง 1 พ.ย. 69**: โพสต์ 442 ดีลใน 14 วัน (18 ต.ค.–1 พ.ย.) · คลิกคนจริง 7 วัน = 6 (รวมที่น่าจะเป็น user ทดสอบเอง IP 27.130.x) · **📅 15 พ.ย. 69 เทียบผล**: `python3 /root/deals-site/gen.py stats` และคำเตือนจากแพลตฟอร์ม
+
 **คำบรรยายสินค้า.** เพิ่ม property `คำบรรยาย` (rich_text) ใน Deal Queue · `Claude Write Caption` เปลี่ยนเป็นขอ
 JSON `{caption, desc}` ครั้งเดียว (max_tokens 400→600) · `Build Caption` ดึงก้อน `{...}` ด้วย regex แล้ว parse
 — **พังเมื่อไหร่ถอยไปใช้ทั้งก้อนเป็นแคปชันแบบเดิม** ดีลจึงไม่มีทางไม่มีแคปชัน · `Deal Poster` อ่านแล้วส่งเป็น `desc`
