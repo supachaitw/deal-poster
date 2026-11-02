@@ -405,6 +405,66 @@ TT_RISK_RE = re.compile(r'อาหารเสริม|supplement|ลดน้
                         r'คอลลาเจน|collagen|กลูต้า|gluta|วิตามิน|vitamin|โพรไบโอติก|probiotic|เวย์โปรตีน|whey|fat ?burn|ไฟเบอร์ (?:ลด|ดีท็อก)', re.I)
 TT_RISK_OFF = os.environ.get('TIKTOK_HEALTH_OK', '0') == '1'
 
+# ด่านอ่านรูปสินค้า (2 พ.ย. 69): PETHEALER 'ขนมสุนัข' ขวดเขียน FLEAS TICKS PARASITE → TikTok ลบ · ชื่อ/คำบรรยายไม่มีคำพวกนี้ regex+Jev จึงไม่เห็น
+# drug = ลบจากคิว (n8n Deal Image Gate) · supplement/claim = ไม่เข้า TikTok แบบ TT_RISK_RE · ล้ม = None ปล่อยผ่าน
+IMG_GATE = os.environ.get('IMG_GATE', '1') != '0'
+IMG_GATE_MODEL = os.environ.get('IMG_GATE_MODEL', 'gemini-2.5-flash')
+IMG_GATE_PROMPT = ('Classify this online-shop product by reading the image and any text printed on the product, its packaging or the ad banner, together with the listing title given below. '
+    'Categories: "drug" = medicine or treatment for people or animals, including anything for fleas, ticks, parasites, worms, mites or disease, even when it is sold as a snack or treat; pesticide applied to animals; medical treatment. '
+    '"supplement" = dietary supplement, vitamins, weight-loss or slimming, collagen, gluta, protein powder. '
+    '"claim" = other product whose image advertises a health, medical, body or skin result (cures, whitening, slimming, kills bacteria, before/after). '
+    '"safe" = everything else, including normal pet food, pet accessories, household cleaners, insect sprays for the home, and medical-looking household gear with no treatment claim. '
+    'Reply with JSON only: {"seen":"text you read on the product, short","category":"drug|supplement|claim|safe","reason":"short"}. Title: ')
+_img_gate_cache = {}
+
+def og_image(link):
+    """หารูปสินค้าจากลิงก์ affiliate แบบ Build Post Body (UA บอทพรีวิว · Lazada ไม่เอาแบนเนอร์ creative-center) · ไม่พบ = None"""
+    ua = {'User-Agent': 'TelegramBot (like TwitterBot)'}
+    html = urllib.request.urlopen(urllib.request.Request(link, headers=ua), timeout=20).read().decode('utf-8', 'replace')
+    m = re.search(r'property="og:image" content="([^"]{10,500})"', html)
+    img = m.group(1).replace('&amp;', '&') if m else None
+    if img and 'lazada-creative-center' in img:
+        pm = re.search(r'https://www\.lazada\.co\.th/products/[^"\'?&\s]+\.html', html)
+        img = None
+        if pm:
+            page = urllib.request.urlopen(urllib.request.Request(pm.group(0), headers=ua), timeout=20).read().decode('utf-8', 'replace')
+            g = re.search(r'"src":"((?:https?:)?//[^"]+?)","type":"img"', page)
+            if g:
+                img = 'https:' + g.group(1) if g.group(1).startswith('//') else g.group(1)
+    if img and 'x-oss-process' in img:
+        img = re.sub(r'format,(avif|webp|heic|heif)', 'format,jpg', img, flags=re.I)
+    return img
+
+def img_gate(img, name=''):
+    """คืน {'category','seen','reason'} หรือ None (ไม่มี key/รูปโหลดไม่ได้/Gemini ล้ม) · cache ต่อ URL รูป"""
+    if not IMG_GATE or not GOOGLE_AI_KEY or not img or 'lazada-creative-center' in img:
+        return None
+    if img in _img_gate_cache:
+        return _img_gate_cache[img]
+    try:
+        data = urllib.request.urlopen(urllib.request.Request(img, headers={'User-Agent': 'Mozilla/5.0'}), timeout=20).read()
+        if len(data) < 2000:
+            return None
+        mime = 'image/png' if data[:4] == b'\x89PNG' else ('image/webp' if data[8:12] == b'WEBP' else 'image/jpeg')
+        body = {'contents': [{'parts': [{'inline_data': {'mime_type': mime, 'data': base64.b64encode(data).decode()}}, {'text': IMG_GATE_PROMPT + str(name)[:200]}]}],
+                'generationConfig': {'responseMimeType': 'application/json', 'temperature': 0}}
+        req = urllib.request.Request('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % IMG_GATE_MODEL, json.dumps(body).encode(),
+                                     {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'})
+        r = json.load(urllib.request.urlopen(req, timeout=30))
+        gcost.add_tokens('img_gate', IMG_GATE_MODEL, r.get('usageMetadata'))
+        txt = ''.join(p.get('text', '') for p in ((r.get('candidates') or [{}])[0].get('content') or {}).get('parts') or [])
+        j = json.loads(txt[txt.find('{'):txt.rfind('}') + 1])
+        out = {'category': str(j.get('category') or ''), 'seen': str(j.get('seen') or '')[:160], 'reason': str(j.get('reason') or '')[:160]}
+        if out['category'] not in ('drug', 'supplement', 'claim', 'safe'):
+            return None
+        if len(_img_gate_cache) > 500:
+            _img_gate_cache.clear()
+        _img_gate_cache[img] = out
+        return out
+    except Exception as e:
+        print('[imgcheck] failed: %s' % str(e)[:120], flush=True)
+        return None
+
 def tt_risk(d):
     if TT_RISK_OFF:
         return None
@@ -415,6 +475,9 @@ def tt_risk(d):
     g = jev.deal_gate(d.get('name') or '', d.get('desc') or '')
     if g and g['prob'] >= jev.TT_RISK_MIN:
         return 'jev:%s %.2f' % (g['choice'], g['prob'])
+    ig = img_gate(d.get('img'), d.get('name') or '')
+    if ig and ig['category'] != 'safe':
+        return 'img:%s %s' % (ig['category'], ig['seen'][:60])
     return None
 
 def clean_desc(s):
@@ -2488,6 +2551,15 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200, r)
             except Exception as e:
                 return self._json(500, {'ok': False, 'error': str(e)[:200]})
+        if self.path == '/imgcheck':
+            try:
+                d = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)).decode('utf-8'))
+                img = d.get('img') or og_image(d.get('link'))
+                r = img_gate(img, d.get('name') or '')
+                print('[imgcheck] %s -> %s' % (str(d.get('name') or '')[:50], r and r['category']), flush=True)
+                return self._json(200, {'ok': r is not None, **(r or {})})
+            except Exception as e:
+                return self._json(200, {'ok': False, 'error': str(e)[:160]})
         if self.path in ('/publish', '/discard'):
             try:
                 d = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)).decode('utf-8'))

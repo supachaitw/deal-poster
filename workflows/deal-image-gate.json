@@ -1,0 +1,217 @@
+{
+  "name": "Deal Image Gate",
+  "nodes": [
+    {
+      "id": "ig1",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "55 2-23/3 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ig2",
+      "name": "Query Approved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/589f80403f534993b49fd9fdd4d292ff/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\": {\"property\": \"สถานะ\", \"select\": {\"equals\": \"อนุมัติแล้ว\"}}, \"page_size\": 100}",
+        "options": {
+          "timeout": 20000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      }
+    },
+    {
+      "id": "ig3",
+      "name": "Check Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// อ่านรูปสินค้าของแถว 'อนุมัติแล้ว' ก่อนรอบโพสต์ 5 นาที → category drug (ยา/เห็บหมัด/พยาธิ) = ส่งไปลบ · ล้ม = ปล่อยผ่าน ลองใหม่รอบหน้า\n// ตรวจแล้วจำใน staticData ไม่เสียเงินซ้ำ · เรียงเก่าก่อนเหมือนที่ Poster หยิบ · งบ 200 วิ ที่เหลือรอบหน้า\nconst sd = $getWorkflowStaticData('global');\nsd.seen = sd.seen || {};\nconst now = Date.now();\nfor (const k of Object.keys(sd.seen)) if (now - sd.seen[k] > 30 * 864e5) delete sd.seen[k];\nconst rows = $input.all().flatMap(i => i.json.results || []);\nconst out = [];\nfor (const p of rows) {\n  if (sd.seen[p.id]) continue;\n  if (Date.now() - now > 200000) break;\n  const name = (p.properties['สินค้า'].title || []).map(t => t.plain_text).join('');\n  const link = (p.properties['ลิงก์Affiliate'] || {}).url || '';\n  let r = null;\n  try {\n    r = await this.helpers.httpRequest({ method: 'POST', url: 'http://deal-video:8080/imgcheck', body: { name, link }, json: true, timeout: 60000 });\n  } catch (e) {}\n  if (!r || !r.ok) continue;\n  sd.seen[p.id] = now;\n  if (r.category === 'drug') out.push({ json: { id: p.id, name, seen: r.seen, reason: r.reason } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "ig4",
+      "name": "Delete Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "U5mfqJ7z2OV1c4PT",
+          "name": "Notion Deal Poster (Header Auth)"
+        }
+      },
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://api.notion.com/v1/pages/' + $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"archived\": true}",
+        "options": {
+          "timeout": 20000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      }
+    },
+    {
+      "id": "ig5",
+      "name": "Build Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const rows = $('Check Images').all().map(i => i.json);\nreturn [{ json: { text: '🗑 ลบดีลออกจากคิว ' + rows.length + ' แถว (รูปสินค้าเป็นยา/เห็บหมัด/พยาธิ · กู้คืนได้จากถังขยะ Notion)\\n' + rows.map(r => '• ' + r.name.slice(0, 60) + ' — ' + r.seen.slice(0, 60)).join('\\n') } }];\n"
+      }
+    },
+    {
+      "id": "ig6",
+      "name": "Discord Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jhnQV8hQrNBjwU37",
+          "name": "Discord ops bot alert"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://discord-bot:3000/notify",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: 'deals', text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Query Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Approved": {
+      "main": [
+        [
+          {
+            "node": "Check Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Images": {
+      "main": [
+        [
+          {
+            "node": "Delete Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Row": {
+      "main": [
+        [
+          {
+            "node": "Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Report": {
+      "main": [
+        [
+          {
+            "node": "Discord Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Bangkok",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}

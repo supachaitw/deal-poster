@@ -24,6 +24,7 @@ WORKFLOWS = {
     'UXGp6aS7EclTqCtl': 'threads-token-keeper.json',
     'teJKfYg0xuG9OSfc': 'deal-landing-page.json',
     'qHcCduq7ec3an1zk': 'tiktok-oauth-callback.json',
+    'NzOiK948JFquLHuO': 'deal-image-gate.json',
 }
 
 # order matters: the more specific patterns first

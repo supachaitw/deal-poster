@@ -96,7 +96,7 @@ def to_deal(p):
     return {
         'id': p['id'].replace('-', ''), 'nid': p['id'], 'name': name, 'link': link, 'full': full, 'sale': sale,
         'off': off, 'save': (full - sale) if off else 0, 'cat': cat, 'slug': CAT_SLUG.get(cat, 'other'),
-        'when': when, 'img': (pr.get('รูป') or {}).get('url') or '', 'caption': rich(pr.get('แคปชัน')),
+        'when': when, 'img': (pr.get('รูป') or {}).get('url') or '', 'caption': rich(pr.get('แคปชัน')).replace(' ของดีที่คนซื้อซ้ำ', ''),
         'desc': rich(pr.get('คำบรรยาย')), 'src': src, 'store': {'lazada': 'Lazada', 'tiktok': 'TikTok Shop'}.get(src, 'Shopee'),
     }
 

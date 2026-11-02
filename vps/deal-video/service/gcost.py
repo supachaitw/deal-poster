@@ -113,7 +113,7 @@ def balance():
     return a['thb'] - sum(e['usd'] for e in entries(a['at'])) * THB_PER_USD, a
 
 
-KIND_TH = {'tts': 'เสียงพากย์', 'align': 'จับจังหวะเสียง', 'storyboard': 'storyboard', 'sb_check': 'ตรวจ storyboard', 'veo': 'Veo', 'lyria': 'เพลง lofi'}
+KIND_TH = {'tts': 'เสียงพากย์', 'align': 'จับจังหวะเสียง', 'storyboard': 'storyboard', 'sb_check': 'ตรวจ storyboard', 'img_gate': 'ตรวจรูปสินค้า', 'veo': 'Veo', 'lyria': 'เพลง lofi'}
 
 
 def summary(since, until=None):
