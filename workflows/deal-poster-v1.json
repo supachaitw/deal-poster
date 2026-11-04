@@ -572,7 +572,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const deal = $('Split Approved').item.json;\nconst all = $('Split Approved').all().map(x => x.json);\nconst idx = all.findIndex(a => a.page_id === deal.page_id);\nfunction pick(node, i){ try { const arr = $(node).all(); return (i >= 0 && arr[i]) ? arr[i].json : null; } catch (e) { return null; } }\nfunction errOf(j){ try { const m = (j && j.error && (j.error.message || j.error.error_user_msg)) || (j && j.message) || ''; return String(m).replace(/\\s+/g, ' ').slice(0, 70); } catch (e) { return ''; } }\n\nlet tg = '❌ ไม่สำเร็จ';\nconst tv = pick('TG Verify', idx);\nif (tv && tv.sent === true) tg = '✅ รูป+แคปชัน';\nelse if (tv && tv.sent === false) tg = '⚠️ ข้อความล้วน (รูปไม่ผ่าน)';\n\nlet fb = '❌ ไม่สำเร็จ';\nconst fv = pick('FB Verify', idx);\nif (fv && fv.sent === true) fb = '✅ รูป+แคปชัน';\nelse if (fv && fv.sent === false) fb = '⚠️ ข้อความ+ลิงก์ (รูปไม่ผ่าน)';\n\n// #20: ดีลที่ถูกจำกัดโควตา Threads (skip) ไม่มีผลใน Threads Publish — จับคู่ตามลำดับเฉพาะดีลที่ไม่ข้าม\nlet btpAll = []; try { btpAll = $('Build Threads Post').all().map(x => x.json); } catch (e) {}\nconst btp = btpAll.find(x => x.page_id === deal.page_id) || btpAll[idx] || null;\nconst thSkipped = !!(btp && btp.skip);\nlet thj = null;\nif (!thSkipped) { try { thj = $('Threads Publish').item.json; } catch (e) { const nz = btpAll.slice(0, idx).filter(x => !x.skip).length; thj = pick('Threads Publish', nz); } }\nlet th;\nif (thSkipped) {\n  th = '⏭ ข้าม (จำกัด 2 ดีล/รอบ)';\n} else if (thj && thj.id) {\n  let mode = '';\n  try { mode = $('Build Threads Post').item.json.mode || ''; } catch (e) {}\n  th = (mode === 'TEXT') ? '✅ ข้อความล้วน' : '✅ รูป+แคปชัน';\n} else {\n  const m = errOf(thj);\n  th = '❌ ไม่สำเร็จ' + (m ? ' — ' + m : '');\n}\n\nconst text = '✅ โพสต์แล้ว: ' + (deal.name || '-') + '\\n' +\n  '• Telegram: ' + tg + '\\n' +\n  '• Facebook: ' + fb + '\\n' +\n  '• Threads: ' + th +\n  (deal.link ? '\\n' + deal.link : '');\nreturn { json: { alert: text, name: deal.name } };"
+        "jsCode": "const deal = $('Split Approved').item.json;\nconst all = $('Split Approved').all().map(x => x.json);\nconst idx = all.findIndex(a => a.page_id === deal.page_id);\nfunction pick(node, i){ try { const arr = $(node).all(); return (i >= 0 && arr[i]) ? arr[i].json : null; } catch (e) { return null; } }\nfunction errOf(j){ try { const m = (j && j.error && (j.error.message || j.error.error_user_msg)) || (j && j.message) || ''; return String(m).replace(/\\s+/g, ' ').slice(0, 70); } catch (e) { return ''; } }\n\nlet tg = (Date.now() < 1796317200000) ? '⏸ พักถึง 4 ธ.ค.' : '❌ ไม่สำเร็จ';\nconst tv = pick('TG Verify', idx);\nif (tv && tv.sent === true) tg = '✅ รูป+แคปชัน';\nelse if (tv && tv.sent === false) tg = '⚠️ ข้อความล้วน (รูปไม่ผ่าน)';\n\nlet fb = '❌ ไม่สำเร็จ';\nconst fv = pick('FB Verify', idx);\nif (fv && fv.sent === true) fb = '✅ รูป+แคปชัน';\nelse if (fv && fv.sent === false) fb = '⚠️ ข้อความ+ลิงก์ (รูปไม่ผ่าน)';\n\n// #20: ดีลที่ถูกจำกัดโควตา Threads (skip) ไม่มีผลใน Threads Publish — จับคู่ตามลำดับเฉพาะดีลที่ไม่ข้าม\nlet btpAll = []; try { btpAll = $('Build Threads Post').all().map(x => x.json); } catch (e) {}\nconst btp = btpAll.find(x => x.page_id === deal.page_id) || btpAll[idx] || null;\nconst thSkipped = !!(btp && btp.skip);\nlet thj = null;\nif (!thSkipped) { try { thj = $('Threads Publish').item.json; } catch (e) { const nz = btpAll.slice(0, idx).filter(x => !x.skip).length; thj = pick('Threads Publish', nz); } }\nlet th;\nif (thSkipped) {\n  th = '⏭ ข้าม (จำกัด 2 ดีล/รอบ)';\n} else if (thj && thj.id) {\n  let mode = '';\n  try { mode = $('Build Threads Post').item.json.mode || ''; } catch (e) {}\n  th = (mode === 'TEXT') ? '✅ ข้อความล้วน' : '✅ รูป+แคปชัน';\n} else {\n  const m = errOf(thj);\n  th = '❌ ไม่สำเร็จ' + (m ? ' — ' + m : '');\n}\n\nconst text = '✅ โพสต์แล้ว: ' + (deal.name || '-') + '\\n' +\n  '• Telegram: ' + tg + '\\n' +\n  '• Facebook: ' + fb + '\\n' +\n  '• Threads: ' + th +\n  (deal.link ? '\\n' + deal.link : '');\nreturn { json: { alert: text, name: deal.name } };"
       },
       "id": "a0c0f17c-2991-4064-925b-329aa44eb2d7",
       "name": "Build Posted Alert",
@@ -994,6 +994,40 @@
           "name": "Discord ops bot alert"
         }
       }
+    },
+    {
+      "id": "362d4121-af94-4986-949a-3cfb0aefd945",
+      "name": "TG Paused?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1224,
+        192
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "81a5a61a-1cc0-4540-b237-77c5c726b14f",
+              "leftValue": "={{ Date.now() < 1796317200000 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "Telegram @paiyaa_deals paused until 4 Dec 2026 00:00 BKK (user 4 Nov). true = skip TG"
     }
   ],
   "connections": {
@@ -1122,7 +1156,7 @@
       "main": [
         [
           {
-            "node": "Post to Telegram",
+            "node": "TG Paused?",
             "type": "main",
             "index": 0
           },
@@ -1410,6 +1444,18 @@
         [
           {
             "node": "Discord Public Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG Paused?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Post to Telegram",
             "type": "main",
             "index": 0
           }
