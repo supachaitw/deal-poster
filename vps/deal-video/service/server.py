@@ -2219,7 +2219,8 @@ def veo_clip(W, d):
         try:
             mp4 = urllib.request.urlopen(urllib.request.Request(str(d['bg_video']), headers={'User-Agent': 'Mozilla/5.0'}), timeout=120).read()
             open(W + '/veo.mp4', 'wb').write(mp4)
-            return _boomerang(W, mp4, round(time.time() - t0, 1), 'bg_video')
+            # 7 พ.ย. 69: bg_demo = คลิปสาธิต (น้ำพุ่ง/มือใช้งาน) เดินหน้าอย่างเดียว ไม่ย้อนกลับ
+            return _boomerang(W, mp4, round(time.time() - t0, 1), 'bg_video', demo=bool(d.get('bg_demo')))
         except Exception as e:
             return {'ok': False, 'error': 'bg_video: ' + str(e)[:160]}
     if not key:
