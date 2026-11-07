@@ -1333,6 +1333,57 @@ def fb_reel_post(fr, mp4):
     except Exception as e:
         out['error'] = str(e)[:200]; return out
 
+# 7 พ.ย. 69 user: 'คลิป reels ใส่ link paiyaadeals.com ไม่ได้เหรอ' → 'ลองทำ แต่ไม่ทุกคลิป เว้นระยะห่างของคลิป'
+# ลิงก์ในแคปชัน Reels กดไม่ได้ (ข้อจำกัด FB) แต่ลิงก์ในคอมเมนต์กดได้ → เพจคอมเมนต์ลิงก์หน้าดีล /d/<id> ใต้ Reel
+# เว้นห่าง FB_LINK_GAP_H ชม. (8 = ~3 Reel/วัน) · รอ FB_LINK_DELAY วิ ให้ gen.py สร้างหน้าดีลก่อน (cron 10 นาที + Mark Posted ท้ายรอบ) · หน้าไม่ขึ้น = ไม่คอมเมนต์
+# Reel ที่จะได้คอมเมนต์ แคปชันบรรทัด '🔗 รวมดีลทั้งหมดที่ paiyaadeals.com' เปลี่ยนเป็น '🔗 ลิงก์ดีลนี้อยู่ในคอมเมนต์ 👇' · ปิด FB_LINK_GAP_H=0
+FB_LINK_GAP_H = float(os.environ.get('FB_LINK_GAP_H', '8'))
+FB_LINK_DELAY = int(os.environ.get('FB_LINK_DELAY', '1500'))
+FB_LINK_FILE = '/tiktok/fb_link_comment.json'
+SITE_INTERNAL = os.environ.get('SITE_INTERNAL', 'http://deals-proxy')
+
+def fb_link_due(d):
+    """คืน id หน้าดีล (32 hex) ถ้าถึงเวลาคอมเมนต์ลิงก์ · ไม่ถึง/ไม่มี page_id = None"""
+    pid = re.sub(r'[^0-9a-f]', '', str(d.get('page_id') or d.get('deal_id') or '').lower())
+    if FB_LINK_GAP_H <= 0 or len(pid) != 32:
+        return None
+    try:
+        last = float(json.load(open(FB_LINK_FILE)).get('at', 0))
+    except Exception:
+        last = 0
+    return pid if time.time() - last >= FB_LINK_GAP_H * 3600 else None
+
+def fb_link_comment_later(fr, video_id, pid, name=''):
+    """thread: รอหน้าดีลขึ้นเว็บ แล้วคอมเมนต์ลิงก์ใต้ Reel (ไม่มี token ใน log)"""
+    import threading
+    try:
+        json.dump({'at': time.time(), 'video_id': video_id, 'deal': pid, 'state': 'scheduled'}, open(FB_LINK_FILE, 'w'))
+    except Exception:
+        traceback.print_exc()
+    def job():
+        import urllib.parse
+        url = 'https://paiyaadeals.com/d/' + pid
+        try:
+            time.sleep(FB_LINK_DELAY)
+            ok = False
+            for _ in range(4):
+                try:
+                    ok = urllib.request.urlopen(urllib.request.Request(SITE_INTERNAL + '/d/' + pid, headers={'Host': 'paiyaadeals.com'}), timeout=15).status == 200
+                except Exception:
+                    ok = False
+                if ok:
+                    break
+                time.sleep(600)
+            if not ok:
+                print('[fb_link] skip %s: deal page not up' % video_id, flush=True); return
+            c, r = fb_http(FB_GRAPH + str(video_id) + '/comments', {'message': '🛒 ดูราคาล่าสุด + ไปที่ร้าน: ' + url, 'access_token': fr.get('token') or ''})
+            print('[fb_link] comment %s HTTP %s %s' % (video_id, c, (r.get('id') and 'ok') or json.dumps(r.get('error') or r, ensure_ascii=False)[:160]), flush=True)
+            if c == 200 and r.get('id'):
+                json.dump({'at': time.time(), 'video_id': video_id, 'deal': pid, 'state': 'done', 'comment_id': r.get('id'), 'name': name[:80]}, open(FB_LINK_FILE, 'w'), ensure_ascii=False)
+        except Exception as e:
+            print('[fb_link] failed %s' % str(e)[:120], flush=True)
+    threading.Thread(target=job, daemon=True).start()
+
 # 5 ต.ค. 69: audit ถูกปฏิเสธ (personal use) → ส่งเป็น 'ร่าง' เข้ากล่องข้อความ TikTok (inbox/video/init, scope video.upload) ให้ user กดโพสต์เองในแอป เลือก Everyone ได้
 # ไม่มี post_info (แคปชัน/ป้าย AI ตั้งในแอป) · สำเร็จ = SEND_TO_USER_INBOX · TIKTOK_INBOX=0 หรือ tiktok.inbox:false = Direct Post เดิม
 TT_INBOX = os.environ.get('TIKTOK_INBOX', '1') != '0'
@@ -2811,7 +2862,13 @@ class H(BaseHTTPRequestHandler):
                             pass
                 if fr:
                     t_u = time.time()
+                    link_pid = fb_link_due(d)
+                    if link_pid:
+                        fr = dict(fr, description=str(fr.get('description') or '').replace('🔗 รวมดีลทั้งหมดที่ paiyaadeals.com', '🔗 ลิงก์ดีลนี้อยู่ในคอมเมนต์ 👇'))
                     r = fb_reel_post(fr, mp4)
+                    if link_pid and r.get('ok') and r.get('video_id'):
+                        fb_link_comment_later(fr, r['video_id'], link_pid, d.get('name') or '')
+                        print('[fb_link] scheduled %s in %ds' % (r['video_id'], FB_LINK_DELAY), flush=True)
                     print('[timing] fb_reel=%.1fs ok=%s status=%s phase=%s upload=%ss err=%s' % (time.time() - t_u, r.get('ok'), r.get('status'), r.get('phase'), r.get('upload_s'), r.get('error')), flush=True)
                     out['fb_reel'] = r; ok = ok and bool(r.get('ok'))
                     if r.get('ok') and r.get('video_id') and tg and not clips_dc_paused(tg):
