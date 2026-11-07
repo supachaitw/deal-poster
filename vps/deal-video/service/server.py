@@ -1662,8 +1662,21 @@ def voice_oneshot(segs, W, vkey):
     print('tts oneshot ok (gemini %s %s) hint=%s cuts=%s' % (voice, model, ','.join('%.1f' % c for c in hint), ','.join('%.2f' % c for c in cuts)), flush=True)
     return wavs
 
+# 7 พ.ย. 69 user: 'บทพูด สามอินหนึ่ง ต่อไปเปลี่ยนเป็น ทรีอินวัน' → 'N in M' (เลขอารบิก หรือที่ LLM เขียนเป็นคำไทย) อ่านแบบอังกฤษ · ใช้กับเสียงเท่านั้น บนจอคงเดิม
+EN_NUM = {'1': 'วัน', '2': 'ทู', '3': 'ทรี', '4': 'โฟร์', '5': 'ไฟว์', '6': 'ซิกซ์', '7': 'เซเว่น', '8': 'เอท', '9': 'ไนน์', '10': 'เท็น'}
+TH_NUM = {'หนึ่ง': '1', 'สอง': '2', 'สาม': '3', 'สี่': '4', 'ห้า': '5', 'หก': '6', 'เจ็ด': '7', 'แปด': '8', 'เก้า': '9', 'สิบ': '10'}
+_NIN_TH = '|'.join(sorted(TH_NUM, key=len, reverse=True))
+NIN_RE = re.compile(r'(?<![\d.])(10|[1-9])\s*-?\s*(?:in|IN|In|อิน)\s*-?\s*(10|[1-9])(?![\d.])|(%s)\s*-?\s*อิน\s*-?\s*(%s)' % (_NIN_TH, _NIN_TH))
+
+def speak_nin(t):
+    def f(m):
+        a, b = (m.group(1), m.group(2)) if m.group(1) else (TH_NUM[m.group(3)], TH_NUM[m.group(4)])
+        return '%sอิน%s' % (EN_NUM[a], EN_NUM[b])
+    return NIN_RE.sub(f, t)
+
 def make_voice(segs, W, seed, vkey='niwat'):
     """คืน (wavs, oneshot) · oneshot=True = ชิ้นต่อกันพอดี ห้ามเติมช่องว่างระหว่างท่อน"""
+    segs = [(r, speak_nin(t)) for r, t in segs]
     if VOICE_ONESHOT and vkey.startswith('gemini:') and len(segs) > 1:
         try:
             return voice_oneshot(segs, W, vkey), True
