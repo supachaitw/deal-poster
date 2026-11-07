@@ -1915,7 +1915,7 @@ def llm_demo_action(d):
 # ฉาก: 1 hero (ท่อน hook) · 2 close-up (desc) · 3 มือใช้งาน (ราคา) · 4 ปิดท้าย (CTA) · Ken Burns สลับซูมเข้า/ออก + crossfade 0.4 วิ
 # ล้ม/ถูกกรอง/เกินโควตา → เรนเดอร์แบบเดิม (รูปร้าน) อัตโนมัติ · บังคับปิดต่อคำขอ `storyboard:false` · `storyboard_test:true` เก็บรูปดิบ /tiktok/storyboard_test_last.png
 STORYBOARD = os.environ.get('STORYBOARD', '1') == '1'
-STORYBOARD_MODEL = os.environ.get('STORYBOARD_MODEL', 'gemini-3.1-flash-image-preview')   # 2K 9:16 → 1536x2752 ≈ 18 วิ ~2,700 token (เทส 3 ต.ค. 69)
+STORYBOARD_MODEL = os.environ.get('STORYBOARD_MODEL', 'gemini-3.1-flash-image')   # 7 พ.ย. 69: -preview ตอบ 'I cannot create…' ไม่มีภาพ · รุ่น GA ผ่าน (ราคาเท่ากัน)   # 2K 9:16 → 1536x2752 ≈ 18 วิ ~2,700 token (เทส 3 ต.ค. 69)
 STORYBOARD_DAILY_MAX = int(os.environ.get('STORYBOARD_DAILY_MAX', '80'))
 STORYBOARD_ALL = os.environ.get('STORYBOARD_ALL', '0') == '1'   # 4 ต.ค. 69: ค่าเริ่มต้นทำ storyboard เฉพาะคลิปที่โพสต์จริง (ดู sb_wanted ใน render)
 STORYBOARD_TIMEOUT = int(os.environ.get('STORYBOARD_TIMEOUT', '90'))
@@ -1953,6 +1953,7 @@ def storyboard_prompt_for(d):
     cat = str(d.get('cat') or '').strip()
     setting = 'in the realistic place where this product is normally used, shown at its real scale'   # ไม่ใช้ VEO_SETS (บอก 'บนโต๊ะไม้') — ของใหญ่เช่นราวตากผ้าถูกย่อเป็นของตั้งโต๊ะ (เทส 3 ต.ค. 69)
     action = d.get('veo_action') or llm_demo_action(d) or VEO_DEMO_FALLBACK.get(cat) or 'A hand enters from the side and holds the exact product from the reference image naturally; only the hand and forearm are visible.'
+    d['_sb_action'] = action   # omni_storyboard ใช้ท่าเดียวกับช่อง 3
     closing = SB_CLOSING.get(cat, 'in a tidy, softly lit home setting')
     name = re.sub(r'\s+', ' ', str(d.get('name') or ''))[:100]
     return ('Create ONE vertical 9:16 photorealistic storyboard image divided into a 2x2 grid of 4 equal panels separated by thin white borders, '
@@ -2082,7 +2083,8 @@ def veo_prompt_for(d, shot=None):
 # ── Veo Lite keyframes (3 ต.ค. 69, user: 'ทำ B วันละ 3 คลิป ดีลแรกรอบ 15/18/21') ────────────────────────────────────
 # ดีลแรกของรอบที่ขอ Veo แต่โควตา Fast หมด (4/วัน = รอบ 00/06/09/12) → ใช้เฟรม storyboard ช่อง 1 เป็นเฟรมแรก + ช่อง 4 เป็นเฟรมท้าย ให้ Veo Lite เชื่อม (interpolation) ≈ ฿14/คลิป
 # ได้คลิปเคลื่อนไหวที่สินค้าคงรูป (ทั้งสองเฟรมผ่านด่านตรวจ storyboard แล้ว) · โควตาแยก VEO_KF_DAILY_MAX=3 · บังคับทดสอบ `veo_kf:true` (ข้าม Fast) · `veo_test:true` ไม่นับโควตา
-VEO_KF_MODEL = os.environ.get('VEO_KF_MODEL', 'veo-3.1-lite-generate-preview')
+VEO_KF_MODEL = os.environ.get('VEO_KF_MODEL', 'gemini-omni-1.1-flash')   # 7 พ.ย. 69: Veo Lite 404 ตั้งแต่ 30 ต.ค. → Omni รับ 4 ช่อง storyboard ทำคลิป 4 ช็อต (omni_storyboard)
+VEO_KF_RES = os.environ.get('VEO_KF_RES', '360p')   # 360p 8 วิ ≈ 15.4k video token ≈ $0.27 · 720p ≈ $0.81
 VEO_KF_DAILY_MAX = int(os.environ.get('VEO_KF_DAILY_MAX', '0'))   # 0 = ปิด (user 3 ต.ค. 69: 3/วัน = ฿1,260/เดือน 'เยอะไป' — รอเคาะจำนวน · เปิด = ตั้ง env แล้ว deploy)
 VEO_KF_COUNT_FILE = os.environ.get('VEO_KF_COUNT_FILE', '/tiktok/veo_kf_count.json')
 
@@ -2126,6 +2128,8 @@ def veo_keyframes(W, d):
         return {'ok': False, 'error': 'no GOOGLE_AI_KEY', 'shot': 'keyframes'}
     if not d.get('veo_test') and not kf_quota_take():
         return {'ok': False, 'error': 'kf daily cap %d' % VEO_KF_DAILY_MAX, 'shot': 'keyframes'}
+    if (d.get('veo_kf_model') or VEO_KF_MODEL).startswith('gemini-omni'):
+        return omni_storyboard(W, d)
     try:
         name = re.sub(r'\s+', ' ', str(d.get('name') or ''))[:80]
         prompt = ('Smooth realistic product video of the exact product in the first frame (%s). Starting from the first frame, the camera slowly glides around the product and settles on the final frame composition. '
@@ -2173,7 +2177,67 @@ def veo_keyframes(W, d):
     except Exception as e:
         return {'ok': False, 'error': str(e)[:200], 'gen_s': round(time.time() - t0, 1), 'shot': 'keyframes'}
 
-def _boomerang(W, mp4, gen_s, model, demo=False, trim=None):
+def omni_storyboard(W, d):
+    """7 พ.ย. 69 (user: 'ลองทำแบบนี้วันละ 3 รอบ'): Gemini Omni รับ sb1..sb4 เป็นรูปอ้างอิง + shot list → คลิป 8 วิ 4 ช็อต (หลายมุม) → W/boom.mp4 เดินหน้าอย่างเดียว
+    เทส Maybuck: 27 วิ · 15,448 video token ($0.27) · 4 ช็อตเรียงตามรูป · คืน dict {ok, gen_s, error, shot:'omni'} ไม่ throw"""
+    t0 = time.time()
+    model = d.get('veo_kf_model') or VEO_KF_MODEL
+    try:
+        imgs = []
+        for i in range(1, 5):
+            run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', W + '/sb%d.png' % i, '-q:v', '3', W + '/sb%d.jpg' % i])
+            imgs.append({'type': 'image', 'data': base64.b64encode(open(W + '/sb%d.jpg' % i, 'rb').read()).decode(), 'mime_type': 'image/jpeg'})
+        name = re.sub(r'\s+', ' ', str(d.get('name') or ''))[:80]
+        action = str(d.get('_sb_action') or 'A hand enters from the side and uses the product naturally; only the hand and forearm are visible.')
+        prompt = ('Vertical 9:16 product video made of four continuous shots, about two seconds each, following the four reference images in order. '
+                  'The same product (%s) appears in every shot exactly as in the references: same shape, colors, parts and markings. '
+                  'Shot 1 (image 1): hero shot, the camera slowly arcs around the product. '
+                  'Shot 2 (image 2): slow macro slide across the product\'s detail and texture. '
+                  'Shot 3 (image 3): %s '
+                  'Shot 4 (image 4): calm closing shot, the camera gently pushes in. '
+                  'Smooth cuts between shots, natural light, realistic. Only one of the product appears in each shot and its shape stays identical. '
+                  'Audio: natural sound of the action in shot 3 and gentle room ambience elsewhere.' % (name, action))
+        body = {'model': model, 'input': imgs + [{'type': 'text', 'text': prompt}],
+                'response_format': {'type': 'video', 'aspect_ratio': '9:16', 'resolution': VEO_KF_RES, 'duration': '8s', 'delivery': 'uri'}}
+        base = 'https://generativelanguage.googleapis.com/v1beta/'; H = {'x-goog-api-key': GOOGLE_AI_KEY, 'Content-Type': 'application/json'}
+        print('[render] veo shot=omni model=%s res=%s' % (model, VEO_KF_RES), flush=True)
+        r = json.load(urllib.request.urlopen(urllib.request.Request(base + 'interactions', json.dumps(body).encode(), H), timeout=VEO_TIMEOUT))
+        u = r.get('usage') or {}
+        tin, tout = int(u.get('total_input_tokens') or 0), int(u.get('total_output_tokens') or 0) + int(u.get('total_thought_tokens') or 0)
+        if tout:
+            gcost._write({'t': round(time.time(), 1), 'src': 'deal', 'kind': 'omni', 'model': model, 'in': tin, 'out': tout, 'usd': round((tin * 0.5 + tout * 17.5) / 1e6, 6)})
+        uri = (r.get('output_video') or {}).get('uri'); vid = None
+        for s in r.get('steps') or []:
+            for c in s.get('content') or []:
+                if c.get('type') == 'video':
+                    uri = uri or c.get('uri'); vid = vid or c.get('data')
+        if vid:
+            mp4 = base64.b64decode(vid)
+        elif uri:
+            fid = uri.split('files/')[-1].split(':')[0].split('?')[0]
+            while True:
+                st = json.load(urllib.request.urlopen(urllib.request.Request(base + 'files/' + fid, headers=H), timeout=30)).get('state')
+                if st == 'ACTIVE':
+                    break
+                if st == 'FAILED' or time.time() - t0 > VEO_TIMEOUT:
+                    return {'ok': False, 'error': 'file %s' % st, 'gen_s': round(time.time() - t0, 1), 'shot': 'omni'}
+                time.sleep(4)
+            mp4 = urllib.request.urlopen(urllib.request.Request(base + 'files/' + fid + ':download?alt=media', headers=H), timeout=120).read()
+        else:
+            return {'ok': False, 'error': 'no video (status=%s %s)' % (r.get('status'), json.dumps(r)[:120]), 'gen_s': round(time.time() - t0, 1), 'shot': 'omni'}
+        open(W + '/veo.mp4', 'wb').write(mp4)
+        if d.get('veo_test'):
+            open('/tiktok/veo_test_last.mp4', 'wb').write(mp4)
+        out = _boomerang(W, mp4, round(time.time() - t0, 1), model, demo=True, maxlen=8.5)   # ช็อตต่อกัน ย้อนกลับไม่ได้ · เต็ม 8 วิ (VEO_BOOM_MAX 7 ตัดช็อต 4)
+        out['shot'] = 'omni'
+        return out
+    except urllib.error.HTTPError as e:
+        credit_alert('omni storyboard', 'http %s' % e.code)
+        return {'ok': False, 'error': 'http %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:200]), 'gen_s': round(time.time() - t0, 1), 'shot': 'omni'}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)[:200], 'gen_s': round(time.time() - t0, 1), 'shot': 'omni'}
+
+def _boomerang(W, mp4, gen_s, model, demo=False, trim=None, maxlen=None):
     trim = VEO_TRIM if trim is None else trim
     # boomerang: reverse ต้องบัฟเฟอร์ทั้งคลิป (~190 เฟรม 720x1280 ≈ 260MB) ยังอยู่ในลิมิต --memory 700m
     t1 = time.time()
@@ -2202,7 +2266,7 @@ def _boomerang(W, mp4, gen_s, model, demo=False, trim=None):
     print('[render] veo crop=%s' % (pre or 'none'), flush=True)
     graph = (f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,setpts=1.4*PTS[v]' if demo else   # demo (3 ต.ค. 69): เดินหน้า ช้าลง 1.4x (8 วิ → 11 วิ) แล้ว stream_loop · ย้อนกลับไม่ได้ (น้ำ/การกระทำถอยหลัง)
              f'[0:v]{pre}fps={FPS},scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[v]')
-    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '0' if demo else str(trim), '-t', str(VEO_BOOM_MAX), '-i', W + '/veo.mp4', '-filter_complex',
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '0' if demo else str(trim), '-t', str(maxlen or VEO_BOOM_MAX), '-i', W + '/veo.mp4', '-filter_complex',
          # 2 ต.ค. 69: boom.mp4 = 'ช่องบน' 720x790 โดยตรง — แนวนอน (aipass 16:9) ย่อให้สูง 790 พอดี (ตัดแค่ข้าง สินค้าเห็นเต็มตัว) · แนวตั้ง 9:16 (API) ย่อกว้าง 720 แล้วตัดเอาส่วนบน y 40 (สินค้าอยู่ครึ่งบนตาม prompt)
          # เดิมย่อเป็น 720x1280 แล้วค่อยตัด 790 → คลิปแนวนอนของ user ถูกซูม 1.78x สินค้าโดนตัดครึ่งใต้แถบมืด (user: 'แถบสีดำบังสินค้าหมดเลย')
          # 2 ต.ค. 69 (รอบ 3) user: 'เอาตัวหนังสือลง เอาสีดำออก ไม่ลดขนาดภาพ' → กลับเป็นเต็มเฟรม 720x1280 (scale increase + crop กลาง = เห็นสินค้าเต็มความสูงเสมอ) ตัวหนังสือย้ายลงล่าง+ขอบดำ ไม่มีแถบ
@@ -2316,7 +2380,7 @@ def render(d):
             # 3 ต.ค. 69 B: ขอ Veo แต่โควตา Fast หมด (รอบ 15/18/21) → Veo Lite เชื่อมเฟรม storyboard ช่อง 1→4 (โควตาแยก 3/วัน) · ล้ม = ใช้ storyboard ภาพนิ่งต่อ
             kf = veo_keyframes(W, d)
             print('[render] veo keyframes ok=%s gen=%ss err=%s' % (kf.get('ok'), kf.get('gen_s'), kf.get('error')), flush=True)
-            if kf.get('ok'):
+            if kf.get('ok') and kf.get('shot') != 'omni':   # omni จดค่าจาก usage เองแล้ว
                 gcost.add_veo(kf.get('model') or 'veo-lite', 8)   # keyframes = 8 วิตายตัว
             if kf.get('ok'):
                 veo = kf; use_veo = True
@@ -2658,7 +2722,7 @@ class H(BaseHTTPRequestHandler):
             rv = d.get('review')
             pid_d = safe_id(d.get('page_id'))
             # 3 ต.ค. 69: โหมดไม่รอตรวจ — บอกใน caption TG ว่าคลิปนี้เป็น Veo และลง TikTok ให้แล้ว (ต่อหน้า caption ก่อนตัด 960 ตัว ไม่ให้ '#d' ท้ายหาย)
-            pre = ('🎬 คลิป Veo%s (gen %ss)\n' % (' Lite เฟรม storyboard' if (veo or {}).get('shot') == 'keyframes' else '', (veo or {}).get('gen_s', '?'))) if (rv and (veo or {}).get('ok') and not VEO_REVIEW) else ''
+            pre = ('🎬 คลิป Veo%s (gen %ss)\n' % (' Lite เฟรม storyboard' if (veo or {}).get('shot') == 'keyframes' else ' Omni 4 ช็อตจาก storyboard' if (veo or {}).get('shot') == 'omni' else '', (veo or {}).get('gen_s', '?'))) if (rv and (veo or {}).get('ok') and not VEO_REVIEW) else ''
             # 17 ต.ค. 69: คลิป Veo อัตโนมัติที่ไม่ได้ส่งร่าง TikTok (รอบนอก 18/21) → user โหลดไปอัปโหลดเอง แคปชันส่งเป็นข้อความถัดไป
             auto_upload = bool(pre and not tt and tg and not d.get('deal_id'))
             if auto_upload:
