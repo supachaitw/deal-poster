@@ -1891,7 +1891,8 @@ def llm_demo_action(d):
                  'Describe a hand entering the frame and performing the product\'s ordinary, physically obvious function (e.g. pressing its button, pouring from it, plugging a generic cable into it, opening its pack). '
                  'Rules: say "a hand" or "a thumb", never "person/man/woman/people/face"; only the hand and forearm are visible; no outcome or benefit claims; '
                  'no numbers; do not describe how the product is installed or mounted; mention at most one generic unbranded helper object only if the function needs it (e.g. "a generic smartphone"); '
-                 'refer to the product as "the exact product from the reference image". Output the sentence only, no quotes.')
+                 'the use must be physically correct and say which way any device faces (e.g. a phone is placed with its back against a wireless charger and its screen facing the camera; a cup is upright); '
+                 'refer to the product as "the exact product from the reference image". Output the sentence only, no quotes.')   # 7 พ.ย. 69 user: 'ช็อตวางโทรศัพท์ ผิดด้าน' (Vention MagSafe)
         user = json.dumps({'product_name': name, 'description': desc, 'category': d.get('cat') or ''}, ensure_ascii=False)
         body = {'model': LLM_SCRIPT_MODEL, 'max_tokens': 400, 'system': sys_p, 'thinking': {'type': 'disabled'}, 'messages': [{'role': 'user', 'content': user}]}   # ห้ามส่ง temperature — Sonnet 5 ตอบ 400 '`temperature` is deprecated for this model'
         req = urllib.request.Request('https://api.anthropic.com/v1/messages', json.dumps(body).encode('utf-8'),
@@ -1975,6 +1976,7 @@ def storyboard_check(W):
         q = ('Image 1 is a reference photo of a product. Image 2 is a 2x2 storyboard grid: panel 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right. '
              'First describe the product in image 1 in one line (type, structure, number of legs/rails/parts, colors, any printed text). Then for EACH panel describe the object actually shown in one line, '
              'then judge strictly whether it is THE SAME product (same type, structure, part count, colors). A close-up of part of the product counts as same. '
+             'Also mark panel 3 false if the product or any device is used the wrong way round or physically incorrectly (e.g. a phone on a wireless charger with its screen against the charger). '
              'Mark false if the panel shows a different kind of object or design (e.g. a ladder-style rack instead of an X-frame rack), a miniature, or printed text/engraving/logos on the product that are NOT in image 1. '
              'Reply with JSON only: {"ref":"...","panels":[{"what":"...","same":true},{"what":"...","same":false},{"what":"...","same":true},{"what":"...","same":true}],"note":"short reason for any false"}')
         body = {'contents': [{'parts': [{'inline_data': {'mime_type': mime, 'data': base64.b64encode(img).decode()}}, {'inline_data': {'mime_type': 'image/png' if sb[:4] == b'\x89PNG' else 'image/jpeg', 'data': base64.b64encode(sb).decode()}}, {'text': q}]}],
@@ -2191,10 +2193,11 @@ def omni_storyboard(W, d):
         action = str(d.get('_sb_action') or 'A hand enters from the side and uses the product naturally; only the hand and forearm are visible.')
         prompt = ('Vertical 9:16 product video made of four continuous shots, about two seconds each, following the four reference images in order. '
                   'The same product (%s) appears in every shot exactly as in the references: same shape, colors, parts and markings. '
-                  'Shot 1 (image 1): hero shot, the camera slowly arcs around the product. '
-                  'Shot 2 (image 2): slow macro slide across the product\'s detail and texture. '
+                  'Shot 1 (image 1): hero shot, the camera slowly arcs around the product; no hands. '
+                  'Shot 2 (image 2): slow macro slide across the product\'s detail and texture; no hands. '
                   'Shot 3 (image 3): %s '
-                  'Shot 4 (image 4): calm closing shot, the camera gently pushes in. '
+                  'Shot 4 (image 4): calm closing shot, the camera gently pushes in; no hands. '
+                  'Hands appear only in shot 3. Any phone, watch or other device keeps exactly the orientation shown in the reference images and is used the physically correct way round (e.g. a phone on a wireless charger has its back against the charger and its screen facing the camera). '
                   'Smooth cuts between shots, natural light, realistic. Only one of the product appears in each shot and its shape stays identical. '
                   'Audio: natural sound of the action in shot 3 and gentle room ambience elsewhere.' % (name, action))
         body = {'model': model, 'input': imgs + [{'type': 'text', 'text': prompt}],
