@@ -49,9 +49,32 @@ def fix_credit(text, key):
         return re.sub(r'\n?🎵 [^\n]*?CC BY 4\.0[^\n]*', '', str(text or ''))
     return re.sub(r'🎵 [^\n]*?CC BY 4\.0', lambda m: c, str(text or ''))
 
+def ig_upload(up, mp4):
+    # resumable upload ของ IG (rupload) — token มากับ request ภายใน network n8n_default เท่านั้น ไม่ log
+    if not str(up.get('url', '')).startswith('https://rupload.facebook.com/'):
+        return {'uploaded': False, 'ig_error': 'upload url must be rupload.facebook.com'}
+    r = urllib.request.Request(up['url'], data=mp4, method='POST', headers={
+        'Authorization': 'OAuth ' + up['token'], 'offset': '0', 'file_size': str(len(mp4)),
+        'Content-Type': 'application/octet-stream'})
+    t_u = time.time()
+    try:
+        body = urllib.request.urlopen(r, timeout=120).read().decode('utf-8', 'replace'); code = 200
+    except urllib.error.HTTPError as he:
+        body, code = he.read().decode('utf-8', 'replace')[:300], he.code
+    except Exception as e:
+        body, code = str(e)[:300], 0
+    print('[timing] ig_upload=%.1fs status=%s bytes=%d' % (time.time() - t_u, code, len(mp4)), flush=True)
+    return {'uploaded': code == 200, 'ig_status': code, 'ig_upload_s': round(time.time() - t_u, 1), 'ig_error': None if code == 200 else body[:300]}
+
 def music_for(d):
     keys = [k for k, v in MUSIC_POOL.items() if os.path.exists(MUSIC_DIR + '/' + v[0])]
     forced = str(d.get('music') or '').strip().lower()
+    if forced == 'ai':
+        # 14 พ.ย. 69: IG Reels ใช้เฉพาะเพลง AI ของเราเอง (ไม่มีเครดิต/ไม่ชน Content ID) — LRU ในกลุ่ม ai_*
+        ai = [k for k in keys if k.startswith('ai_')]
+        if ai:
+            keys = ai
+        forced = ''
     if forced in MUSIC_POOL and forced in keys:
         key = forced
     elif not keys:
@@ -2889,29 +2912,26 @@ class H(BaseHTTPRequestHandler):
                     if r.get('ok') and r.get('video_id') and tg and not clips_dc_paused(tg):
                         # 5 ต.ค. 69 user: 'ไม่เห็นคลิป reels' → บอกลิงก์ Reel ในห้อง Discord ต่อท้ายคลิปเดียวกัน
                         dc_post((tg or {}).get('channel') or DISCORD_CHANNEL, '🎞 ลง FB Reels แล้ว: https://www.facebook.com/reel/%s' % r['video_id'])
+                up = d.get('upload')
+                if up:
+                    # 14 พ.ย. 69: IG Reels กลับมา 1 คลิป/วัน — อัปโหลดคลิปเดียวกันเข้า container IG ที่ n8n สร้างไว้ (n8n publish เอง)
+                    # ไม่อัปเมื่อ: หมวดเสี่ยง (tt_risk) / คลิป AI (IG ต้องติดป้าย AI ซึ่ง API ทำไม่ได้) / เพลงไม่ใช่เพลง AI ของเรา (เครดิตในแคปชันไม่มี)
+                    why = ('risk %s' % risk) if risk else ('aigc' if aigc else ('music %s' % d.get('_music') if not str(d.get('_music') or '').startswith('ai_') else ''))
+                    if why:
+                        out.update(uploaded=False, ig_skip=why)
+                        print('[ig] upload skipped (%s)' % why, flush=True)
+                    else:
+                        out.update(ig_upload(up, mp4))
                 return self._json(200 if ok else 502, out)
             up = d.get('upload')
+            if up and risk:
+                return self._json(200, {'uploaded': False, 'ig_skip': 'risk %s' % risk})
             if up:
-                # อัปโหลดให้เลย (resumable ของ IG) — ส่ง binary ออกจาก Code node ของ n8n ไม่ได้
-                # (task runner serialize Buffer เพี้ยน → Meta ตอบ Video Transcoding Error)
-                # token มากับ request ภายใน network n8n_default เท่านั้น ไม่เก็บ/ไม่ log
-                if not str(up.get('url', '')).startswith('https://rupload.facebook.com/'):
-                    return self._json(400, {'error': 'upload url must be rupload.facebook.com'})
-                r = urllib.request.Request(up['url'], data=mp4, method='POST', headers={
-                    'Authorization': 'OAuth ' + up['token'], 'offset': '0', 'file_size': str(len(mp4)),
-                    'Content-Type': 'application/octet-stream'})
-                t_u = time.time()
-                try:
-                    body = urllib.request.urlopen(r, timeout=120).read().decode('utf-8', 'replace')
-                    code = 200
-                except urllib.error.HTTPError as he:
-                    body, code = he.read().decode('utf-8', 'replace')[:800], he.code
-                upload_s = round(time.time() - t_u, 1)
-                print('[timing] upload=%.1fs status=%s bytes=%d' % (upload_s, code, len(mp4)), flush=True)
-                return self._json(200 if code == 200 else 502, {
-                    'uploaded': code == 200, 'status': code, 'response': body[:800],
-                    'bytes': len(mp4), 'voice': voiced, 'voice_mode': 'req' if forced else 'auto',
-                    'duration': D, 'lines': lines, 'render_s': render_s, 'upload_s': upload_s, 'veo': veo, 'storyboard': sb, 'aigc': aigc, 'music': d.get('_music')})
+                # อัปโหลดให้เลย (resumable ของ IG) — ส่ง binary ออกจาก Code node ของ n8n ไม่ได้ (task runner serialize Buffer เพี้ยน)
+                r = ig_upload(up, mp4)
+                return self._json(200 if r['uploaded'] else 502, dict(r, status=r['ig_status'],
+                    bytes=len(mp4), voice=voiced, voice_mode='req' if forced else 'auto',
+                    duration=D, lines=lines, render_s=render_s, upload_s=r['ig_upload_s'], veo=veo, storyboard=sb, aigc=aigc, music=d.get('_music')))
         except subprocess.CalledProcessError as e:
             return self._json(500, {'error': 'ffmpeg failed', 'detail': (e.stderr or b'')[-800:].decode('utf-8', 'replace')})
         except Exception as e:
